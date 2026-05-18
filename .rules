@@ -1,0 +1,35 @@
+# Commit message format
+
+Use conventional commits for all commit messages.
+
+## Format
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+## Types
+
+- `feat`: A new feature
+- `fix`: A bug fix
+- `docs`: Documentation only changes
+- `style`: Changes that do not affect the meaning of the code (formatting, etc)
+- `refactor`: A code change that neither fixes a bug nor adds a feature
+- `perf`: A code change that improves performance
+- `test`: Adding missing tests or correcting existing tests
+- `build`: Changes that affect the build system or external dependencies
+- `ci`: Changes to CI configuration files and scripts
+- `chore`: Other changes that don't modify src or test files
+- `revert`: Reverts a previous commit
+
+## Rules
+
+- The description must be in lowercase and imperative mood (e.g. "add" not "added" or "adds")
+- No period at the end of the description
+- The description must be 72 characters or less
+- Scope is optional but encouraged (e.g. `feat(ui):`, `fix(api):`)
+- Allowed scopes: `api`, `landing`, `ecommerce`, `admin`, `ui`, `biome`, `ts`, `deps`, `ci`, `repo`

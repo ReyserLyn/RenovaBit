@@ -1,0 +1,3 @@
+{
+	"extends": "@renovabit/ts-config/base"
+}
