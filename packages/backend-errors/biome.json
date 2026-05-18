@@ -1,0 +1,14 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+	"root": false,
+	"extends": [
+		"@renovabit/biome-config/base"
+	],
+	"linter": {
+		"rules": {
+			"suspicious": {
+				"noExplicitAny": "off"
+			}
+		}
+	}
+}
