@@ -1,0 +1,17 @@
+{
+	"name": "@renovabit/ts-config",
+	"version": "0.0.0",
+	"private": true,
+	"license": "MIT",
+	"exports": {
+		"./base": "./base.json",
+		"./nextjs": "./nextjs.json",
+		"./react-library": "./react-library.json"
+	},
+	"scripts": {
+		"check": "biome check . --write"
+	},
+	"devDependencies": {
+		"@renovabit/biome-config": "*"
+	}
+}
