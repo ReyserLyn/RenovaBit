@@ -32,21 +32,42 @@
 			}
 		},
 		"JavaScript": {
-			"formatter": {
-				"language_server": {
-					"name": "biome"
+			"formatter": [
+				{
+					"language_server": {
+						"name": "biome"
+					}
+				},
+				{
+					"code_action": "source.fixAll.biome"
+				},
+				{
+					"code_action": "source.organizeImports.biome"
 				}
-			}
+			]
 		},
 		"TypeScript": {
-			"formatter": {
-				"language_server": {
-					"name": "biome"
+			"formatter": [
+				{
+					"language_server": {
+						"name": "biome"
+					}
+				},
+				{
+					"code_action": "source.fixAll.biome"
+				},
+				{
+					"code_action": "source.organizeImports.biome"
 				}
-			}
+			]
 		}
 	},
 	"lsp": {
+		"biome": {
+			"settings": {
+				"require_config_file": true
+			}
+		},
 		"tailwindcss-language-server": {
 			"settings": {
 				"includeLanguages": {
