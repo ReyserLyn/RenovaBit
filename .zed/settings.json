@@ -1,0 +1,66 @@
+{
+	"format_on_save": "on",
+	"formatter": "language_server",
+	"auto_indent_on_paste": true,
+	"languages": {
+		"Astro": {
+			"formatter": "prettier",
+			"language_servers": [
+				"eslint",
+				"..."
+			]
+		},
+		"CSS": {
+			"language_servers": [
+				"tailwindcss-intellisense-css",
+				"!vscode-css-language-server",
+				"..."
+			]
+		},
+		"JSON": {
+			"formatter": {
+				"language_server": {
+					"name": "biome"
+				}
+			}
+		},
+		"JSONC": {
+			"formatter": {
+				"language_server": {
+					"name": "biome"
+				}
+			}
+		},
+		"JavaScript": {
+			"formatter": {
+				"language_server": {
+					"name": "biome"
+				}
+			}
+		},
+		"TypeScript": {
+			"formatter": {
+				"language_server": {
+					"name": "biome"
+				}
+			}
+		}
+	},
+	"lsp": {
+		"tailwindcss-language-server": {
+			"settings": {
+				"includeLanguages": {
+					"astro": "html"
+				},
+				"experimental": {
+					"classRegex": [
+						"class=\"([^\"]*)\"",
+						"class='([^']*)'",
+						"class:list=\"{([^}]*)}\"",
+						"class:list='{([^}]*)}'"
+					]
+				}
+			}
+		}
+	}
+}
