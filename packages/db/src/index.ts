@@ -14,3 +14,5 @@ const client = postgres(DATABASE_URL, {
 });
 
 export const db = drizzle(client);
+
+import "./relations";
