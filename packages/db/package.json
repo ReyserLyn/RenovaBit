@@ -1,5 +1,5 @@
 {
-	"name": "@renovabit/database",
+	"name": "@renovabit/db",
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
