@@ -1,0 +1,10 @@
+{
+	"extends": "@renovabit/ts-config/base",
+	"compilerOptions": {
+		"types": ["bun-types"],
+		"paths": {
+			"@/*": ["../../apps/api/src/*"]
+		}
+	},
+	"include": ["./src/**/*"]
+}
