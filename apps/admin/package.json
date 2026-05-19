@@ -1,0 +1,53 @@
+{
+	"name": "admin",
+	"private": true,
+	"type": "module",
+	"imports": {
+		"#/*": "./src/*"
+	},
+	"scripts": {
+		"dev": "vite dev --port 3002",
+		"build": "vite build",
+		"preview": "vite preview",
+		"generate": "bunx @tanstack/router-cli generate",
+		"check": "biome check . --write",
+		"check-types": "bun run generate && tsc --noEmit"
+	},
+	"dependencies": {
+		"@hugeicons/core-free-icons": "^4.1.4",
+		"@hugeicons/react": "^1.1.6",
+		"@renovabit/backend-client": "*",
+		"@renovabit/ui": "*",
+		"@tailwindcss/vite": "^4.1.18",
+		"@tanstack/match-sorter-utils": "latest",
+		"@tanstack/react-devtools": "latest",
+		"@tanstack/react-form": "latest",
+		"@tanstack/react-query": "latest",
+		"@tanstack/react-router": "latest",
+		"@tanstack/react-router-ssr-query": "latest",
+		"@tanstack/react-start": "latest",
+		"@tanstack/react-table": "latest",
+		"@tanstack/router-plugin": "^1.132.0",
+		"nitro": "^3.0.260429-beta",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0",
+		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.4.15",
+		"@renovabit/biome-config": "*",
+		"@renovabit/ts-config": "*",
+		"@tailwindcss/typography": "^0.5.16",
+		"@tanstack/devtools-vite": "latest",
+		"@tanstack/react-form-devtools": "^0.2.27",
+		"@tanstack/react-query-devtools": "latest",
+		"@tanstack/react-router-devtools": "latest",
+		"@types/node": "^22.10.2",
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"@vitejs/plugin-react": "^6.0.1",
+		"jsdom": "^28.1.0",
+		"typescript": "^6.0.2",
+		"vite": "^8.0.0"
+	}
+}

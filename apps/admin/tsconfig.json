@@ -1,0 +1,20 @@
+{
+	"extends": "@renovabit/ts-config/base",
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"types": ["vite/client"],
+		"paths": {
+			"@/*": ["./src/*"],
+			"@renovabit/ui/*": [
+				"../../packages/ui/src/*"
+			],
+			"@renovabit/backend-client": [
+				"../../packages/backend-client/src/index.ts"
+			],
+			"@renovabit/*": [
+				"../../packages/*"
+			]
+		}
+	},
+	"include": ["**/*.ts", "**/*.tsx"]
+}
