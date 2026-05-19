@@ -4,7 +4,13 @@
 		"lib": ["ES2022"],
 		"types": ["bun-types"],
 		"rootDir": "./src",
-		"outDir": "./dist"
+		"outDir": "./dist",
+		"paths": {
+			"@/*": ["./src/*"],
+			"@renovabit/*": [
+				"../../packages/*"
+			]
+		}
 	},
 	"include": ["src"],
 	"exclude": ["node_modules", "dist"]
