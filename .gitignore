@@ -36,3 +36,9 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Docker
+docker-volumes/
+
+# Astro
+.astro

@@ -3,5 +3,17 @@
 	"root": true,
 	"extends": [
 		"./packages/biome-config/base.json"
-	]
+	],
+	"files": {
+		"includes": [
+			"**",
+			"!**/.astro/**",
+			"!**/.turbo/**",
+			"!**/dist/**",
+			"!**/node_modules/**",
+			"!**/.*/**",
+			"!**/*.astro",
+			"!**/.wrangler"
+		]
+	}
 }

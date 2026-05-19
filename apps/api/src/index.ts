@@ -1,25 +1,6 @@
-import { elysiaLogLayer } from "@loglayer/elysia";
-import { Elysia } from "elysia";
-import { nanoid } from "nanoid";
-import { errorHandler } from "./utils/error-handler";
+import { createApp } from "./app";
 import { logger } from "./utils/logger";
 
-const app = new Elysia()
-	.use(
-		elysiaLogLayer({
-			instance: logger,
-			requestId: () => nanoid(12),
-			autoLogging: {
-				ignore: ["/health"],
-			},
-			contextFn: ({ request }) => ({
-				ua: request.headers.get("user-agent"),
-			}),
-		}),
-	)
-	.onError(errorHandler)
-	.get("/", () => "Hello Elysia")
-	.get("/health", () => "ok")
-	.listen(3000);
+const app = createApp().listen(3001);
 
 logger.info(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);

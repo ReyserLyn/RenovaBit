@@ -4,7 +4,15 @@
 	"auto_indent_on_paste": true,
 	"languages": {
 		"Astro": {
-			"formatter": "prettier",
+			"formatter": {
+				"language_server": {
+					"name": "biome"
+				}
+			},
+			"code_actions_on_format": {
+				"source.fixAll.biome": true,
+				"source.organizeImports.biome": true
+			},
 			"language_servers": [
 				"eslint",
 				"..."

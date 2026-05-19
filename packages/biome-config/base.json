@@ -94,7 +94,7 @@
 				"useNamespaceKeyword": "error"
 			}
 		},
-		"includes": ["**", "!dist/**"]
+		"includes": ["**"]
 	},
 	"javascript": {
 		"formatter": {
