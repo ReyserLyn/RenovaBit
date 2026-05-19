@@ -1,5 +1,5 @@
 import { ApiError, BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
-import { getLogger } from "./logger";
+import { getLogger } from "../utils/logger";
 
 // biome-ignore lint/suspicious/noExplicitAny: Elysia error handler context type is complex
 export function errorHandler(ctx: any) {

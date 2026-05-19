@@ -1,6 +1,21 @@
-import { createApp } from "./app";
+import { cors } from "@elysiajs/cors";
+import { elysiaLogLayer } from "@loglayer/elysia";
+import { Elysia } from "elysia";
+import { nanoid } from "nanoid";
+import { DocsPlugin } from "./plugins/docs";
+import { errorHandler } from "./plugins/error-handler";
+import { LoggerPlugin } from "./plugins/logger";
+import { routes } from "./routes";
 import { logger } from "./utils/logger";
 
-const app = createApp().listen(3001);
+const app = new Elysia()
+	.use(cors())
+	.use(LoggerPlugin)
+	.use(DocsPlugin)
+	.use(routes)
+	.onError(errorHandler)
+	.listen(3001);
 
-logger.info(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
+logger.info(`🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`);
+
+export type App = typeof app;
