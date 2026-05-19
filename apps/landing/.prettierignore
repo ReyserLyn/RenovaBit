@@ -1,0 +1,11 @@
+# ── Directorios generados ──
+.astro/
+dist/
+node_modules/
+
+# ── Static assets ──
+public/
+
+# ── Lock files ──
+*.lock
+*.lockb

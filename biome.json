@@ -2,18 +2,6 @@
 	"$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
 	"root": true,
 	"extends": [
-		"./packages/biome-config/base.json"
-	],
-	"files": {
-		"includes": [
-			"**",
-			"!**/.astro/**",
-			"!**/.turbo/**",
-			"!**/dist/**",
-			"!**/node_modules/**",
-			"!**/.*/**",
-			"!**/*.astro",
-			"!**/.wrangler"
-		]
-	}
+		"@renovabit/biome-config/base"
+	]
 }

@@ -4,7 +4,8 @@
 	"scripts": {
 		"build": "turbo run build",
 		"dev": "turbo run dev",
-		"check": "biome check . --write",
+		"check": "biome check . --write && cd apps/landing && bun run check",
+		"check:biome": "biome check . --write",
 		"check-types": "turbo run check-types",
 		"clean": "bun run clean:turbo && bun run clean:dist",
 		"clean:all": "bun run clean && bun run clean:node_modules",
@@ -16,8 +17,11 @@
 		"@biomejs/biome": "2.4.15",
 		"@commitlint/cli": "^21.0.1",
 		"@commitlint/config-conventional": "^21.0.1",
+		"@renovabit/biome-config": "*",
 		"@renovabit/ts-config": "*",
 		"lefthook": "^2.1.6",
+		"prettier": "^3.8.3",
+		"prettier-plugin-astro": "^0.14.1",
 		"turbo": "^2.9.14",
 		"typescript": "6.0.3"
 	},

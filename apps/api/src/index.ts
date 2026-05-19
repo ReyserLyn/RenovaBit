@@ -1,7 +1,5 @@
 import { cors } from "@elysiajs/cors";
-import { elysiaLogLayer } from "@loglayer/elysia";
 import { Elysia } from "elysia";
-import { nanoid } from "nanoid";
 import { DocsPlugin } from "./plugins/docs";
 import { errorHandler } from "./plugins/error-handler";
 import { LoggerPlugin } from "./plugins/logger";

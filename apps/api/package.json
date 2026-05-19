@@ -10,6 +10,7 @@
 		"check-types": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@elysiajs/cors": "^1.4.2",
 		"@elysiajs/openapi": "^1.4.15",
 		"@loglayer/elysia": "^2.1.0",
 		"@loglayer/transport-simple-pretty-terminal": "^3.0.2",

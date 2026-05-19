@@ -7,7 +7,17 @@
 		"useIgnoreFile": true
 	},
 	"files": {
-		"ignoreUnknown": false
+		"ignoreUnknown": false,
+		"includes": [
+			"**",
+			"!**/.astro/**",
+			"!**/.turbo/**",
+			"!**/dist/**",
+			"!**/node_modules/**",
+			"!**/.*/**",
+			"!**/*.astro",
+			"!**/.wrangler"
+		]
 	},
 	"formatter": {
 		"enabled": true,

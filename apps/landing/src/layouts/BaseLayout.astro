@@ -1,22 +1,35 @@
 ---
-export interface Props {
-	title: string;
-	description?: string;
+import "@renovabit/ui/styles/globals.css"
+import { Font } from "astro:assets"
+
+interface Props {
+	title: string
+	description?: string
 }
 
-const { title, description } = Astro.props;
+const { title, description } = Astro.props
 ---
 
+<!doctype html>
 <html lang="es">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>{title}</title>
+
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+
+		<Font cssVariable="--font-outfit" preload={[{ weight: "400" }, { weight: "700" }]} />
+
 		<meta name="description" content={description || title} />
 		<meta name="generator" content={Astro.generator} />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<title>{title}</title>
+
+		<meta name="author" content="ReyserLyn" />
 	</head>
 	<body>
-		<slot />
+		<div class="relative flex min-h-svh w-full flex-col">
+			<slot />
+		</div>
 	</body>
 </html>
