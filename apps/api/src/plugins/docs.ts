@@ -1,6 +1,9 @@
 import openapi from "@elysiajs/openapi";
 import { Elysia } from "elysia";
-// import { OpenAPI } from "@/libs/auth/openapi";
+import { OpenAPI } from "@/utils/auth/openapi";
+
+const components = await OpenAPI.components;
+const paths = await OpenAPI.getPaths();
 
 export const DocsPlugin = new Elysia({ name: "docs" }).use(
 	openapi({
@@ -17,8 +20,8 @@ export const DocsPlugin = new Elysia({ name: "docs" }).use(
 					email: "contacto@renovabit.com",
 				},
 			},
-			// components: await OpenAPI.components,
-			// paths: await OpenAPI.getPaths(),
+			components,
+			paths,
 		},
 	}),
 );

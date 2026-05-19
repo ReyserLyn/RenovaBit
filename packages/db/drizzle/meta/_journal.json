@@ -8,6 +8,13 @@
 			"when": 1779167928507,
 			"tag": "0000_rare_charles_xavier",
 			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1779210894817,
+			"tag": "0001_purple_dark_phoenix",
+			"breakpoints": true
 		}
 	]
 }
