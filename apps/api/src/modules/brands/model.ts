@@ -10,21 +10,14 @@ const _insert = createInsertSchema(brands, {
 });
 
 export const BrandModel = {
-	createBody: t.Omit(_insert, [
-		"id",
-		"createdAt",
-		"updatedAt",
-		"seoTitle",
-		"seoDescription",
-		"seoKeywords",
-		"isActive",
-		"isFeatured",
-	]),
+	createBody: t.Omit(_insert, ["id", "createdAt", "updatedAt"]),
 	updateBody: t.Partial(t.Omit(_insert, ["id", "createdAt", "updatedAt"])),
-	params: t.Object({ slug: t.String() }),
-	bulkDelete: t.Object({
+	params: t.Object({ slug: t.String({ minLength: 1 }) }),
+	bulkDeleteBody: t.Object({
 		ids: t.Array(t.String({ format: "uuid" }), { minItems: 1, maxItems: 50 }),
 	}),
 } as const;
 
-export type BrandModel = { [k in keyof typeof BrandModel]: UnwrapSchema<(typeof BrandModel)[k]> };
+export type BrandModel = {
+	[k in keyof typeof BrandModel]: UnwrapSchema<(typeof BrandModel)[k]>;
+};
