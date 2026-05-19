@@ -1,0 +1,12 @@
+{
+	"extends": "@renovabit/ts-config/base",
+	"compilerOptions": {
+		"noEmit": true,
+		"types": ["node"]
+	},
+	"include": [
+		"src/**/*",
+		"drizzle.config.ts"
+	],
+	"exclude": ["node_modules", "dist"]
+}
