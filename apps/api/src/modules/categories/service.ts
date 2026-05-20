@@ -4,6 +4,7 @@ import { categories } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, asc, eq, inArray, like, ne } from "drizzle-orm";
 import slugify from "slugify";
+import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
 import type { CategoryModel } from "./model";
 
 // ── Types ──────────────────────────────────────────
@@ -336,6 +337,15 @@ async function create(data: CreateBody): Promise<Category> {
 		});
 	}
 
+	// Resolver imagen pendiente → permanente
+	if (item.imageUrl) {
+		const permanentUrl = await resolveEntityImage(item.imageUrl, "categories", item.id);
+		if (permanentUrl && permanentUrl !== item.imageUrl) {
+			await db.update(categories).set({ imageUrl: permanentUrl }).where(eq(categories.id, item.id));
+			item.imageUrl = permanentUrl;
+		}
+	}
+
 	return item;
 }
 
@@ -422,6 +432,12 @@ async function update(id: string, data: UpdateBody): Promise<Category> {
 		}
 	}
 
+	// Si cambia la imagen, eliminar la anterior (fuera de transacción, R2 no transaccional)
+	const newImageUrl = data.imageUrl;
+	if (newImageUrl !== undefined && newImageUrl !== current.imageUrl) {
+		await deleteEntityImage(current.imageUrl);
+	}
+
 	const baseUpdate = {
 		...data,
 		name: nextName,
@@ -429,47 +445,65 @@ async function update(id: string, data: UpdateBody): Promise<Category> {
 		path: nextPath,
 	};
 
-	return db.transaction(async (tx) => {
-		const [updated] = await tx
-			.update(categories)
-			.set(baseUpdate)
-			.where(eq(categories.id, id))
-			.returning();
-
-		if (!updated) {
-			throw createApiError({
-				code: BackendErrorCodes.NOT_FOUND_ERROR,
-				message: "Categoría no encontrada",
-				logLevel: "info",
-				doNotLog: true,
-			});
-		}
-
-		if (parentChanged) {
-			const oldPrefix = `${current.path ?? "/"}${current.id}/`;
-			const newPrefix = `${nextPath ?? "/"}${updated.id}/`;
-
-			const descendants = await tx
-				.select({ id: categories.id, path: categories.path })
-				.from(categories)
-				.where(like(categories.path, `${oldPrefix}%`));
-
-			for (const descendant of descendants) {
-				const replaced = (descendant.path ?? "/").replace(oldPrefix, newPrefix);
-				await tx.update(categories).set({ path: replaced }).where(eq(categories.id, descendant.id));
-			}
-		}
-
-		if (data.isActive === false) {
-			const subtreePrefix = `${updated.path ?? "/"}${updated.id}/`;
-			await tx
+	return db
+		.transaction(async (tx) => {
+			const [updated] = await tx
 				.update(categories)
-				.set({ isActive: false })
-				.where(like(categories.path, `${subtreePrefix}%`));
-		}
+				.set(baseUpdate)
+				.where(eq(categories.id, id))
+				.returning();
 
-		return updated;
-	});
+			if (!updated) {
+				throw createApiError({
+					code: BackendErrorCodes.NOT_FOUND_ERROR,
+					message: "Categoría no encontrada",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+
+			if (parentChanged) {
+				const oldPrefix = `${current.path ?? "/"}${current.id}/`;
+				const newPrefix = `${nextPath ?? "/"}${updated.id}/`;
+
+				const descendants = await tx
+					.select({ id: categories.id, path: categories.path })
+					.from(categories)
+					.where(like(categories.path, `${oldPrefix}%`));
+
+				for (const descendant of descendants) {
+					const replaced = (descendant.path ?? "/").replace(oldPrefix, newPrefix);
+					await tx
+						.update(categories)
+						.set({ path: replaced })
+						.where(eq(categories.id, descendant.id));
+				}
+			}
+
+			if (data.isActive === false) {
+				const subtreePrefix = `${updated.path ?? "/"}${updated.id}/`;
+				await tx
+					.update(categories)
+					.set({ isActive: false })
+					.where(like(categories.path, `${subtreePrefix}%`));
+			}
+
+			return updated;
+		})
+		.then(async (updated) => {
+			// Resolver nueva imagen pendiente → permanente (fuera de transacción)
+			if (newImageUrl) {
+				const permanentUrl = await resolveEntityImage(newImageUrl, "categories", updated.id);
+				if (permanentUrl && permanentUrl !== newImageUrl) {
+					await db
+						.update(categories)
+						.set({ imageUrl: permanentUrl })
+						.where(eq(categories.id, updated.id));
+					updated.imageUrl = permanentUrl;
+				}
+			}
+			return updated;
+		});
 }
 
 // ── Reorder ────────────────────────────────────────
@@ -529,34 +563,40 @@ async function reorder(orders: Array<{ id: string; sortOrder: number }>): Promis
 // ── Delete ─────────────────────────────────────────
 
 async function deleteById(id: string): Promise<Category> {
-	return db.transaction(async (tx) => {
-		const [child] = await tx
-			.select({ id: categories.id })
-			.from(categories)
-			.where(eq(categories.parentId, id))
-			.limit(1);
+	return db
+		.transaction(async (tx) => {
+			const [child] = await tx
+				.select({ id: categories.id })
+				.from(categories)
+				.where(eq(categories.parentId, id))
+				.limit(1);
 
-		if (child) {
-			throw createApiError({
-				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-				message: "No se puede eliminar una categoría con descendientes. Elimina los hijos primero.",
-				logLevel: "info",
-				doNotLog: true,
-			});
-		}
+			if (child) {
+				throw createApiError({
+					code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+					message:
+						"No se puede eliminar una categoría con descendientes. Elimina los hijos primero.",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
 
-		const [deleted] = await tx.delete(categories).where(eq(categories.id, id)).returning();
-		if (!deleted) {
-			throw createApiError({
-				code: BackendErrorCodes.NOT_FOUND_ERROR,
-				message: "Categoría no encontrada",
-				logLevel: "info",
-				doNotLog: true,
-			});
-		}
+			const [deleted] = await tx.delete(categories).where(eq(categories.id, id)).returning();
+			if (!deleted) {
+				throw createApiError({
+					code: BackendErrorCodes.NOT_FOUND_ERROR,
+					message: "Categoría no encontrada",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
 
-		return deleted;
-	});
+			return deleted;
+		})
+		.then((deleted) => {
+			deleteEntityFolder("categories", deleted.id);
+			return deleted;
+		});
 }
 
 async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
@@ -569,45 +609,50 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 		});
 	}
 
-	return db.transaction(async (tx) => {
-		const existing = await tx
-			.select({ id: categories.id })
-			.from(categories)
-			.where(inArray(categories.id, ids));
+	return db
+		.transaction(async (tx) => {
+			const existing = await tx
+				.select({ id: categories.id })
+				.from(categories)
+				.where(inArray(categories.id, ids));
 
-		const existingIds = existing.map((e) => e.id);
-		const notFoundIds = ids.filter((id) => !existingIds.includes(id));
+			const existingIds = existing.map((e) => e.id);
+			const notFoundIds = ids.filter((id) => !existingIds.includes(id));
 
-		if (existingIds.length === 0) {
-			return { deletedIds: [], notFoundIds, deletedCount: 0 };
-		}
+			if (existingIds.length === 0) {
+				return { deletedIds: [], notFoundIds, deletedCount: 0 };
+			}
 
-		const [blocked] = await tx
-			.select({ id: categories.id })
-			.from(categories)
-			.where(inArray(categories.parentId, existingIds))
-			.limit(1);
+			const [blocked] = await tx
+				.select({ id: categories.id })
+				.from(categories)
+				.where(inArray(categories.parentId, existingIds))
+				.limit(1);
 
-		if (blocked) {
-			throw createApiError({
-				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-				message: "No se pueden eliminar categorías con descendientes",
-				logLevel: "info",
-				doNotLog: true,
-			});
-		}
+			if (blocked) {
+				throw createApiError({
+					code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+					message: "No se pueden eliminar categorías con descendientes",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
 
-		const deleted = await tx
-			.delete(categories)
-			.where(inArray(categories.id, existingIds))
-			.returning({ id: categories.id });
+			const deleted = await tx
+				.delete(categories)
+				.where(inArray(categories.id, existingIds))
+				.returning({ id: categories.id });
 
-		return {
-			deletedIds: deleted.map((d) => d.id),
-			notFoundIds,
-			deletedCount: deleted.length,
-		};
-	});
+			return {
+				deletedIds: deleted.map((d) => d.id),
+				notFoundIds,
+				deletedCount: deleted.length,
+			};
+		})
+		.then((result) => {
+			result.deletedIds.forEach((id) => deleteEntityFolder("categories", id));
+			return result;
+		});
 }
 
 // ── Public API ─────────────────────────────────────

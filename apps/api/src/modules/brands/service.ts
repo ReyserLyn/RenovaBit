@@ -3,12 +3,17 @@ import { db } from "@renovabit/db";
 import { brands } from "@renovabit/db/schema";
 import { desc, eq, inArray, or } from "drizzle-orm";
 import slugify from "slugify";
+import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
 import type { BrandModel } from "./model";
 
 type CreateBody = BrandModel["createBody"];
 type UpdateBody = BrandModel["updateBody"];
 
 // ── Helpers ────────────────────────────────────────
+
+function makeSlug(value: string): string {
+	return slugify(value, { lower: true, strict: true, trim: true });
+}
 
 /**
  * Convierte errores de constraint violation de PostgreSQL (23505)
@@ -49,12 +54,13 @@ async function getBySlug(slug: string) {
 // ── Create ─────────────────────────────────────────
 
 async function create(data: CreateBody) {
-	const slug = data.slug || slugify(data.name!, { lower: true, strict: true });
+	const nextName = data.name.trim();
+	const slug = data.slug?.trim() ? makeSlug(data.slug) : makeSlug(nextName);
 
 	const exists = await db
 		.select({ id: brands.id, name: brands.name })
 		.from(brands)
-		.where(or(eq(brands.name, data.name), eq(brands.slug, slug)))
+		.where(or(eq(brands.name, nextName), eq(brands.slug, slug)))
 		.limit(1);
 
 	if (exists.length > 0) {
@@ -71,7 +77,7 @@ async function create(data: CreateBody) {
 
 	const [item] = await db
 		.insert(brands)
-		.values({ ...data, slug } as typeof data & { slug: string })
+		.values({ ...data, name: nextName, slug } as typeof data & { slug: string })
 		.returning()
 		.catch((err) => handleUniqueViolation(err, "Ya existe una marca con este nombre o slug"));
 
@@ -80,6 +86,15 @@ async function create(data: CreateBody) {
 			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
 			message: "Error al crear la marca",
 		});
+	}
+
+	// Resolver imagen pendiente → permanente
+	if (item.imageUrl) {
+		const permanentUrl = await resolveEntityImage(item.imageUrl, "brands", item.id);
+		if (permanentUrl && permanentUrl !== item.imageUrl) {
+			await db.update(brands).set({ imageUrl: permanentUrl }).where(eq(brands.id, item.id));
+			item.imageUrl = permanentUrl;
+		}
 	}
 
 	return item;
@@ -134,6 +149,11 @@ async function update(slug: string, data: UpdateBody) {
 		}
 	}
 
+	// Si cambia la imagen, eliminar la anterior y resolver la nueva
+	if (data.imageUrl !== undefined && data.imageUrl !== existing.imageUrl) {
+		await deleteEntityImage(existing.imageUrl);
+	}
+
 	const [item] = await db
 		.update(brands)
 		.set(data)
@@ -146,6 +166,15 @@ async function update(slug: string, data: UpdateBody) {
 			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
 			message: "Error al actualizar la marca",
 		});
+	}
+
+	// Resolver nueva imagen pendiente → permanente
+	if (item.imageUrl) {
+		const permanentUrl = await resolveEntityImage(item.imageUrl, "brands", item.id);
+		if (permanentUrl && permanentUrl !== item.imageUrl) {
+			await db.update(brands).set({ imageUrl: permanentUrl }).where(eq(brands.id, item.id));
+			item.imageUrl = permanentUrl;
+		}
 	}
 
 	return item;
@@ -165,6 +194,9 @@ async function deleteBrand(slug: string) {
 	}
 
 	await db.delete(brands).where(eq(brands.slug, slug));
+
+	// Limpiar carpeta R2 (no bloqueante, no revierte el delete)
+	deleteEntityFolder("brands", existing.id);
 }
 
 // ── Bulk Delete ─────────────────────────────────────
@@ -188,6 +220,9 @@ async function deleteMany(ids: string[]) {
 	}
 
 	await db.delete(brands).where(inArray(brands.id, existingIds));
+
+	// Limpiar carpetas R2 (no bloqueante)
+	existingIds.forEach((id) => deleteEntityFolder("brands", id));
 
 	return {
 		deletedCount: existingIds.length,

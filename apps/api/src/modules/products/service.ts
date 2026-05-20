@@ -4,6 +4,7 @@ import { brands, categories, products } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import slugify from "slugify";
+import { deleteEntityFolder } from "@/utils/storage/helpers";
 import type { ProductModel } from "./model";
 
 // ── Types ──────────────────────────────────────────
@@ -313,6 +314,10 @@ async function deleteById(id: string): Promise<Product> {
 			doNotLog: true,
 		});
 	}
+
+	// Limpiar carpeta R2 (no bloqueante, imágenes de producto)
+	deleteEntityFolder("products", id);
+
 	return deleted;
 }
 
@@ -335,27 +340,32 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 		});
 	}
 
-	return db.transaction(async (tx) => {
-		const existing = await tx
-			.select({ id: products.id })
-			.from(products)
-			.where(inArray(products.id, ids));
+	return db
+		.transaction(async (tx) => {
+			const existing = await tx
+				.select({ id: products.id })
+				.from(products)
+				.where(inArray(products.id, ids));
 
-		const existingIds = existing.map((e) => e.id);
-		const notFoundIds = ids.filter((id) => !existingIds.includes(id));
+			const existingIds = existing.map((e) => e.id);
+			const notFoundIds = ids.filter((id) => !existingIds.includes(id));
 
-		if (existingIds.length === 0) {
-			return { deletedIds: [], notFoundIds, deletedCount: 0 };
-		}
+			if (existingIds.length === 0) {
+				return { deletedIds: [], notFoundIds, deletedCount: 0 };
+			}
 
-		await tx.delete(products).where(inArray(products.id, existingIds));
+			await tx.delete(products).where(inArray(products.id, existingIds));
 
-		return {
-			deletedIds: existingIds,
-			notFoundIds,
-			deletedCount: existingIds.length,
-		};
-	});
+			return {
+				deletedIds: existingIds,
+				notFoundIds,
+				deletedCount: existingIds.length,
+			};
+		})
+		.then((result) => {
+			result.deletedIds.forEach((id) => deleteEntityFolder("products", id));
+			return result;
+		});
 }
 
 // ── Public API ─────────────────────────────────────
