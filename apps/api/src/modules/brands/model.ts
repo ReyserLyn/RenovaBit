@@ -1,5 +1,5 @@
 import { brands } from "@renovabit/db/schema";
-import { createInsertSchema } from "drizzle-typebox";
+import { createInsertSchema, createSelectSchema } from "drizzle-typebox";
 import { t, type UnwrapSchema } from "elysia";
 
 // ── Insert / Update ────────────────────────────────
@@ -11,22 +11,9 @@ const _insert = createInsertSchema(brands, {
 	imageUrl: t.Optional(t.String({ maxLength: 2048 })),
 });
 
-// ── Response schemas ───────────────────────────────
+// ── Response ──
 
-const BrandResponse = t.Object({
-	id: t.String({ format: "uuid" }),
-	name: t.String(),
-	slug: t.String(),
-	description: t.Union([t.String(), t.Null()]),
-	imageUrl: t.Union([t.String(), t.Null()]),
-	isActive: t.Boolean(),
-	isFeatured: t.Boolean(),
-	seoTitle: t.Union([t.String(), t.Null()]),
-	seoDescription: t.Union([t.String(), t.Null()]),
-	seoKeywords: t.Union([t.String(), t.Null()]),
-	createdAt: t.Date(),
-	updatedAt: t.Date(),
-});
+const BrandResponse = createSelectSchema(brands);
 
 const BulkDeleteResult = t.Object({
 	deletedIds: t.Array(t.String({ format: "uuid" })),

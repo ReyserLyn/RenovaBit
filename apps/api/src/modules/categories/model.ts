@@ -1,5 +1,5 @@
 import { categories } from "@renovabit/db/schema";
-import { createInsertSchema } from "drizzle-typebox";
+import { createInsertSchema, createSelectSchema } from "drizzle-typebox";
 import { t, type UnwrapSchema } from "elysia";
 
 // ── Insert / Update ────────────────────────────────
@@ -17,26 +17,9 @@ const _insert = createInsertSchema(categories, {
 	isVisibleInNav: t.Optional(t.Boolean()),
 });
 
-// ── Response schemas ───────────────────────────────
+// ── Response ──
 
-const CategoryResponse = t.Object({
-	id: t.String({ format: "uuid" }),
-	name: t.String(),
-	slug: t.String(),
-	description: t.Union([t.String(), t.Null()]),
-	imageUrl: t.Union([t.String(), t.Null()]),
-	parentId: t.Union([t.String({ format: "uuid" }), t.Null()]),
-	path: t.Union([t.String(), t.Null()]),
-	sortOrder: t.Union([t.Integer(), t.Null()]),
-	isFeatured: t.Boolean(),
-	isActive: t.Boolean(),
-	isVisibleInNav: t.Boolean(),
-	seoTitle: t.Union([t.String(), t.Null()]),
-	seoDescription: t.Union([t.String(), t.Null()]),
-	seoKeywords: t.Union([t.String(), t.Null()]),
-	createdAt: t.Date(),
-	updatedAt: t.Date(),
-});
+const CategoryResponse = createSelectSchema(categories);
 
 const CategoryTreeNodeSchema = t.Object({
 	id: t.String({ format: "uuid" }),
