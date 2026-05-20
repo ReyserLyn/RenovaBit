@@ -3,11 +3,15 @@ import { AuthModule } from "./auth";
 import { brandsRoute } from "./brands";
 import { categoriesRoute } from "./categories";
 import { homeRoute } from "./home";
+import { productImagesRoute } from "./product-images";
+import { productsRoute } from "./products";
 
 const ApiV1Modules = new Elysia({ prefix: "/api/v1" })
 	.use(AuthModule)
 	.use(brandsRoute)
-	.use(categoriesRoute);
+	.use(categoriesRoute)
+	.use(productsRoute)
+	.use(productImagesRoute);
 
 const RootModules = new Elysia({ name: "routes" }).use(homeRoute);
 
