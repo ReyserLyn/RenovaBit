@@ -1,17 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_authenticated/")({
 	component: Home,
 });
 
 function Home() {
 	return (
-		<div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-6">
+		<div className="flex flex-col h-full items-center justify-center p-6">
 			<div className="w-full max-w-2xl text-center">
-				<h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
-					Renovabit Admin
-				</h1>
-				<p className="mt-4 text-lg text-gray-600">
+				<h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Renovabit Admin</h1>
+				<p className="mt-4 text-lg text-muted-foreground">
 					Panel de administración para gestionar tu catálogo de productos, marcas y categorías.
 				</p>
 
@@ -27,9 +25,9 @@ function Home() {
 
 function Card({ title, description }: { title: string; description: string }) {
 	return (
-		<div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md">
-			<h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-			<p className="mt-2 text-sm text-gray-500">{description}</p>
+		<div className="rounded-xl border bg-card p-6 shadow-sm transition hover:shadow-md">
+			<h3 className="text-lg font-semibold">{title}</h3>
+			<p className="mt-2 text-sm text-muted-foreground">{description}</p>
 		</div>
 	);
 }

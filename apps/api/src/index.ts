@@ -18,6 +18,7 @@ const app = new Elysia()
 		}),
 	)
 	.use(LoggerPlugin)
+	.get("/favicon.ico", () => Bun.file("public/favicon.ico"))
 	.use(DocsPlugin)
 	.use(modules)
 	.onError(errorHandler)

@@ -2,19 +2,31 @@
 	"extends": "@renovabit/ts-config/base",
 	"compilerOptions": {
 		"jsx": "react-jsx",
-		"types": ["vite/client"],
+		"types": [
+			"vite/client",
+			"bun-types"
+		],
 		"paths": {
-			"@/*": ["./src/*"],
+			"@/*": [
+				"./src/*",
+				"../../apps/api/src/*"
+			],
 			"@renovabit/ui/*": [
 				"../../packages/ui/src/*"
 			],
 			"@renovabit/backend-client": [
 				"../../packages/backend-client/src/index.ts"
 			],
+			"@renovabit/api": [
+				"../../apps/api/src/index.ts"
+			],
 			"@renovabit/*": [
 				"../../packages/*"
 			]
 		}
 	},
-	"include": ["**/*.ts", "**/*.tsx"]
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.tsx"
+	]
 }

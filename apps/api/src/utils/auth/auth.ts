@@ -62,10 +62,27 @@ export const auth = betterAuth({
 	},
 	user: {
 		additionalFields: {
+			username: {
+				type: "string",
+				required: true,
+				input: true,
+			},
+			displayUsername: {
+				type: "string",
+				required: false,
+				input: true,
+			},
 			phone: {
 				type: "string",
 				required: false,
 				input: true,
+			},
+			role: {
+				type: ["admin", "customer", "distributor"],
+				required: true,
+				index: true,
+				defaultValue: "customer",
+				input: false,
 			},
 		},
 		deleteUser: {
