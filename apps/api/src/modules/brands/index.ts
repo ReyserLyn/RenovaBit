@@ -1,13 +1,11 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { auth } from "@/utils/auth/auth";
-import { BrandModel } from "./model";
+import { BrandModel, ErrorResponse } from "./model";
 import { BrandService } from "./service";
 
-/**
- * Obtiene la sesión actual sin lanzar error si no hay sesión.
- * Útil para rutas públicas que necesitan saber si el usuario es admin.
- */
+// ── Helpers ────────────────────────────────────────
+
 async function resolveOptionalSession(request: Request) {
 	try {
 		return await auth.api.getSession({ headers: request.headers });
@@ -16,9 +14,10 @@ async function resolveOptionalSession(request: Request) {
 	}
 }
 
+// ── Routes ─────────────────────────────────────────
+
 export const brandsRoute = new Elysia({ prefix: "/brands" })
-	// ── List ──────────────────────────────────────────
-	// Público. Admin ve todo por defecto, el resto solo marcas activas.
+	// ── List ────────────────────────────────────────
 	.get(
 		"/",
 		async ({ request }) => {
@@ -27,15 +26,20 @@ export const brandsRoute = new Elysia({ prefix: "/brands" })
 			return BrandService.list(isAdmin ? undefined : { isActive: true });
 		},
 		{
+			response: {
+				200: BrandModel.brandListResponse,
+			},
 			detail: { summary: "Listar marcas", tags: ["Brands"] },
 		},
 	)
 
-	// ── Get by slug ───────────────────────────────────
-	// Público. Oculta marcas inactivas a no-admins.
+	// ── Get by slug ─────────────────────────────────
 	.get(
 		"/:slug",
 		async ({ params: { slug }, request }) => {
+			const session = await resolveOptionalSession(request);
+			const isAdmin = session?.user?.role === "admin";
+
 			const brand = await BrandService.getBySlug(slug);
 			if (!brand) {
 				throw createApiError({
@@ -46,43 +50,59 @@ export const brandsRoute = new Elysia({ prefix: "/brands" })
 				});
 			}
 
-			// Si la marca está inactiva y no es admin, devolvemos 404
-			if (!brand.isActive) {
-				const session = await resolveOptionalSession(request);
-				if (session?.user?.role !== "admin") {
-					throw createApiError({
-						code: BackendErrorCodes.NOT_FOUND_ERROR,
-						message: "Marca no encontrada",
-						logLevel: "info",
-						doNotLog: true,
-					});
-				}
+			// Si está inactiva y no es admin, devolvemos 404 (no 403)
+			if (!brand.isActive && !isAdmin) {
+				throw createApiError({
+					code: BackendErrorCodes.NOT_FOUND_ERROR,
+					message: "Marca no encontrada",
+					logLevel: "info",
+					doNotLog: true,
+				});
 			}
 
 			return brand;
 		},
 		{
 			params: BrandModel.params,
+			response: {
+				200: BrandModel.brandResponse,
+				404: ErrorResponse,
+			},
 			detail: { summary: "Obtener marca por slug", tags: ["Brands"] },
 		},
 	)
 
-	// ── Create ────────────────────────────────────────
+	// ── Create ──────────────────────────────────────
 	.post("/", ({ body }) => BrandService.create(body), {
 		isAdmin: true,
 		body: BrandModel.createBody,
+		response: {
+			201: BrandModel.brandResponse,
+			400: ErrorResponse,
+			401: ErrorResponse,
+			403: ErrorResponse,
+			409: ErrorResponse,
+		},
 		detail: { summary: "Crear marca", tags: ["Brands"] },
 	})
 
-	// ── Update ────────────────────────────────────────
+	// ── Update ──────────────────────────────────────
 	.patch("/:slug", ({ params: { slug }, body }) => BrandService.update(slug, body), {
 		isAdmin: true,
 		params: BrandModel.params,
 		body: BrandModel.updateBody,
+		response: {
+			200: BrandModel.brandResponse,
+			400: ErrorResponse,
+			401: ErrorResponse,
+			403: ErrorResponse,
+			404: ErrorResponse,
+			409: ErrorResponse,
+		},
 		detail: { summary: "Actualizar marca", tags: ["Brands"] },
 	})
 
-	// ── Delete ────────────────────────────────────────
+	// ── Delete ──────────────────────────────────────
 	.delete(
 		"/:slug",
 		async ({ params: { slug }, set }) => {
@@ -92,11 +112,17 @@ export const brandsRoute = new Elysia({ prefix: "/brands" })
 		{
 			isAdmin: true,
 			params: BrandModel.params,
+			response: {
+				204: t.Undefined(),
+				401: ErrorResponse,
+				403: ErrorResponse,
+				404: ErrorResponse,
+			},
 			detail: { summary: "Eliminar marca", tags: ["Brands"] },
 		},
 	)
 
-	// ── Bulk Delete ────────────────────────────────────
+	// ── Bulk Delete ─────────────────────────────────
 	.post(
 		"/bulk",
 		async ({ body, set }) => {
@@ -107,6 +133,14 @@ export const brandsRoute = new Elysia({ prefix: "/brands" })
 		{
 			isAdmin: true,
 			body: BrandModel.bulkDeleteBody,
+			response: {
+				200: BrandModel.bulkDeleteResponse,
+				207: BrandModel.bulkDeleteResponse,
+				400: ErrorResponse,
+				401: ErrorResponse,
+				403: ErrorResponse,
+				404: ErrorResponse,
+			},
 			detail: { summary: "Eliminar marcas en lote", tags: ["Brands"] },
 		},
 	);

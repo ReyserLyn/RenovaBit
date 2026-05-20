@@ -75,6 +75,13 @@ async function create(data: CreateBody) {
 		.returning()
 		.catch((err) => handleUniqueViolation(err, "Ya existe una marca con este nombre o slug"));
 
+	if (!item) {
+		throw createApiError({
+			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
+			message: "Error al crear la marca",
+		});
+	}
+
 	return item;
 }
 
@@ -133,6 +140,13 @@ async function update(slug: string, data: UpdateBody) {
 		.where(eq(brands.slug, slug))
 		.returning()
 		.catch((err) => handleUniqueViolation(err, "Ya existe una marca con este nombre o slug"));
+
+	if (!item) {
+		throw createApiError({
+			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
+			message: "Error al actualizar la marca",
+		});
+	}
 
 	return item;
 }

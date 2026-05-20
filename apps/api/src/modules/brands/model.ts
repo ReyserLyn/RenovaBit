@@ -2,6 +2,8 @@ import { brands } from "@renovabit/db/schema";
 import { createInsertSchema } from "drizzle-typebox";
 import { t, type UnwrapSchema } from "elysia";
 
+// ── Insert / Update ────────────────────────────────
+
 const _insert = createInsertSchema(brands, {
 	name: t.String({ minLength: 1, maxLength: 100 }),
 	slug: t.Optional(t.String({ minLength: 1, maxLength: 100 })),
@@ -9,13 +11,57 @@ const _insert = createInsertSchema(brands, {
 	imageUrl: t.Optional(t.String({ maxLength: 2048 })),
 });
 
+// ── Response schemas ───────────────────────────────
+
+const BrandResponse = t.Object({
+	id: t.String({ format: "uuid" }),
+	name: t.String(),
+	slug: t.String(),
+	description: t.Union([t.String(), t.Null()]),
+	imageUrl: t.Union([t.String(), t.Null()]),
+	isActive: t.Boolean(),
+	isFeatured: t.Boolean(),
+	seoTitle: t.Union([t.String(), t.Null()]),
+	seoDescription: t.Union([t.String(), t.Null()]),
+	seoKeywords: t.Union([t.String(), t.Null()]),
+	createdAt: t.Date(),
+	updatedAt: t.Date(),
+});
+
+const BulkDeleteResult = t.Object({
+	deletedIds: t.Array(t.String({ format: "uuid" })),
+	notFoundIds: t.Array(t.String({ format: "uuid" })),
+	deletedCount: t.Integer({ minimum: 0 }),
+});
+
+// ── Error ──────────────────────────────────────────
+
+export const ErrorResponse = t.Object({
+	errId: t.String(),
+	code: t.String(),
+	message: t.String(),
+	statusCode: t.Number(),
+});
+
+// ── Export ─────────────────────────────────────────
+
 export const BrandModel = {
+	// Bodies
 	createBody: t.Omit(_insert, ["id", "createdAt", "updatedAt"]),
 	updateBody: t.Partial(t.Omit(_insert, ["id", "createdAt", "updatedAt"])),
+
+	// Params
 	params: t.Object({ slug: t.String({ minLength: 1 }) }),
+
+	// Batch
 	bulkDeleteBody: t.Object({
 		ids: t.Array(t.String({ format: "uuid" }), { minItems: 1, maxItems: 50 }),
 	}),
+
+	// Responses
+	brandResponse: BrandResponse,
+	brandListResponse: t.Array(BrandResponse),
+	bulkDeleteResponse: BulkDeleteResult,
 } as const;
 
 export type BrandModel = {
