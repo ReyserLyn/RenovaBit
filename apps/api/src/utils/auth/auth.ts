@@ -15,9 +15,9 @@ export const auth = betterAuth({
 		? appOrigins
 		: [...appOrigins, "http://localhost:*/**", "https://*.renovabit.com"],
 	rateLimit: {
-		enabled: isProd,
-		window: isProd ? 100 : 150,
-		max: 60,
+		enabled: true,
+		window: isProd ? 60 : 120, // 1 minuto en prod, 2 en dev
+		max: isProd ? 5 : 10, // 5 intentos en prod, 10 en dev
 	},
 	database: drizzleAdapter(db, {
 		provider: "pg",
