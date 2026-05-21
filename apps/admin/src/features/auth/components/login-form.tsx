@@ -53,16 +53,14 @@ export function LoginForm() {
 	}, [hasError]);
 
 	return (
-		<Card className="w-full border-border/70 bg-card/95 shadow-xl transition-shadow duration-200 focus-within:shadow-2xl p-6 sm:p-8">
-			<CardHeader className="flex flex-col gap-3 pb-2 text-center">
-				<CardTitle className="text-2xl sm:text-3xl font-semibold tracking-tight">
-					Iniciar sesión
-				</CardTitle>
-				<CardDescription className="text-muted-foreground/90">
+		<Card className="w-full sm:p-8 p-6">
+			<CardHeader className="flex flex-col items-center gap-3 pb-2 text-center">
+				<CardTitle className="text-2xl sm:text-3xl font-semibold">Iniciar sesión</CardTitle>
+				<CardDescription>
 					Accede al panel para gestionar productos, marcas y categorías de tu tienda.
 				</CardDescription>
 			</CardHeader>
-			<CardContent className="flex flex-col gap-5">
+			<CardContent className="flex flex-col gap-5 px-0">
 				<form
 					id={LOGIN_FORM_ID}
 					onSubmit={(e) => {
@@ -96,12 +94,7 @@ export function LoginForm() {
 
 							return (
 								<Field data-invalid={isInvalid}>
-									<FieldLabel htmlFor={field.name}>
-										Correo o usuario
-										<span aria-label="obligatorio" className="text-destructive ml-0.5">
-											*
-										</span>
-									</FieldLabel>
+									<FieldLabel htmlFor={field.name}>Correo o usuario</FieldLabel>
 									<Input
 										id={field.name}
 										name={field.name}
@@ -136,12 +129,7 @@ export function LoginForm() {
 
 							return (
 								<Field data-invalid={isInvalid}>
-									<FieldLabel htmlFor={field.name}>
-										Contraseña
-										<span aria-label="obligatorio" className="text-destructive ml-0.5">
-											*
-										</span>
-									</FieldLabel>
+									<FieldLabel htmlFor={field.name}>Contraseña</FieldLabel>
 									<PasswordInput
 										id={field.name}
 										name={field.name}

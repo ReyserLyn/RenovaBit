@@ -1,5 +1,4 @@
 import { Toaster } from "@renovabit/ui/components/ui/sonner";
-import appCss from "@renovabit/ui/styles/globals.css?url";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
@@ -8,6 +7,7 @@ import TanStackFormDevtools from "@/shared/integrations/tanstack-form/devtools";
 import TanStackQueryDevtools from "@/shared/integrations/tanstack-query/devtools";
 import TanStackQueryProvider from "@/shared/integrations/tanstack-query/root-provider";
 import TanStackRouterDevtools from "@/shared/integrations/tanstack-router/devtools";
+import adminCss from "@/shared/styles/globals.css?url";
 
 export type MyRouterContext = {
 	queryClient: QueryClient;
@@ -21,7 +21,21 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			{ title: "Renovabit · Panel tienda" },
 		],
 		links: [
-			{ rel: "stylesheet", href: appCss },
+			{
+				rel: "preload",
+				as: "font",
+				type: "font/woff2",
+				crossOrigin: "anonymous",
+				href: "/fonts/outfit-latin-400-normal.woff2",
+			},
+			{
+				rel: "preload",
+				as: "font",
+				type: "font/woff2",
+				crossOrigin: "anonymous",
+				href: "/fonts/outfit-latin-700-normal.woff2",
+			},
+			{ rel: "stylesheet", href: adminCss },
 			{
 				rel: "icon",
 				href: "/favicon.ico",

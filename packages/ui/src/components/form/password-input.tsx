@@ -2,46 +2,45 @@
 
 import { ViewIcon, ViewOffIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Button } from "@renovabit/ui/components/ui/button";
-import { Input, type InputProps } from "@renovabit/ui/components/ui/input";
-import { cn } from "@renovabit/ui/lib/utils";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupButton,
+	InputGroupInput,
+} from "@renovabit/ui/components/ui/input-group";
 import * as React from "react";
 
-type PasswordInputProps = Omit<InputProps, "type">;
+type PasswordInputProps = Omit<React.ComponentPropsWithoutRef<"input">, "type">;
 
-const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(function PasswordInput(
-	{ className, disabled, ...props },
-	ref,
-) {
+function PasswordInput({ disabled, ...props }: PasswordInputProps) {
 	const [showPassword, setShowPassword] = React.useState(false);
 
 	return (
-		<div className="relative w-full min-w-0">
-			<Input
+		<InputGroup>
+			<InputGroupInput
 				type={showPassword ? "text" : "password"}
-				className={cn("hide-password-toggle pe-9", className)}
-				ref={ref}
+				className="hide-password-toggle"
 				disabled={disabled}
 				{...props}
 			/>
-			<Button
-				type="button"
-				variant="ghost"
-				size="sm"
-				className="absolute inset-e-0 top-0 h-full rounded-l-none px-2.5 text-muted-foreground hover:bg-transparent hover:text-foreground"
-				onClick={() => setShowPassword((prev) => !prev)}
-				disabled={disabled}
-				aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-			>
-				{showPassword ? (
-					<HugeiconsIcon icon={ViewIcon} color="currentColor" aria-hidden />
-				) : (
-					<HugeiconsIcon icon={ViewOffIcon} color="currentColor" aria-hidden />
-				)}
-			</Button>
-		</div>
+			<InputGroupAddon align="inline-end">
+				<InputGroupButton
+					size="icon-xs"
+					className="hover:bg-transparent!"
+					onClick={() => setShowPassword((prev) => !prev)}
+					disabled={disabled}
+					aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+				>
+					{showPassword ? (
+						<HugeiconsIcon icon={ViewIcon} color="currentColor" aria-hidden />
+					) : (
+						<HugeiconsIcon icon={ViewOffIcon} color="currentColor" aria-hidden />
+					)}
+				</InputGroupButton>
+			</InputGroupAddon>
+		</InputGroup>
 	);
-});
+}
 PasswordInput.displayName = "PasswordInput";
 
 export type { PasswordInputProps };

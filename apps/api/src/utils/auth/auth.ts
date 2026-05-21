@@ -56,9 +56,6 @@ export const auth = betterAuth({
 			enabled: true,
 			domain: isProd ? ".renovabit.com" : "localhost",
 		},
-		ipAddress: {
-			ipAddressHeaders: ["cf-connecting-ip"],
-		},
 	},
 	user: {
 		additionalFields: {
