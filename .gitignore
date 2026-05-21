@@ -58,3 +58,6 @@ todos.json
 
 # Generated
 **/routeTree.gen.ts
+
+# Atl
+.atl
