@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { authClient } from "@/lib/auth/auth-client";
-import { getAuthMessage } from "@/lib/auth/auth-error-messages";
+import { authClient } from "@/shared/lib/auth/auth-client";
+import { getAuthMessage } from "@/shared/lib/auth/auth-error-messages";
 import {
 	authKeys,
 	authSessionQueryOptions,
 	invalidateAuthQueries,
 	resetAuthState,
-} from "@/lib/auth/auth-session";
+} from "@/shared/lib/auth/auth-session";
 import type { LoginFormValues } from "../model";
 
 export function useLogin() {

@@ -13,8 +13,8 @@ import { Spinner } from "@renovabit/ui/components/ui/spinner";
 import { useForm } from "@tanstack/react-form";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { getAuthMessage } from "@/lib/auth/auth-error-messages";
-import { getFieldErrorId, normalizeFieldErrors } from "@/lib/form/form-utils";
+import { getAuthMessage } from "@/shared/lib/auth/auth-error-messages";
+import { getFieldErrorId, normalizeFieldErrors } from "@/shared/lib/form/form-utils";
 import { useLogin } from "../hooks/use-login";
 import { loginSchema } from "../model";
 
