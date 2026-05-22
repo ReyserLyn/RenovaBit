@@ -6,6 +6,7 @@ import {
 	PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { nanoid } from "nanoid";
 import { logger } from "@/utils/logger";
 import { R2_BUCKET_NAME, R2_PUBLIC_URL, r2Client } from "./client";
 
@@ -28,7 +29,7 @@ const EXT_MAP: Record<string, string> = {
 
 /** Genera una key única para un upload pendiente. */
 export function generatePendingKey(ext: string): string {
-	return `pending/${crypto.randomUUID()}.${ext}`;
+	return `pending/${nanoid()}.${ext}`;
 }
 
 /** Construye una URL pública a partir de una key de R2. */
@@ -100,7 +101,7 @@ export async function moveObject(sourceKey: string, destinationKey: string): Pro
 	await r2Client.send(
 		new CopyObjectCommand({
 			Bucket: R2_BUCKET_NAME,
-			CopySource: `${R2_BUCKET_NAME}/${sourceKey}`,
+			CopySource: `/${R2_BUCKET_NAME}/${encodeURIComponent(sourceKey)}`,
 			Key: destinationKey,
 			MetadataDirective: "COPY",
 		}),
@@ -234,7 +235,8 @@ export async function resolveEntityImage(
 	if (!key) return imageUrl;
 
 	const ext = key.split(".").pop() || "jpg";
-	const permanentKey = `${entity}/${entityId}/image.${ext}`;
+	const filename = key.split("/").pop() || `img.${ext}`;
+	const permanentKey = `${entity}/${entityId}/${filename}`;
 
 	try {
 		await moveObject(key, permanentKey);

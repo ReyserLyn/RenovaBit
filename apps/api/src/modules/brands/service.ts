@@ -149,11 +149,6 @@ async function update(slug: string, data: UpdateBody) {
 		}
 	}
 
-	// Si cambia la imagen, eliminar la anterior y resolver la nueva
-	if (data.imageUrl !== undefined && data.imageUrl !== existing.imageUrl) {
-		await deleteEntityImage(existing.imageUrl);
-	}
-
 	const [item] = await db
 		.update(brands)
 		.set(data)
@@ -168,13 +163,18 @@ async function update(slug: string, data: UpdateBody) {
 		});
 	}
 
-	// Resolver nueva imagen pendiente → permanente
+	// 1. Resolver nueva imagen pendiente → permanente (ANTES de eliminar la vieja)
 	if (item.imageUrl) {
 		const permanentUrl = await resolveEntityImage(item.imageUrl, "brands", item.id);
 		if (permanentUrl && permanentUrl !== item.imageUrl) {
 			await db.update(brands).set({ imageUrl: permanentUrl }).where(eq(brands.id, item.id));
 			item.imageUrl = permanentUrl;
 		}
+	}
+
+	// 2. Eliminar la imagen anterior SOLO si la nueva se resolvió correctamente
+	if (data.imageUrl !== undefined && data.imageUrl !== existing.imageUrl) {
+		await deleteEntityImage(existing.imageUrl);
 	}
 
 	return item;

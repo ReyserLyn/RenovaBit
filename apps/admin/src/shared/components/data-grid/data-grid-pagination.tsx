@@ -1,4 +1,9 @@
-import { ArrowLeft02Icon, ArrowRight02Icon } from "@hugeicons/core-free-icons";
+import {
+	ArrowLeft01Icon,
+	ArrowLeftDoubleIcon,
+	ArrowRight01Icon,
+	ArrowRightDoubleIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@renovabit/ui/components/ui/button";
 import {
@@ -15,48 +20,35 @@ import { useDataGrid } from "./data-grid";
 
 interface DataGridPaginationProps {
 	sizes?: number[];
-	sizesInfo?: string;
-	sizesLabel?: string;
-	sizesDescription?: string;
 	sizesSkeleton?: ReactNode;
-	more?: boolean;
-	moreLimit?: number;
 	info?: string;
 	infoSkeleton?: ReactNode;
 	className?: string;
 	rowsPerPageLabel?: string;
-	previousPageLabel?: string;
-	nextPageLabel?: string;
-	ellipsisText?: string;
+	selectionInfo?: string;
 }
 
 function DataGridPagination(props: DataGridPaginationProps): React.JSX.Element {
 	const { table, recordCount, isLoading } = useDataGrid();
 
 	const defaultProps: Partial<DataGridPaginationProps> = {
-		sizes: [5, 10, 25, 50, 100],
-		sizesLabel: "Show",
-		sizesDescription: "per page",
+		sizes: [10, 20, 25, 30, 40, 50],
 		sizesSkeleton: <Skeleton className="h-8 w-44" />,
-		moreLimit: 5,
-		more: false,
-		info: "{from} - {to} of {count}",
-		infoSkeleton: <Skeleton className="h-8 w-60" />,
-		rowsPerPageLabel: "Rows per page",
-		previousPageLabel: "Go to previous page",
-		nextPageLabel: "Go to next page",
-		ellipsisText: "...",
+		info: "Página {page} de {pageCount}",
+		infoSkeleton: <Skeleton className="h-8 w-28" />,
+		rowsPerPageLabel: "Filas por página",
 	};
 
 	const mergedProps: DataGridPaginationProps = { ...defaultProps, ...props };
 
-	const btnBaseClasses = "size-7 p-0 text-sm";
-	const btnArrowClasses = btnBaseClasses + " rtl:transform rtl:rotate-180";
 	const pageIndex = table.getState().pagination.pageIndex;
 	const pageSize = table.getState().pagination.pageSize;
-	const from = pageIndex * pageSize + 1;
-	const to = Math.min((pageIndex + 1) * pageSize, recordCount);
 	const pageCount = table.getPageCount();
+	const page = pageIndex + 1;
+	const from = recordCount === 0 ? 0 : pageIndex * pageSize + 1;
+	const to = Math.min((pageIndex + 1) * pageSize, recordCount);
+	const canPrev = table.getCanPreviousPage();
+	const canNext = table.getCanNextPage();
 
 	// Replace placeholders in paginationInfo
 	const paginationInfo = mergedProps?.info
@@ -64,148 +56,96 @@ function DataGridPagination(props: DataGridPaginationProps): React.JSX.Element {
 				.replace("{from}", from.toString())
 				.replace("{to}", to.toString())
 				.replace("{count}", recordCount.toString())
+				.replace("{page}", page.toString())
+				.replace("{pageCount}", pageCount.toString())
 		: `${from} - ${to} of ${recordCount}`;
-
-	// Pagination limit logic
-	const paginationMoreLimit = mergedProps?.moreLimit || 5;
-
-	// Determine the start and end of the pagination group
-	const currentGroupStart = Math.floor(pageIndex / paginationMoreLimit) * paginationMoreLimit;
-	const currentGroupEnd = Math.min(currentGroupStart + paginationMoreLimit, pageCount);
-
-	// Render page buttons based on the current group
-	const renderPageButtons = () => {
-		const buttons = [];
-		for (let i = currentGroupStart; i < currentGroupEnd; i++) {
-			buttons.push(
-				<Button
-					key={i}
-					size="icon-sm"
-					variant="ghost"
-					className={cn(btnBaseClasses, "text-muted-foreground", {
-						"bg-accent text-accent-foreground": pageIndex === i,
-					})}
-					onClick={() => {
-						if (pageIndex !== i) {
-							table.setPageIndex(i);
-						}
-					}}
-				>
-					{i + 1}
-				</Button>,
-			);
-		}
-		return buttons;
-	};
-
-	// Render a "previous" ellipsis button if there are previous pages to show
-	const renderEllipsisPrevButton = () => {
-		if (currentGroupStart > 0) {
-			return (
-				<Button
-					size="icon-sm"
-					className={btnBaseClasses}
-					variant="ghost"
-					onClick={() => table.setPageIndex(currentGroupStart - 1)}
-				>
-					{mergedProps.ellipsisText}
-				</Button>
-			);
-		}
-		return null;
-	};
-
-	// Render a "next" ellipsis button if there are more pages to show after the current group
-	const renderEllipsisNextButton = () => {
-		if (currentGroupEnd < pageCount) {
-			return (
-				<Button
-					className={btnBaseClasses}
-					variant="ghost"
-					size="icon-sm"
-					onClick={() => table.setPageIndex(currentGroupEnd)}
-				>
-					{mergedProps.ellipsisText}
-				</Button>
-			);
-		}
-		return null;
-	};
 
 	return (
 		<div
 			data-slot="data-grid-pagination"
-			className={cn(
-				"flex grow flex-col flex-wrap items-center justify-between gap-2.5 py-2.5 sm:flex-row sm:py-0",
-				mergedProps?.className,
-			)}
+			className={cn("flex items-center justify-between px-4 py-2", mergedProps?.className)}
 		>
-			<div className="order-2 flex flex-wrap items-center space-x-2.5 pb-2.5 sm:order-1 sm:pb-0">
+			{/* Selection info — izquierda */}
+			<div className="text-muted-foreground flex-1 text-sm">{mergedProps.selectionInfo}</div>
+
+			{/* Controles — derecha */}
+			<div className="flex items-center gap-2">
 				{isLoading ? (
 					mergedProps?.sizesSkeleton
 				) : (
 					<>
-						<div className="text-muted-foreground text-sm">{mergedProps.rowsPerPageLabel}</div>
-						<Select
-							value={`${pageSize}`}
-							onValueChange={(value) => {
-								const newPageSize = Number(value);
-								table.setPageSize(newPageSize);
-							}}
-						>
-							<SelectTrigger className="w-14" size="sm">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent side="top" className="min-w-18">
-								{mergedProps?.sizes?.map((size: number) => (
-									<SelectItem key={size} value={`${size}`}>
-										{size}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</>
-				)}
-			</div>
-			<div className="order-1 flex flex-col items-center justify-center gap-2.5 pt-2.5 sm:order-2 sm:flex-row sm:justify-end sm:pt-0">
-				{isLoading ? (
-					mergedProps?.infoSkeleton
-				) : (
-					<>
-						<div className="text-muted-foreground text-sm order-2 text-nowrap sm:order-1">
-							{paginationInfo}
+						{/* Rows per page */}
+						<div className="flex items-center space-x-2">
+							<p className="text-sm font-medium">{mergedProps.rowsPerPageLabel}</p>
+							<Select
+								value={`${pageSize}`}
+								onValueChange={(value) => {
+									table.setPageSize(Number(value));
+								}}
+							>
+								<SelectTrigger className="h-8 w-[70px]">
+									<SelectValue placeholder={pageSize} />
+								</SelectTrigger>
+								<SelectContent side="top">
+									{mergedProps?.sizes?.map((size: number) => (
+										<SelectItem key={size} value={`${size}`}>
+											{size}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
-						{pageCount > 1 && (
-							<div className="order-1 flex items-center space-x-1 sm:order-2">
-								<Button
-									size="icon-sm"
-									variant="ghost"
-									className={btnArrowClasses}
-									onClick={() => table.previousPage()}
-									disabled={!table.getCanPreviousPage()}
-								>
-									<span className="sr-only">{mergedProps.previousPageLabel}</span>
-									<HugeiconsIcon icon={ArrowLeft02Icon} className="size-4" />
-								</Button>
 
-								{renderEllipsisPrevButton()}
-
-								{renderPageButtons()}
-
-								{renderEllipsisNextButton()}
-
-								<Button
-									size="icon-sm"
-									variant="ghost"
-									className={btnArrowClasses}
-									onClick={() => table.nextPage()}
-									disabled={!table.getCanNextPage()}
-								>
-									<span className="sr-only">{mergedProps.nextPageLabel}</span>
-									<HugeiconsIcon icon={ArrowRight02Icon} className="size-4" />
-								</Button>
-							</div>
+						{/* Page info text */}
+						{isLoading ? (
+							mergedProps?.infoSkeleton
+						) : (
+							<span className="text-sm font-medium text-nowrap">{paginationInfo}</span>
 						)}
+
+						{/* Navigation buttons */}
+						<div className="flex items-center space-x-1">
+							<Button
+								variant="outline"
+								size="icon"
+								className="hidden size-8 lg:flex"
+								onClick={() => table.setPageIndex(0)}
+								disabled={!canPrev}
+								aria-label="Primera página"
+							>
+								<HugeiconsIcon icon={ArrowLeftDoubleIcon} className="size-4" />
+							</Button>
+							<Button
+								variant="outline"
+								size="icon"
+								className="size-8"
+								onClick={() => table.previousPage()}
+								disabled={!canPrev}
+								aria-label="Página anterior"
+							>
+								<HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
+							</Button>
+							<Button
+								variant="outline"
+								size="icon"
+								className="size-8"
+								onClick={() => table.nextPage()}
+								disabled={!canNext}
+								aria-label="Siguiente página"
+							>
+								<HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
+							</Button>
+							<Button
+								variant="outline"
+								size="icon"
+								className="hidden size-8 lg:flex"
+								onClick={() => table.setPageIndex(pageCount - 1)}
+								disabled={!canNext}
+								aria-label="Última página"
+							>
+								<HugeiconsIcon icon={ArrowRightDoubleIcon} className="size-4" />
+							</Button>
+						</div>
 					</>
 				)}
 			</div>
