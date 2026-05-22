@@ -38,6 +38,7 @@ export function BrandEditDialog({ brand, open, onOpenChange }: BrandEditDialogPr
 
 					<div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
 						<BrandForm
+							key={brand.id}
 							mode="edit"
 							brand={{
 								name: brand.name,

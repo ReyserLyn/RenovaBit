@@ -1,5 +1,3 @@
-"use no memo";
-
 import { ReloadIcon, Search01Icon, Settings02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@renovabit/ui/components/ui/button";
