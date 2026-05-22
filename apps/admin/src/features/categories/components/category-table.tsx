@@ -23,67 +23,89 @@ import { DataGridColumnVisibility } from "@/shared/components/data-grid/data-gri
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
-import { useBrandsTableStore } from "@/shared/lib/stores/tables/brands-table";
-import { brandKeys, useBrands, useUpdateBrand } from "../hooks";
-import type { Brand } from "../model";
-import { BrandBulkDeleteDialog } from "./brand-bulk-delete-dialog";
-import { getBrandColumns } from "./brand-column";
+import { useCategoriesTableStore } from "@/shared/lib/stores/tables/categories-table";
+import { categoryKeys, useCategories, useUpdateCategory } from "../hooks";
+import type { Category } from "../model";
+import { CategoryBulkDeleteDialog } from "./category-bulk-delete-dialog";
+import { getCategoryColumns } from "./category-column";
 
-interface BrandTableProps {
-	onEdit: (brand: Brand) => void;
-	onDelete: (brand: Brand) => void;
+interface CategoryTableProps {
+	onEdit: (category: Category) => void;
+	onDelete: (category: Category) => void;
 }
 
-const EMPTY_BRANDS: Brand[] = [];
+const EMPTY_CATEGORIES: Category[] = [];
 
-export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: BrandTableProps) {
+export const CategoryTable = React.memo(function CategoryTable({
+	onEdit,
+	onDelete,
+}: CategoryTableProps) {
 	const queryClient = useQueryClient();
-	const { data: brandsData, isPending, isFetching, isError, error } = useBrands();
-	const brands = brandsData ?? EMPTY_BRANDS;
-	const updateBrand = useUpdateBrand();
+	const { data: categoriesData, isPending, isFetching, isError, error } = useCategories();
+	const categories = categoriesData ?? EMPTY_CATEGORIES;
+	const updateCategory = useUpdateCategory();
 
 	const handleRefresh = useCallback(() => {
-		void queryClient.invalidateQueries({ queryKey: brandKeys.all });
+		void queryClient.invalidateQueries({ queryKey: categoryKeys.all });
 	}, [queryClient]);
 
 	const [pagination, setPagination] = useState<PaginationState>({
 		pageIndex: 0,
 		pageSize: 10,
 	});
-	const sorting = useBrandsTableStore((s) => s.sorting);
-	const setSorting = useBrandsTableStore((s) => s.setSorting);
-	const columnVisibility = useBrandsTableStore((s) => s.columnVisibility);
-	const setColumnVisibility = useBrandsTableStore((s) => s.setColumnVisibility);
+	const sorting = useCategoriesTableStore((s) => s.sorting);
+	const setSorting = useCategoriesTableStore((s) => s.setSorting);
+	const columnVisibility = useCategoriesTableStore((s) => s.columnVisibility);
+	const setColumnVisibility = useCategoriesTableStore((s) => s.setColumnVisibility);
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
 	const handleToggleStatus = useCallback(
-		async (brand: Brand, isActive: boolean) => {
-			await updateBrand.mutateAsync({ slug: brand.slug, data: { isActive } });
+		async (category: Category, isActive: boolean) => {
+			await updateCategory.mutateAsync({ id: category.id, data: { isActive } });
 		},
-		[updateBrand],
+		[updateCategory],
 	);
 
 	const handleToggleFeatured = useCallback(
-		async (brand: Brand, isFeatured: boolean) => {
-			await updateBrand.mutateAsync({ slug: brand.slug, data: { isFeatured } });
+		async (category: Category, isFeatured: boolean) => {
+			await updateCategory.mutateAsync({ id: category.id, data: { isFeatured } });
 		},
-		[updateBrand],
+		[updateCategory],
 	);
+
+	const handleToggleNavVisibility = useCallback(
+		async (category: Category, isVisibleInNav: boolean) => {
+			await updateCategory.mutateAsync({ id: category.id, data: { isVisibleInNav } });
+		},
+		[updateCategory],
+	);
+
+	// Mapa para resolver el nombre de la categoría padre
+	const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
 	const columns = useMemo(
 		() =>
-			getBrandColumns({
+			getCategoryColumns({
 				onEdit,
 				onDelete,
 				onToggleStatus: handleToggleStatus,
 				onToggleFeatured: handleToggleFeatured,
+				onToggleNavVisibility: handleToggleNavVisibility,
+				categoriesById,
 			}),
-		[onEdit, onDelete, handleToggleStatus, handleToggleFeatured],
+		[
+			onEdit,
+			onDelete,
+			handleToggleStatus,
+			handleToggleFeatured,
+			handleToggleNavVisibility,
+			categoriesById,
+		],
 	);
 
 	const table = useReactTable({
-		data: brands,
+		data: categories,
 		columns,
 		state: {
 			pagination,
@@ -106,13 +128,10 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 	});
 
 	useEffect(() => {
-		const validIds = new Set(brands.map((brand) => brand.id));
+		const validIds = new Set(categories.map((c) => c.id));
 		const currentSelection = table.getState().rowSelection;
 		const hasOrphanSelection = Object.keys(currentSelection).some((id) => !validIds.has(id));
-
-		if (!hasOrphanSelection) {
-			return;
-		}
+		if (!hasOrphanSelection) return;
 
 		table.setRowSelection((prev) => {
 			const next: RowSelectionState = {};
@@ -123,7 +142,7 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 			}
 			return next;
 		});
-	}, [brands, table]);
+	}, [categories, table]);
 
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
@@ -131,8 +150,8 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 
 	const filteredCount = table.getFilteredRowModel().rows.length;
 	const selectedRows = table.getFilteredSelectedRowModel().rows;
-	const selectedBrands = selectedRows.map((row) => row.original);
-	const selectedCount = selectedBrands.length;
+	const selectedCategories = selectedRows.map((row) => row.original);
+	const selectedCount = selectedCategories.length;
 	const selectionInfo = `${selectedCount} de ${filteredCount} filas seleccionadas`;
 
 	return (
@@ -140,7 +159,7 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 			{isError ? (
 				<div className="bg-destructive/5 border-destructive/40 flex flex-col items-start gap-3 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
 					<p className="text-sm">
-						No se pudieron cargar las marcas.
+						No se pudieron cargar las categorías.
 						{error instanceof Error ? ` ${error.message}` : ""}
 					</p>
 					<Button
@@ -163,14 +182,14 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 						className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
 					/>
 					<Input
-						placeholder="Filtrar marcas por nombre…"
+						placeholder="Filtrar categorías por nombre…"
 						value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
 						onChange={(event) => table.getColumn("name")?.setFilterValue(event.target.value)}
 						className="w-full min-w-0 bg-card pl-9"
 					/>
 				</div>
 				<div className="flex shrink-0 flex-wrap items-center gap-2 sm:ms-auto">
-					<BrandBulkDeleteDialog selectedBrands={selectedBrands} />
+					<CategoryBulkDeleteDialog selectedCategories={selectedCategories} />
 					<Button
 						type="button"
 						variant="outline"
@@ -202,8 +221,8 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 					table={table}
 					recordCount={filteredCount}
 					isLoading={isPending}
-					emptyMessage="No se encontraron marcas."
-					loadingMessage="Cargando marcas…"
+					emptyMessage="No se encontraron categorías."
+					loadingMessage="Cargando categorías…"
 					tableLayout={{
 						cellBorder: false,
 						rowBorder: true,

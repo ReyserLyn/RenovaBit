@@ -9,7 +9,7 @@ const _insert = createInsertSchema(categories, {
 	slug: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
 	description: t.Optional(t.String({ maxLength: 5000 })),
 	imageUrl: t.Optional(t.String({ maxLength: 2048 })),
-	parentId: t.Optional(t.String({ format: "uuid" })),
+	parentId: t.Optional(t.Union([t.String({ format: "uuid" }), t.Null()])),
 	path: t.Optional(t.String()),
 	sortOrder: t.Optional(t.Integer({ minimum: 0 })),
 	isFeatured: t.Optional(t.Boolean()),

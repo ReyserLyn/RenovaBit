@@ -20,6 +20,8 @@
 		"@dnd-kit/react": "^0.4.0",
 		"@dnd-kit/sortable": "^10.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
+		"@headless-tree/core": "^1.7.0",
+		"@headless-tree/react": "^1.7.0",
 		"@hugeicons/core-free-icons": "^4.1.4",
 		"@hugeicons/react": "^1.1.6",
 		"@renovabit/backend-client": "*",
@@ -44,7 +46,8 @@
 		"react-dom": "^19.2.0",
 		"slugify": "^1.6.9",
 		"sonner": "^2.0.7",
-		"zod": "^4.3.6"
+		"zod": "^4.3.6",
+		"zustand": "5"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.15",

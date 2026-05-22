@@ -30,7 +30,7 @@ export const categoriesRoute = new Elysia({ prefix: "/categories" })
 
 			return CategoryService.list(
 				{
-					includeInactive: isAdmin ? (query.includeInactive ?? false) : false,
+					includeInactive: isAdmin ? query.includeInactive : false,
 					isFeatured: query.isFeatured,
 					parentId: query.parentId,
 					isVisibleInNav: isAdmin ? query.isVisibleInNav : undefined,

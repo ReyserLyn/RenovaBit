@@ -170,7 +170,7 @@ async function list(options: ListOptions = {}, isAdmin = false): Promise<Categor
 		conditions.push(eq(categories.isActive, true));
 		conditions.push(eq(categories.isVisibleInNav, true));
 	} else {
-		if (!options.includeInactive) {
+		if (options.includeInactive === false) {
 			conditions.push(eq(categories.isActive, true));
 		}
 		if (typeof options.isVisibleInNav === "boolean") {
@@ -378,7 +378,7 @@ async function update(id: string, data: UpdateBody): Promise<Category> {
 		await ensureUniqueSlug(nextSlug, id);
 	}
 
-	const parentChanged = data.parentId !== undefined && data.parentId !== current.parentId;
+	const parentChanged = "parentId" in data && data.parentId !== current.parentId;
 	let nextParent: Category | null = null;
 
 	if (parentChanged) {
@@ -486,6 +486,16 @@ async function update(id: string, data: UpdateBody): Promise<Category> {
 					.update(categories)
 					.set({ isActive: false })
 					.where(like(categories.path, `${subtreePrefix}%`));
+			}
+
+			if (data.isActive === true && updated.path) {
+				const ancestorIds = parsePathAncestorIds(updated.path);
+				if (ancestorIds.length > 0) {
+					await tx
+						.update(categories)
+						.set({ isActive: true })
+						.where(and(inArray(categories.id, ancestorIds), eq(categories.isActive, false)));
+				}
 			}
 
 			return updated;
