@@ -33,7 +33,6 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 					brandId: query.brandId,
 					categoryId: query.categoryId,
 					isFeatured: query.isFeatured,
-					includeInactive: isAdmin ? query.includeInactive : false,
 				},
 				isAdmin,
 			);

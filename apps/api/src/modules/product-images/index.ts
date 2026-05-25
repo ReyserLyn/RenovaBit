@@ -4,14 +4,14 @@ import { ErrorResponse, ProductImageModel } from "./model";
 import { ProductImageService } from "./service";
 
 export const productImagesRoute = new Elysia({ prefix: "/product-images" })
-	// ── List by product ─────────────────────────────
+	// ── List by product (query param para evitar colisión con :id de PATCH/DELETE) ──
 	.get(
-		"/:productId",
-		async ({ params: { productId } }) => {
+		"/",
+		async ({ query: { productId } }) => {
 			return ProductImageService.listByProduct(productId);
 		},
 		{
-			params: ProductImageModel.productIdParams,
+			query: t.Object({ productId: t.String({ format: "uuid" }) }),
 			response: {
 				200: ProductImageModel.imageListResponse,
 			},

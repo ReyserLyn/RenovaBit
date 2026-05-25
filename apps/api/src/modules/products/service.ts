@@ -1,8 +1,8 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { brands, categories, products } from "@renovabit/db/schema";
+import { brands, categories, productImages, products } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, ne, sql } from "drizzle-orm";
 import slugify from "slugify";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
 import type { ProductModel } from "./model";
@@ -11,11 +11,16 @@ import type { ProductModel } from "./model";
 
 type Product = InferSelectModel<typeof products>;
 
+/** Producto con URLs de imágenes incluidas (para listado en tabla) */
+export type ProductWithImage = Product & {
+	imageUrls: string[];
+	imageCount: number;
+};
+
 type ListOptions = {
 	brandId?: string;
 	categoryId?: string;
 	isFeatured?: boolean;
-	includeInactive?: boolean;
 };
 
 type BulkDeleteResult = {
@@ -29,18 +34,13 @@ type UpdateBody = ProductModel["updateBody"];
 
 // ── Constants ──────────────────────────────────────
 
-const PUBLIC_STATUSES = ["active", "out_of_stock"] as const;
+const PUBLIC_STATUSES = ["active"] as const;
 const MAX_BULK_DELETE = 50;
 
 // ── Helpers ────────────────────────────────────────
 
 function makeSlug(value: string): string {
 	return slugify(value, { lower: true, strict: true, trim: true });
-}
-
-function statusFilter(includeInactive: boolean) {
-	if (includeInactive) return undefined;
-	return inArray(products.status, PUBLIC_STATUSES);
 }
 
 function handleUniqueViolation(error: unknown, fallbackMessage: string): never {
@@ -154,15 +154,11 @@ async function ensureUniqueSku(sku: string, excludeId?: string): Promise<void> {
 
 // ── Queries ────────────────────────────────────────
 
-async function list(options: ListOptions = {}, isAdmin = false): Promise<Product[]> {
+async function list(options: ListOptions = {}, isAdmin = false): Promise<ProductWithImage[]> {
 	const conditions = [];
 
-	// Visibility: non-admin always filters to public statuses
 	if (!isAdmin) {
 		conditions.push(inArray(products.status, PUBLIC_STATUSES));
-	} else {
-		const sf = statusFilter(options.includeInactive ?? false);
-		if (sf) conditions.push(sf);
 	}
 
 	if (options.brandId) conditions.push(eq(products.brandId, options.brandId));
@@ -177,7 +173,31 @@ async function list(options: ListOptions = {}, isAdmin = false): Promise<Product
 				? conditions[0]
 				: and(...conditions);
 
-	return db.select().from(products).where(where).orderBy(desc(products.createdAt));
+	return db
+		.select({
+			...getTableColumns(products),
+			imageUrls: sql<string[]>`COALESCE(
+				(
+					SELECT jsonb_agg(url ORDER BY sort_order, created_at)
+					FROM (
+						SELECT pi2.url, pi2.sort_order, pi2.created_at
+						FROM product_images pi2
+						WHERE pi2.product_id = products.id
+						ORDER BY pi2.sort_order ASC NULLS LAST, pi2.created_at ASC
+						LIMIT 3
+					) limited
+				),
+				'[]'::jsonb
+			)`,
+			imageCount: sql<number>`(
+				SELECT COUNT(*)::int
+				FROM product_images pi3
+				WHERE pi3.product_id = products.id
+			)`,
+		})
+		.from(products)
+		.where(where)
+		.orderBy(desc(products.createdAt));
 }
 
 async function getBySlug(slug: string, isAdmin = false): Promise<Product | null> {

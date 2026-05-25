@@ -20,7 +20,7 @@ export type ProductSpecification = {
 	value: string;
 };
 
-export const productStatusEnum = pgEnum("product_status", ["active", "inactive", "out_of_stock"]);
+export const productStatusEnum = pgEnum("product_status", ["active", "inactive"]);
 
 export const products = pgTable(
 	"products",

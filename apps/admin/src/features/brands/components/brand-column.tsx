@@ -5,6 +5,7 @@ import {
 	MoreHorizontalIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Button } from "@renovabit/ui/components/ui/button";
 import { Checkbox } from "@renovabit/ui/components/ui/checkbox";
 import {
@@ -165,9 +166,9 @@ export function getBrandColumns({
 				}
 
 				return (
-					<span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+					<Badge className="bg-secondary text-secondary-foreground" variant="secondary">
 						Configurado
-					</span>
+					</Badge>
 				);
 			},
 			size: 110,
@@ -216,9 +217,14 @@ export function getBrandColumns({
 							onCheckedChange={(checked) => onToggleStatus(brand, checked)}
 							aria-label={isActive ? "Desactivar marca" : "Activar marca"}
 						/>
-						<span className={`text-sm ${isActive ? "text-green-600" : "text-muted-foreground"}`}>
+						<Badge
+							className={
+								isActive ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+							}
+							variant="secondary"
+						>
 							{isActive ? "Activa" : "Inactiva"}
-						</span>
+						</Badge>
 					</div>
 				);
 			},
@@ -263,13 +269,13 @@ export function getBrandColumns({
 				const isFeatured = row.getValue<boolean>("isFeatured");
 
 				if (!isFeatured) {
-					return <span className="text-muted-foreground text-sm">-</span>;
+					return <span className="text-muted-foreground text-sm">—</span>;
 				}
 
 				return (
-					<span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+					<Badge className="bg-primary/10 text-primary" variant="secondary">
 						Destacada
-					</span>
+					</Badge>
 				);
 			},
 			size: 100,

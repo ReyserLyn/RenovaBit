@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgEnum, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 
 /**
  * Primary key using UUID v7 for better performance and sortability
