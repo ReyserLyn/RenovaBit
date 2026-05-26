@@ -39,6 +39,7 @@ export const BrandModel = {
 
 	// Params
 	params: t.Object({ slug: t.String({ minLength: 1 }) }),
+	idParams: t.Object({ id: t.String({ format: "uuid" }) }),
 
 	// Batch
 	bulkDeleteBody: t.Object({

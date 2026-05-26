@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { brandsService } from "../service/brands.service";
 
 // ── Query Key Factory ──────────────────────────────────
@@ -9,22 +9,27 @@ export const brandKeys = {
 	list: (filters?: Record<string, unknown>) =>
 		[...brandKeys.lists(), ...(filters ? [filters] : [])] as const,
 	details: () => [...brandKeys.all, "detail"] as const,
-	detail: (slug: string) => [...brandKeys.details(), slug] as const,
+	detail: (id: string) => [...brandKeys.details(), id] as const,
 };
+
+// ── Query Options ──────────────────────────────────────
+
+export const brandsQueryOptions = queryOptions({
+	queryKey: brandKeys.lists(),
+	queryFn: () => brandsService.list(),
+	staleTime: 1000 * 60 * 5, // 5 min
+});
 
 // ── Queries ────────────────────────────────────────────
 
 export function useBrands() {
-	return useQuery({
-		queryKey: brandKeys.lists(),
-		queryFn: () => brandsService.list(),
-	});
+	return useQuery(brandsQueryOptions);
 }
 
-export function useBrand(slug: string) {
+export function useBrand(id: string) {
 	return useQuery({
-		queryKey: brandKeys.detail(slug),
-		queryFn: () => brandsService.getBySlug(slug),
-		enabled: slug.length > 0,
+		queryKey: brandKeys.detail(id),
+		queryFn: () => brandsService.getById(id),
+		enabled: id.length > 0,
 	});
 }

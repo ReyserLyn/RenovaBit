@@ -1,7 +1,7 @@
 import { Delete01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@renovabit/ui/components/ui/button";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { ConfirmDialog } from "@/shared/components/dialog/confirm-dialog";
 import { useBulkDeleteBrands } from "../hooks";
 import type { Brand } from "../model";
@@ -15,13 +15,13 @@ export function BrandBulkDeleteDialog({ selectedBrands }: BrandBulkDeleteDialogP
 	const bulkDeleteBrands = useBulkDeleteBrands();
 	const selectedCount = selectedBrands.length;
 
-	const handleBulkDelete = useCallback(async () => {
+	async function handleBulkDelete() {
 		const ids = selectedBrands.map((b) => b.id);
 		if (ids.length === 0) return;
 
 		await bulkDeleteBrands.mutateAsync({ ids });
 		setIsOpen(false);
-	}, [selectedBrands, bulkDeleteBrands]);
+	}
 
 	if (selectedCount === 0) return null;
 

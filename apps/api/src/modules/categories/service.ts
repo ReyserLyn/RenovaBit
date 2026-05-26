@@ -49,7 +49,6 @@ type UpdateBody = CategoryModel["updateBody"];
 // ── Constants ──────────────────────────────────────
 
 const MAX_DEPTH = 5;
-const MAX_REORDER = 100;
 const MAX_BULK_DELETE = 50;
 
 // ── Helpers ────────────────────────────────────────
@@ -291,7 +290,7 @@ async function getBreadcrumb(slug: string, includeInactive = false): Promise<Bre
 
 // ── Create ─────────────────────────────────────────
 
-async function create(data: CreateBody): Promise<Category> {
+async function create(data: CreateBody, userId: string): Promise<Category> {
 	const nextName = data.name.trim();
 	const nextSlug = data.slug?.trim() ? makeSlug(data.slug) : makeSlug(nextName);
 
@@ -326,6 +325,8 @@ async function create(data: CreateBody): Promise<Category> {
 			name: nextName,
 			slug: nextSlug,
 			path: nextPath,
+			createdBy: userId,
+			updatedBy: userId,
 		} as typeof data & { slug: string; path: string })
 		.returning()
 		.catch((err) => handleUniqueViolation(err, "Ya existe una categoría con este nombre o slug"));
@@ -351,7 +352,7 @@ async function create(data: CreateBody): Promise<Category> {
 
 // ── Update ─────────────────────────────────────────
 
-async function update(id: string, data: UpdateBody): Promise<Category> {
+async function update(id: string, data: UpdateBody, userId: string): Promise<Category> {
 	const current = await getByIdStrict(id);
 
 	const nextName = typeof data.name === "string" ? data.name.trim() : current.name;
@@ -443,6 +444,7 @@ async function update(id: string, data: UpdateBody): Promise<Category> {
 		name: nextName,
 		slug: nextSlug,
 		path: nextPath,
+		updatedBy: userId,
 	};
 
 	return db
@@ -514,60 +516,6 @@ async function update(id: string, data: UpdateBody): Promise<Category> {
 			}
 			return updated;
 		});
-}
-
-// ── Reorder ────────────────────────────────────────
-
-async function reorder(orders: Array<{ id: string; sortOrder: number }>): Promise<Category[]> {
-	if (orders.length > MAX_REORDER) {
-		throw createApiError({
-			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-			message: `No se pueden reordenar más de ${MAX_REORDER} categorías`,
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-
-	const ids = orders.map((o) => o.id);
-	const uniqueIds = new Set(ids);
-	if (uniqueIds.size !== ids.length) {
-		throw createApiError({
-			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-			message: "No se permiten IDs duplicados en el reordenamiento",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-
-	const existing = await db
-		.select({ id: categories.id })
-		.from(categories)
-		.where(inArray(categories.id, ids));
-	const existingSet = new Set(existing.map((e) => e.id));
-	const missing = ids.filter((id) => !existingSet.has(id));
-
-	if (missing.length > 0) {
-		throw createApiError({
-			code: BackendErrorCodes.NOT_FOUND_ERROR,
-			message: "Una o más categorías no existen",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-
-	return db.transaction(async (tx) => {
-		for (const order of orders) {
-			await tx
-				.update(categories)
-				.set({ sortOrder: order.sortOrder })
-				.where(eq(categories.id, order.id));
-		}
-
-		const updatedRows = await tx.select().from(categories).where(inArray(categories.id, ids));
-		const byId = new Map(updatedRows.map((row) => [row.id, row]));
-
-		return ids.map((itemId) => byId.get(itemId)).filter((row): row is Category => !!row);
-	});
 }
 
 // ── Delete ─────────────────────────────────────────
@@ -675,7 +623,6 @@ export const CategoryService = {
 	getBreadcrumb,
 	create,
 	update,
-	reorder,
 	delete: deleteById,
 	deleteMany,
 };

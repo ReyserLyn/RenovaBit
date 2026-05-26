@@ -25,10 +25,12 @@ import { Separator } from "@renovabit/ui/components/ui/separator";
 import { Switch } from "@renovabit/ui/components/ui/switch";
 import { Textarea } from "@renovabit/ui/components/ui/textarea";
 import { useForm } from "@tanstack/react-form";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getFieldErrorId, normalizeFieldErrors } from "@/shared/lib/form/form-utils";
+import { useImageUpload } from "@/shared/lib/hooks/use-image-upload";
 import { generateSlug } from "@/shared/lib/slug";
 import { uploadImage } from "@/shared/lib/storage/storage-service";
+import { toApiValue } from "@/shared/lib/string";
 import { useCategories } from "../hooks";
 import {
 	CATEGORY_DESCRIPTION_MAX,
@@ -48,13 +50,6 @@ import {
 export const CATEGORY_FORM_ID = "category-form";
 
 const ACCEPTED_IMAGE_TYPES = "image/png,image/jpeg,image/webp";
-
-// ── Helpers ──────────────────────────────────────────────
-
-export function toApiValue(value: string): string | undefined {
-	const trimmed = value.trim();
-	return trimmed === "" ? undefined : trimmed;
-}
 
 // ── Props ────────────────────────────────────────────────
 
@@ -116,21 +111,32 @@ export function CategoryForm(props: CategoryFormProps) {
 	const existingImageUrl = isEdit ? props.category.imageUrl : undefined;
 	const slugManuallyEditedRef = useRef(isEdit);
 
-	// Image state
-	const [imageFile, setImageFile] = useState<File | null>(null);
-	const [imagePreview, setImagePreview] = useState<string | null>(existingImageUrl ?? null);
-	const [imageError, setImageError] = useState<string | null>(null);
-	const [isDragging, setIsDragging] = useState(false);
-	const [isSubmitting, setIsSubmitting] = useState(false);
-	const fileInputRef = useRef<HTMLInputElement>(null);
-	const prevSubmittingRef = useRef(false);
-	const { onSubmittingChange } = props;
+	// Image upload hook
+	const {
+		imageFile,
+		imagePreview,
+		imageError,
+		setImageError,
+		isDragging,
+		fileInputRef,
+		handleImageSelect,
+		handleFileDrop,
+		handleRemoveImage,
+		setIsDragging,
+	} = useImageUpload({
+		maxBytes: CATEGORY_IMAGE_MAX_BYTES,
+		initialPreview: existingImageUrl ?? null,
+	});
 
 	// Categorías disponibles para el selector de padre
 	const { data: allCategories = [] } = useCategories();
 
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const prevSubmittingRef = useRef(false);
+	const { onSubmittingChange } = props;
+
 	// IDs a excluir del selector de padre (en edit: la categoría actual + sus descendientes)
-	const descendantIds = useMemo(() => {
+	const descendantIds = (() => {
 		if (!isEdit) return new Set<string>();
 		const exclude = new Set<string>([props.category.id]);
 		const pathPrefix = `${props.category.path ?? "/"}${props.category.id}/`;
@@ -140,7 +146,7 @@ export function CategoryForm(props: CategoryFormProps) {
 			}
 		}
 		return exclude;
-	}, [isEdit ? props.category.id : null, allCategories]);
+	})();
 
 	const parentOptions = allCategories.filter(
 		(cat) => !descendantIds.has(cat.id) && cat.id !== (isEdit ? props.category.id : ""),
@@ -198,54 +204,10 @@ export function CategoryForm(props: CategoryFormProps) {
 				onSuccess();
 			} finally {
 				setIsSubmitting(false);
+				onSubmittingChange?.(false);
 			}
 		},
 	});
-
-	function processFile(file: File) {
-		const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
-		if (!allowedTypes.includes(file.type)) {
-			setImageError("Formato no soportado. Usa PNG, JPG o WEBP.");
-			return;
-		}
-
-		if (file.size > CATEGORY_IMAGE_MAX_BYTES) {
-			setImageError(`La imagen no puede superar ${CATEGORY_IMAGE_MAX_BYTES / (1024 * 1024)} MB.`);
-			return;
-		}
-
-		setImageError(null);
-		setImageFile(file);
-
-		if (imagePreview?.startsWith("blob:")) {
-			URL.revokeObjectURL(imagePreview);
-		}
-		setImagePreview(URL.createObjectURL(file));
-	}
-
-	function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-		const file = e.target.files?.[0];
-		if (file) processFile(file);
-	}
-
-	function handleFileDrop(e: React.DragEvent) {
-		e.preventDefault();
-		setIsDragging(false);
-		const file = e.dataTransfer.files?.[0];
-		if (file) processFile(file);
-	}
-
-	function handleRemoveImage() {
-		if (imagePreview?.startsWith("blob:")) {
-			URL.revokeObjectURL(imagePreview);
-		}
-		setImageFile(null);
-		setImagePreview(null);
-		setImageError(null);
-		if (fileInputRef.current) {
-			fileInputRef.current.value = "";
-		}
-	}
 
 	return (
 		<form

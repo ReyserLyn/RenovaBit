@@ -51,7 +51,7 @@ export function BrandEditDialog({ brand, open, onOpenChange }: BrandEditDialogPr
 								isActive: brand.isActive,
 								isFeatured: brand.isFeatured,
 							}}
-							onMutation={(data) => updateBrand.mutateAsync({ slug: brand.slug, data })}
+							onMutation={(data) => updateBrand.mutateAsync({ id: brand.id, data })}
 							onSuccess={() => onOpenChange(false)}
 							onSubmittingChange={setIsSubmitting}
 						/>

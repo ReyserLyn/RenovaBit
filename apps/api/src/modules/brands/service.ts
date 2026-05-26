@@ -9,6 +9,10 @@ import type { BrandModel } from "./model";
 type CreateBody = BrandModel["createBody"];
 type UpdateBody = BrandModel["updateBody"];
 
+// ── Constants ──────────────────────────────────────
+
+const MAX_BULK_DELETE = 50;
+
 // ── Helpers ────────────────────────────────────────
 
 function makeSlug(value: string): string {
@@ -51,9 +55,14 @@ async function getBySlug(slug: string) {
 	return row ?? null;
 }
 
+async function getById(id: string) {
+	const [row] = await db.select().from(brands).where(eq(brands.id, id)).limit(1);
+	return row ?? null;
+}
+
 // ── Create ─────────────────────────────────────────
 
-async function create(data: CreateBody) {
+async function create(data: CreateBody, userId: string) {
 	const nextName = data.name.trim();
 	const slug = data.slug?.trim() ? makeSlug(data.slug) : makeSlug(nextName);
 
@@ -64,7 +73,7 @@ async function create(data: CreateBody) {
 		.limit(1);
 
 	if (exists.length > 0) {
-		const isSlugConflict = exists[0]?.name !== data.name;
+		const isSlugConflict = exists[0]?.name !== nextName;
 		throw createApiError({
 			code: BackendErrorCodes.EXISTS_ERROR,
 			message: isSlugConflict
@@ -77,7 +86,13 @@ async function create(data: CreateBody) {
 
 	const [item] = await db
 		.insert(brands)
-		.values({ ...data, name: nextName, slug } as typeof data & { slug: string })
+		.values({
+			...data,
+			name: nextName,
+			slug,
+			createdBy: userId,
+			updatedBy: userId,
+		} as typeof data & { slug: string })
 		.returning()
 		.catch((err) => handleUniqueViolation(err, "Ya existe una marca con este nombre o slug"));
 
@@ -102,9 +117,9 @@ async function create(data: CreateBody) {
 
 // ── Update ─────────────────────────────────────────
 
-async function update(slug: string, data: UpdateBody) {
-	const existing = await getBySlug(slug);
-	if (!existing) {
+async function update(id: string, data: UpdateBody, userId: string) {
+	const existingRow = await getById(id);
+	if (!existingRow) {
 		throw createApiError({
 			code: BackendErrorCodes.NOT_FOUND_ERROR,
 			message: "Marca no encontrada",
@@ -114,7 +129,7 @@ async function update(slug: string, data: UpdateBody) {
 	}
 
 	// Si cambia el nombre, verificamos que no exista otro
-	if (data.name && data.name !== existing.name) {
+	if (data.name && data.name !== existingRow.name) {
 		const dup = await db
 			.select({ id: brands.id })
 			.from(brands)
@@ -132,7 +147,7 @@ async function update(slug: string, data: UpdateBody) {
 	}
 
 	// Si cambia el slug, verificamos que no exista otro
-	if (data.slug && data.slug !== existing.slug) {
+	if (data.slug && data.slug !== existingRow.slug) {
 		const dup = await db
 			.select({ id: brands.id })
 			.from(brands)
@@ -151,8 +166,8 @@ async function update(slug: string, data: UpdateBody) {
 
 	const [item] = await db
 		.update(brands)
-		.set(data)
-		.where(eq(brands.slug, slug))
+		.set({ ...data, updatedBy: userId })
+		.where(eq(brands.id, id))
 		.returning()
 		.catch((err) => handleUniqueViolation(err, "Ya existe una marca con este nombre o slug"));
 
@@ -173,8 +188,8 @@ async function update(slug: string, data: UpdateBody) {
 	}
 
 	// 2. Eliminar la imagen anterior SOLO si la nueva se resolvió correctamente
-	if (data.imageUrl !== undefined && data.imageUrl !== existing.imageUrl) {
-		await deleteEntityImage(existing.imageUrl);
+	if (data.imageUrl !== undefined && data.imageUrl !== existingRow.imageUrl) {
+		await deleteEntityImage(existingRow.imageUrl);
 	}
 
 	return item;
@@ -182,8 +197,8 @@ async function update(slug: string, data: UpdateBody) {
 
 // ── Delete ─────────────────────────────────────────
 
-async function deleteBrand(slug: string) {
-	const existing = await getBySlug(slug);
+async function deleteBrand(id: string) {
+	const existing = await getById(id);
 	if (!existing) {
 		throw createApiError({
 			code: BackendErrorCodes.NOT_FOUND_ERROR,
@@ -193,42 +208,60 @@ async function deleteBrand(slug: string) {
 		});
 	}
 
-	await db.delete(brands).where(eq(brands.slug, slug));
+	await db.delete(brands).where(eq(brands.id, id));
 
 	// Limpiar carpeta R2 (no bloqueante, no revierte el delete)
-	deleteEntityFolder("brands", existing.id);
+	deleteEntityFolder("brands", id);
 }
 
 // ── Bulk Delete ─────────────────────────────────────
 
 async function deleteMany(ids: string[]) {
-	const existing = await db
-		.select({ id: brands.id, slug: brands.slug })
-		.from(brands)
-		.where(inArray(brands.id, ids));
-
-	const existingIds = existing.map((b) => b.id);
-	const notFoundIds = ids.filter((id) => !existingIds.includes(id));
-
-	if (existingIds.length === 0) {
+	if (ids.length > MAX_BULK_DELETE) {
 		throw createApiError({
-			code: BackendErrorCodes.NOT_FOUND_ERROR,
-			message: "No se encontraron marcas para eliminar",
+			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+			message: `No se pueden eliminar más de ${MAX_BULK_DELETE} marcas`,
 			logLevel: "info",
 			doNotLog: true,
 		});
 	}
 
-	await db.delete(brands).where(inArray(brands.id, existingIds));
+	if (new Set(ids).size !== ids.length) {
+		throw createApiError({
+			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+			message: "No se permiten IDs duplicados",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
 
-	// Limpiar carpetas R2 (no bloqueante)
-	existingIds.forEach((id) => deleteEntityFolder("brands", id));
+	return db
+		.transaction(async (tx) => {
+			const existing = await tx
+				.select({ id: brands.id })
+				.from(brands)
+				.where(inArray(brands.id, ids));
 
-	return {
-		deletedCount: existingIds.length,
-		deletedIds: existingIds,
-		notFoundIds,
-	};
+			const existingIds = existing.map((b) => b.id);
+			const notFoundIds = ids.filter((id) => !existingIds.includes(id));
+
+			if (existingIds.length === 0) {
+				return { deletedIds: [], notFoundIds, deletedCount: 0 };
+			}
+
+			await tx.delete(brands).where(inArray(brands.id, existingIds));
+
+			return {
+				deletedIds: existingIds,
+				notFoundIds,
+				deletedCount: existingIds.length,
+			};
+		})
+		.then((result) => {
+			// Limpiar carpetas R2 (no bloqueante)
+			result.deletedIds.forEach((id) => deleteEntityFolder("brands", id));
+			return result;
+		});
 }
 
 // ── Public API ─────────────────────────────────────
@@ -236,6 +269,7 @@ async function deleteMany(ids: string[]) {
 export const BrandService = {
 	list,
 	getBySlug,
+	getById,
 	create,
 	update,
 	delete: deleteBrand,

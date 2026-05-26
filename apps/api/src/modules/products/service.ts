@@ -34,7 +34,6 @@ type UpdateBody = ProductModel["updateBody"];
 
 // ── Constants ──────────────────────────────────────
 
-const PUBLIC_STATUSES = ["active"] as const;
 const MAX_BULK_DELETE = 50;
 
 // ── Helpers ────────────────────────────────────────
@@ -158,7 +157,7 @@ async function list(options: ListOptions = {}, isAdmin = false): Promise<Product
 	const conditions = [];
 
 	if (!isAdmin) {
-		conditions.push(inArray(products.status, PUBLIC_STATUSES));
+		conditions.push(eq(products.isActive, true));
 	}
 
 	if (options.brandId) conditions.push(eq(products.brandId, options.brandId));
@@ -203,7 +202,7 @@ async function list(options: ListOptions = {}, isAdmin = false): Promise<Product
 async function getBySlug(slug: string, isAdmin = false): Promise<Product | null> {
 	const where = isAdmin
 		? eq(products.slug, slug)
-		: and(eq(products.slug, slug), inArray(products.status, PUBLIC_STATUSES));
+		: and(eq(products.slug, slug), eq(products.isActive, true));
 
 	const [row] = await db.select().from(products).where(where).limit(1);
 	return row ?? null;
@@ -212,7 +211,7 @@ async function getBySlug(slug: string, isAdmin = false): Promise<Product | null>
 async function getById(id: string, isAdmin = false): Promise<Product | null> {
 	const where = isAdmin
 		? eq(products.id, id)
-		: and(eq(products.id, id), inArray(products.status, PUBLIC_STATUSES));
+		: and(eq(products.id, id), eq(products.isActive, true));
 
 	const [row] = await db.select().from(products).where(where).limit(1);
 	return row ?? null;
@@ -233,7 +232,7 @@ async function getByIdStrict(id: string): Promise<Product> {
 
 // ── Create ─────────────────────────────────────────
 
-async function create(data: CreateBody): Promise<Product> {
+async function create(data: CreateBody, userId: string): Promise<Product> {
 	const nextName = data.name.trim();
 	const nextSlug = data.slug?.trim() ? makeSlug(data.slug) : makeSlug(nextName);
 
@@ -254,7 +253,13 @@ async function create(data: CreateBody): Promise<Product> {
 
 	const [item] = await db
 		.insert(products)
-		.values({ ...data, name: nextName, slug: nextSlug } as typeof data & { slug: string })
+		.values({
+			...data,
+			name: nextName,
+			slug: nextSlug,
+			createdBy: userId,
+			updatedBy: userId,
+		} as typeof data & { slug: string })
 		.returning()
 		.catch((err) =>
 			handleUniqueViolation(err, "Ya existe un producto con este nombre, slug o SKU"),
@@ -272,7 +277,7 @@ async function create(data: CreateBody): Promise<Product> {
 
 // ── Update ─────────────────────────────────────────
 
-async function update(id: string, data: UpdateBody): Promise<Product> {
+async function update(id: string, data: UpdateBody, userId: string): Promise<Product> {
 	const current = await getByIdStrict(id);
 
 	const nextName = typeof data.name === "string" ? data.name.trim() : current.name;
@@ -299,7 +304,7 @@ async function update(id: string, data: UpdateBody): Promise<Product> {
 	if (data.brandId !== undefined) await ensureBrandExists(data.brandId);
 	if (data.categoryId !== undefined) await ensureCategoryExists(data.categoryId);
 
-	const baseUpdate = { ...data, name: nextName, slug: nextSlug };
+	const baseUpdate = { ...data, name: nextName, slug: nextSlug, updatedBy: userId };
 
 	const [item] = await db
 		.update(products)

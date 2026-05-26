@@ -5,7 +5,6 @@ import { Card } from "@renovabit/ui/components/ui/card";
 import { Input } from "@renovabit/ui/components/ui/input";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-	type ColumnDef,
 	type ColumnFiltersState,
 	getCoreRowModel,
 	getFilteredRowModel,
@@ -13,18 +12,16 @@ import {
 	getSortedRowModel,
 	type PaginationState,
 	type RowSelectionState,
-	type SortingState,
 	useReactTable,
-	type VisibilityState,
 } from "@tanstack/react-table";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridColumnVisibility } from "@/shared/components/data-grid/data-grid-column-visibility";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
 import { useBrandsTableStore } from "@/shared/lib/stores/tables/brands-table";
-import { brandKeys, useBrands, useUpdateBrand } from "../hooks";
+import { brandKeys, useBrands, useToggleBrandField } from "../hooks";
 import type { Brand } from "../model";
 import { BrandBulkDeleteDialog } from "./brand-bulk-delete-dialog";
 import { getBrandColumns } from "./brand-column";
@@ -40,11 +37,11 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 	const queryClient = useQueryClient();
 	const { data: brandsData, isPending, isFetching, isError, error } = useBrands();
 	const brands = brandsData ?? EMPTY_BRANDS;
-	const updateBrand = useUpdateBrand();
+	const toggleBrandField = useToggleBrandField();
 
-	const handleRefresh = useCallback(() => {
+	function handleRefresh() {
 		void queryClient.invalidateQueries({ queryKey: brandKeys.all });
-	}, [queryClient]);
+	}
 
 	const [pagination, setPagination] = useState<PaginationState>({
 		pageIndex: 0,
@@ -57,30 +54,20 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-	const handleToggleStatus = useCallback(
-		async (brand: Brand, isActive: boolean) => {
-			await updateBrand.mutateAsync({ slug: brand.slug, data: { isActive } });
-		},
-		[updateBrand],
-	);
+	async function handleToggleStatus(brand: Brand, isActive: boolean) {
+		await toggleBrandField.mutateAsync({ id: brand.id, data: { isActive } });
+	}
 
-	const handleToggleFeatured = useCallback(
-		async (brand: Brand, isFeatured: boolean) => {
-			await updateBrand.mutateAsync({ slug: brand.slug, data: { isFeatured } });
-		},
-		[updateBrand],
-	);
+	async function handleToggleFeatured(brand: Brand, isFeatured: boolean) {
+		await toggleBrandField.mutateAsync({ id: brand.id, data: { isFeatured } });
+	}
 
-	const columns = useMemo(
-		() =>
-			getBrandColumns({
-				onEdit,
-				onDelete,
-				onToggleStatus: handleToggleStatus,
-				onToggleFeatured: handleToggleFeatured,
-			}),
-		[onEdit, onDelete, handleToggleStatus, handleToggleFeatured],
-	);
+	const columns = getBrandColumns({
+		onEdit,
+		onDelete,
+		onToggleStatus: handleToggleStatus,
+		onToggleFeatured: handleToggleFeatured,
+	});
 
 	const table = useReactTable({
 		data: brands,

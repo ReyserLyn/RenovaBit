@@ -51,7 +51,7 @@ export function ProductEditDialog({ product, open, onOpenChange }: ProductEditDi
 								brandId: product.brandId,
 								categoryId: product.categoryId,
 								specifications: product.specifications ?? [],
-								status: product.status,
+								isActive: product.isActive,
 								isFeatured: product.isFeatured,
 								seoTitle: product.seoTitle,
 								seoDescription: product.seoDescription,

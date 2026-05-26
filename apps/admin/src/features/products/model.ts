@@ -13,9 +13,6 @@ export const PRODUCT_SEO_TITLE_MAX = 255;
 export const PRODUCT_SEO_DESCRIPTION_MAX = 500;
 export const PRODUCT_SEO_KEYWORDS_MAX = 500;
 
-export const PRODUCT_STATUS_OPTIONS = ["active", "inactive"] as const;
-export type ProductStatus = (typeof PRODUCT_STATUS_OPTIONS)[number];
-
 // ── Domain Types ─────────────────────────────────────────
 
 export interface Product {
@@ -29,7 +26,7 @@ export interface Product {
 	brandId: string | null;
 	categoryId: string | null;
 	specifications: ProductSpecification[] | null;
-	status: ProductStatus;
+	isActive: boolean;
 	isFeatured: boolean;
 	imageUrls?: string[];
 	imageCount?: number;
@@ -96,8 +93,8 @@ export const createProductSchema = z.object({
 		}),
 	price: z.string().min(1, { message: "El precio es obligatorio" }),
 	stock: z.number().int().min(0).optional(),
-	brandId: z.string().uuid().nullable().optional(),
-	categoryId: z.string().uuid().nullable().optional(),
+	brandId: z.uuid().nullable().optional(),
+	categoryId: z.uuid().nullable().optional(),
 	specifications: z
 		.array(
 			z.object({
@@ -108,7 +105,7 @@ export const createProductSchema = z.object({
 		)
 		.max(PRODUCT_SPECS_MAX)
 		.optional(),
-	status: z.enum(PRODUCT_STATUS_OPTIONS).optional(),
+	isActive: z.boolean().optional(),
 	isFeatured: z.boolean().optional(),
 	seoTitle: z
 		.string()
@@ -165,8 +162,8 @@ export const productFormSchema = z.object({
 		.min(1, { message: "El precio es obligatorio" })
 		.regex(/^\d+(\.\d{1,2})?$/, { message: "El precio debe ser un número válido (ej: 99.99)" }),
 	stock: z.number().int().min(0, { message: "El stock no puede ser negativo" }),
-	brandId: z.string().uuid().nullable().optional(),
-	categoryId: z.string().uuid().nullable().optional(),
+	brandId: z.uuid().nullable().optional(),
+	categoryId: z.uuid().nullable().optional(),
 	specifications: z
 		.array(
 			z.object({
@@ -176,7 +173,7 @@ export const productFormSchema = z.object({
 			}),
 		)
 		.max(PRODUCT_SPECS_MAX),
-	status: z.enum(PRODUCT_STATUS_OPTIONS),
+	isActive: z.boolean(),
 	isFeatured: z.boolean(),
 	seoTitle: z.string().max(PRODUCT_SEO_TITLE_MAX, {
 		message: `El título SEO no puede superar ${PRODUCT_SEO_TITLE_MAX} caracteres`,

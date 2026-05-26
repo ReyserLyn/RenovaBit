@@ -1,17 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ApiClientError } from "@/shared/lib/api/api-errors";
-import type { BulkDeleteValues, CreateProductValues, UpdateProductValues } from "../model";
+import { resolveErrorMessage } from "@/shared/lib/api/error-utils";
+import type { BulkDeleteValues, CreateProductValues, Product, UpdateProductValues } from "../model";
 import { productsService } from "../service/products.service";
 import { productKeys } from "./products-queries";
-
-// ── Helpers ────────────────────────────────────────────
-
-function resolveErrorMessage(error: unknown): string {
-	if (error instanceof ApiClientError) return error.message;
-	if (error instanceof Error) return error.message;
-	return "Error inesperado";
-}
 
 // ── Mutations ──────────────────────────────────────────
 
@@ -43,6 +35,46 @@ export function useUpdateProduct() {
 		},
 		onError: (error) => {
 			toast.error(resolveErrorMessage(error));
+		},
+	});
+}
+
+export function useToggleProductField() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: ({ id, data }: { id: string; data: UpdateProductValues }) =>
+			productsService.update(id, data),
+		onMutate: async ({ id, data }) => {
+			await queryClient.cancelQueries({ queryKey: productKeys.lists() });
+			await queryClient.cancelQueries({ queryKey: productKeys.detail(id) });
+			const previousProducts = queryClient.getQueryData<Product[]>(productKeys.lists());
+			const previousProduct = queryClient.getQueryData<Product>(productKeys.detail(id));
+
+			queryClient.setQueryData(productKeys.lists(), (old: Product[] | undefined) => {
+				if (!old) return old;
+				return old.map((p) => (p.id === id ? { ...p, ...data } : p));
+			});
+
+			queryClient.setQueryData(productKeys.detail(id), (old: Product | undefined) => {
+				if (!old) return old;
+				return { ...old, ...data };
+			});
+
+			return { previousProducts, previousProduct };
+		},
+		onError: (err, { id }, context) => {
+			if (context?.previousProducts) {
+				queryClient.setQueryData(productKeys.lists(), context.previousProducts);
+			}
+			if (context?.previousProduct) {
+				queryClient.setQueryData(productKeys.detail(id), context.previousProduct);
+			}
+			toast.error(resolveErrorMessage(err));
+		},
+		onSettled: (_data, _error, { id }) => {
+			queryClient.invalidateQueries({ queryKey: productKeys.lists() });
+			queryClient.invalidateQueries({ queryKey: productKeys.detail(id) });
 		},
 	});
 }

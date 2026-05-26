@@ -152,48 +152,48 @@ export const categoriesRoute = new Elysia({ prefix: "/categories" })
 	// ═════════════════════════════════════════════════
 
 	// ── Create ──────────────────────────────────────
-	.post("/", ({ body }) => CategoryService.create(body), {
-		isAdmin: true,
-		body: CategoryModel.createBody,
-		response: {
-			201: CategoryModel.categoryResponse,
-			400: ErrorResponse,
-			401: ErrorResponse,
-			403: ErrorResponse,
-			409: ErrorResponse,
+	.post(
+		"/",
+		async ({ body, request }) => {
+			const session = await resolveOptionalSession(request);
+			return CategoryService.create(body, session?.user?.id ?? "");
 		},
-		detail: { summary: "Crear categoría", tags: ["Categories"] },
-	})
+		{
+			isAdmin: true,
+			body: CategoryModel.createBody,
+			response: {
+				201: CategoryModel.categoryResponse,
+				400: ErrorResponse,
+				401: ErrorResponse,
+				403: ErrorResponse,
+				409: ErrorResponse,
+			},
+			detail: { summary: "Crear categoría", tags: ["Categories"] },
+		},
+	)
 
 	// ── Update ──────────────────────────────────────
-	.patch("/:id", ({ params: { id }, body }) => CategoryService.update(id, body), {
-		isAdmin: true,
-		params: CategoryModel.idParams,
-		body: CategoryModel.updateBody,
-		response: {
-			200: CategoryModel.categoryResponse,
-			400: ErrorResponse,
-			401: ErrorResponse,
-			403: ErrorResponse,
-			404: ErrorResponse,
-			409: ErrorResponse,
+	.patch(
+		"/:id",
+		async ({ params: { id }, body, request }) => {
+			const session = await resolveOptionalSession(request);
+			return CategoryService.update(id, body, session?.user?.id ?? "");
 		},
-		detail: { summary: "Actualizar categoría", tags: ["Categories"] },
-	})
-
-	// ── Reorder ─────────────────────────────────────
-	.post("/reorder", ({ body }) => CategoryService.reorder(body.orders), {
-		isAdmin: true,
-		body: CategoryModel.reorderBody,
-		response: {
-			200: CategoryModel.categoryListResponse,
-			400: ErrorResponse,
-			401: ErrorResponse,
-			403: ErrorResponse,
-			404: ErrorResponse,
+		{
+			isAdmin: true,
+			params: CategoryModel.idParams,
+			body: CategoryModel.updateBody,
+			response: {
+				200: CategoryModel.categoryResponse,
+				400: ErrorResponse,
+				401: ErrorResponse,
+				403: ErrorResponse,
+				404: ErrorResponse,
+				409: ErrorResponse,
+			},
+			detail: { summary: "Actualizar categoría", tags: ["Categories"] },
 		},
-		detail: { summary: "Reordenar categorías", tags: ["Categories"] },
-	})
+	)
 
 	// ── Delete ──────────────────────────────────────
 	.delete(

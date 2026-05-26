@@ -73,45 +73,85 @@ export const brandsRoute = new Elysia({ prefix: "/brands" })
 	)
 
 	// ── Create ──────────────────────────────────────
-	.post("/", ({ body }) => BrandService.create(body), {
-		isAdmin: true,
-		body: BrandModel.createBody,
-		response: {
-			201: BrandModel.brandResponse,
-			400: ErrorResponse,
-			401: ErrorResponse,
-			403: ErrorResponse,
-			409: ErrorResponse,
+	.post(
+		"/",
+		async ({ body, request }) => {
+			const session = await resolveOptionalSession(request);
+			return BrandService.create(body, session?.user?.id ?? "");
 		},
-		detail: { summary: "Crear marca", tags: ["Brands"] },
-	})
+		{
+			isAdmin: true,
+			body: BrandModel.createBody,
+			response: {
+				201: BrandModel.brandResponse,
+				400: ErrorResponse,
+				401: ErrorResponse,
+				403: ErrorResponse,
+				409: ErrorResponse,
+			},
+			detail: { summary: "Crear marca", tags: ["Brands"] },
+		},
+	)
+
+	// ── Get by id (admin) ───────────────────────────
+	.get(
+		"/id/:id",
+		async ({ params: { id } }) => {
+			const brand = await BrandService.getById(id);
+			if (!brand) {
+				throw createApiError({
+					code: BackendErrorCodes.NOT_FOUND_ERROR,
+					message: "Marca no encontrada",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+			return brand;
+		},
+		{
+			isAdmin: true,
+			params: BrandModel.idParams,
+			response: {
+				200: BrandModel.brandResponse,
+				404: ErrorResponse,
+			},
+			detail: { summary: "Obtener marca por ID (admin)", tags: ["Brands"] },
+		},
+	)
 
 	// ── Update ──────────────────────────────────────
-	.patch("/:slug", ({ params: { slug }, body }) => BrandService.update(slug, body), {
-		isAdmin: true,
-		params: BrandModel.params,
-		body: BrandModel.updateBody,
-		response: {
-			200: BrandModel.brandResponse,
-			400: ErrorResponse,
-			401: ErrorResponse,
-			403: ErrorResponse,
-			404: ErrorResponse,
-			409: ErrorResponse,
+	.patch(
+		"/id/:id",
+		async ({ params: { id }, body, request }) => {
+			const session = await resolveOptionalSession(request);
+			return BrandService.update(id, body, session?.user?.id ?? "");
 		},
-		detail: { summary: "Actualizar marca", tags: ["Brands"] },
-	})
+		{
+			isAdmin: true,
+			params: BrandModel.idParams,
+			body: BrandModel.updateBody,
+			response: {
+				200: BrandModel.brandResponse,
+				400: ErrorResponse,
+				401: ErrorResponse,
+				403: ErrorResponse,
+				404: ErrorResponse,
+				409: ErrorResponse,
+			},
+			detail: { summary: "Actualizar marca", tags: ["Brands"] },
+		},
+	)
 
 	// ── Delete ──────────────────────────────────────
 	.delete(
-		"/:slug",
-		async ({ params: { slug }, set }) => {
-			await BrandService.delete(slug);
+		"/id/:id",
+		async ({ params: { id }, set }) => {
+			await BrandService.delete(id);
 			set.status = 204;
 		},
 		{
 			isAdmin: true,
-			params: BrandModel.params,
+			params: BrandModel.idParams,
 			response: {
 				204: t.Undefined(),
 				401: ErrorResponse,

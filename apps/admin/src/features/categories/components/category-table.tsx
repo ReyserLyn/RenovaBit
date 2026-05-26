@@ -17,14 +17,14 @@ import {
 	useReactTable,
 	type VisibilityState,
 } from "@tanstack/react-table";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridColumnVisibility } from "@/shared/components/data-grid/data-grid-column-visibility";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
 import { useCategoriesTableStore } from "@/shared/lib/stores/tables/categories-table";
-import { categoryKeys, useCategories, useUpdateCategory } from "../hooks";
+import { categoryKeys, useCategories, useToggleCategoryField } from "../hooks";
 import type { Category } from "../model";
 import { CategoryBulkDeleteDialog } from "./category-bulk-delete-dialog";
 import { getCategoryColumns } from "./category-column";
@@ -43,11 +43,11 @@ export const CategoryTable = React.memo(function CategoryTable({
 	const queryClient = useQueryClient();
 	const { data: categoriesData, isPending, isFetching, isError, error } = useCategories();
 	const categories = categoriesData ?? EMPTY_CATEGORIES;
-	const updateCategory = useUpdateCategory();
+	const toggleCategoryField = useToggleCategoryField();
 
-	const handleRefresh = useCallback(() => {
+	function handleRefresh() {
 		void queryClient.invalidateQueries({ queryKey: categoryKeys.all });
-	}, [queryClient]);
+	}
 
 	const [pagination, setPagination] = useState<PaginationState>({
 		pageIndex: 0,
@@ -60,49 +60,29 @@ export const CategoryTable = React.memo(function CategoryTable({
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-	const handleToggleStatus = useCallback(
-		async (category: Category, isActive: boolean) => {
-			await updateCategory.mutateAsync({ id: category.id, data: { isActive } });
-		},
-		[updateCategory],
-	);
+	async function handleToggleStatus(category: Category, isActive: boolean) {
+		await toggleCategoryField.mutateAsync({ id: category.id, data: { isActive } });
+	}
 
-	const handleToggleFeatured = useCallback(
-		async (category: Category, isFeatured: boolean) => {
-			await updateCategory.mutateAsync({ id: category.id, data: { isFeatured } });
-		},
-		[updateCategory],
-	);
+	async function handleToggleFeatured(category: Category, isFeatured: boolean) {
+		await toggleCategoryField.mutateAsync({ id: category.id, data: { isFeatured } });
+	}
 
-	const handleToggleNavVisibility = useCallback(
-		async (category: Category, isVisibleInNav: boolean) => {
-			await updateCategory.mutateAsync({ id: category.id, data: { isVisibleInNav } });
-		},
-		[updateCategory],
-	);
+	async function handleToggleNavVisibility(category: Category, isVisibleInNav: boolean) {
+		await toggleCategoryField.mutateAsync({ id: category.id, data: { isVisibleInNav } });
+	}
 
 	// Mapa para resolver el nombre de la categoría padre
-	const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+	const categoriesById = new Map(categories.map((c) => [c.id, c]));
 
-	const columns = useMemo(
-		() =>
-			getCategoryColumns({
-				onEdit,
-				onDelete,
-				onToggleStatus: handleToggleStatus,
-				onToggleFeatured: handleToggleFeatured,
-				onToggleNavVisibility: handleToggleNavVisibility,
-				categoriesById,
-			}),
-		[
-			onEdit,
-			onDelete,
-			handleToggleStatus,
-			handleToggleFeatured,
-			handleToggleNavVisibility,
-			categoriesById,
-		],
-	);
+	const columns = getCategoryColumns({
+		onEdit,
+		onDelete,
+		onToggleStatus: handleToggleStatus,
+		onToggleFeatured: handleToggleFeatured,
+		onToggleNavVisibility: handleToggleNavVisibility,
+		categoriesById,
+	});
 
 	const table = useReactTable({
 		data: categories,

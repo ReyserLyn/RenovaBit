@@ -107,34 +107,48 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 	// ═════════════════════════════════════════════════
 
 	// ── Create ──────────────────────────────────────
-	.post("/", ({ body }) => ProductService.create(body), {
-		isAdmin: true,
-		body: ProductModel.createBody,
-		response: {
-			201: ProductModel.productResponse,
-			400: ErrorResponse,
-			401: ErrorResponse,
-			403: ErrorResponse,
-			409: ErrorResponse,
+	.post(
+		"/",
+		async ({ body, request }) => {
+			const session = await resolveOptionalSession(request);
+			return ProductService.create(body, session?.user?.id ?? "");
 		},
-		detail: { summary: "Crear producto", tags: ["Products"] },
-	})
+		{
+			isAdmin: true,
+			body: ProductModel.createBody,
+			response: {
+				201: ProductModel.productResponse,
+				400: ErrorResponse,
+				401: ErrorResponse,
+				403: ErrorResponse,
+				409: ErrorResponse,
+			},
+			detail: { summary: "Crear producto", tags: ["Products"] },
+		},
+	)
 
 	// ── Update ──────────────────────────────────────
-	.patch("/:id", ({ params: { id }, body }) => ProductService.update(id, body), {
-		isAdmin: true,
-		params: ProductModel.idParams,
-		body: ProductModel.updateBody,
-		response: {
-			200: ProductModel.productResponse,
-			400: ErrorResponse,
-			401: ErrorResponse,
-			403: ErrorResponse,
-			404: ErrorResponse,
-			409: ErrorResponse,
+	.patch(
+		"/:id",
+		async ({ params: { id }, body, request }) => {
+			const session = await resolveOptionalSession(request);
+			return ProductService.update(id, body, session?.user?.id ?? "");
 		},
-		detail: { summary: "Actualizar producto", tags: ["Products"] },
-	})
+		{
+			isAdmin: true,
+			params: ProductModel.idParams,
+			body: ProductModel.updateBody,
+			response: {
+				200: ProductModel.productResponse,
+				400: ErrorResponse,
+				401: ErrorResponse,
+				403: ErrorResponse,
+				404: ErrorResponse,
+				409: ErrorResponse,
+			},
+			detail: { summary: "Actualizar producto", tags: ["Products"] },
+		},
+	)
 
 	// ── Delete ──────────────────────────────────────
 	.delete(

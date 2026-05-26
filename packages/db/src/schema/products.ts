@@ -4,13 +4,13 @@ import {
 	integer,
 	jsonb,
 	numeric,
-	pgEnum,
 	pgTable,
 	text,
 	uuid,
 	varchar,
 } from "drizzle-orm/pg-core";
 import { lifecycleDates, primaryKey, seoFields } from "./_utils";
+import { users } from "./auth";
 import { brands } from "./brands";
 import { categories } from "./categories";
 
@@ -19,8 +19,6 @@ export type ProductSpecification = {
 	key: string;
 	value: string;
 };
-
-export const productStatusEnum = pgEnum("product_status", ["active", "inactive"]);
 
 export const products = pgTable(
 	"products",
@@ -43,8 +41,11 @@ export const products = pgTable(
 		}),
 
 		specifications: jsonb("specifications").$type<ProductSpecification[]>().default([]),
-		status: productStatusEnum("status").default("active").notNull(),
+		isActive: boolean("is_active").default(true).notNull(),
 		isFeatured: boolean("is_featured").default(false).notNull(),
+
+		createdBy: uuid("created_by").references(() => users.id),
+		updatedBy: uuid("updated_by").references(() => users.id),
 
 		...seoFields,
 		...lifecycleDates,
@@ -54,7 +55,7 @@ export const products = pgTable(
 		index("products_sku_idx").on(table.sku),
 		index("products_brand_id_idx").on(table.brandId),
 		index("products_category_id_idx").on(table.categoryId),
-		index("products_status_idx").on(table.status),
+		index("products_is_active_idx").on(table.isActive),
 		index("products_featured_idx").on(table.isFeatured),
 	],
 );

@@ -15,7 +15,7 @@ export function BrandDeleteDialog({ brand, open, onOpenChange }: BrandDeleteDial
 		if (!brand) return;
 
 		try {
-			await deleteBrand.mutateAsync(brand.slug);
+			await deleteBrand.mutateAsync(brand.id);
 			onOpenChange(false);
 		} catch {
 			// El onError del hook ya muestra el toast.

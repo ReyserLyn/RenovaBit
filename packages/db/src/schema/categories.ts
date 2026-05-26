@@ -1,6 +1,7 @@
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { boolean, index, integer, pgTable, text, uuid, varchar } from "drizzle-orm/pg-core";
 import { lifecycleDates, primaryKey, seoFields } from "./_utils";
+import { users } from "./auth";
 
 export const categories = pgTable(
 	"categories",
@@ -22,6 +23,9 @@ export const categories = pgTable(
 		isFeatured: boolean("is_featured").default(false).notNull(),
 		isActive: boolean("is_active").default(true).notNull(),
 		isVisibleInNav: boolean("is_visible_in_nav").default(true).notNull(),
+
+		createdBy: uuid("created_by").references(() => users.id),
+		updatedBy: uuid("updated_by").references(() => users.id),
 
 		...seoFields,
 		...lifecycleDates,

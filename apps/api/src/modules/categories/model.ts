@@ -82,15 +82,6 @@ export const CategoryModel = {
 	}),
 
 	// Batch bodies
-	reorderBody: t.Object({
-		orders: t.Array(
-			t.Object({
-				id: t.String({ format: "uuid" }),
-				sortOrder: t.Integer({ minimum: 0 }),
-			}),
-			{ minItems: 1, maxItems: 100 },
-		),
-	}),
 	bulkDeleteBody: t.Object({
 		ids: t.Array(t.String({ format: "uuid" }), { minItems: 1, maxItems: 50 }),
 	}),

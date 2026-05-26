@@ -1,5 +1,5 @@
 {
-	"id": "3e4584b8-0858-4887-84e0-8d4d358df14b",
+	"id": "c29dbc69-83ba-47da-a1cc-716b08be5e26",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"version": "7",
 	"dialect": "postgresql",
@@ -469,6 +469,18 @@
 					"notNull": true,
 					"default": false
 				},
+				"created_by": {
+					"name": "created_by",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"updated_by": {
+					"name": "updated_by",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
 				"seo_title": {
 					"name": "seo_title",
 					"type": "varchar(255)",
@@ -549,7 +561,26 @@
 					"with": {}
 				}
 			},
-			"foreignKeys": {},
+			"foreignKeys": {
+				"brands_created_by_users_id_fk": {
+					"name": "brands_created_by_users_id_fk",
+					"tableFrom": "brands",
+					"tableTo": "users",
+					"columnsFrom": ["created_by"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"brands_updated_by_users_id_fk": {
+					"name": "brands_updated_by_users_id_fk",
+					"tableFrom": "brands",
+					"tableTo": "users",
+					"columnsFrom": ["updated_by"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {
 				"brands_name_unique": {
@@ -641,6 +672,18 @@
 					"primaryKey": false,
 					"notNull": true,
 					"default": true
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"updated_by": {
+					"name": "updated_by",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
 				},
 				"seo_title": {
 					"name": "seo_title",
@@ -760,6 +803,24 @@
 					"columnsFrom": ["parent_id"],
 					"columnsTo": ["id"],
 					"onDelete": "set null",
+					"onUpdate": "no action"
+				},
+				"categories_created_by_users_id_fk": {
+					"name": "categories_created_by_users_id_fk",
+					"tableFrom": "categories",
+					"tableTo": "users",
+					"columnsFrom": ["created_by"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"categories_updated_by_users_id_fk": {
+					"name": "categories_updated_by_users_id_fk",
+					"tableFrom": "categories",
+					"tableTo": "users",
+					"columnsFrom": ["updated_by"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
 					"onUpdate": "no action"
 				}
 			},
@@ -969,13 +1030,12 @@
 					"notNull": false,
 					"default": "'[]'::jsonb"
 				},
-				"status": {
-					"name": "status",
-					"type": "product_status",
-					"typeSchema": "public",
+				"is_active": {
+					"name": "is_active",
+					"type": "boolean",
 					"primaryKey": false,
 					"notNull": true,
-					"default": "'active'"
+					"default": true
 				},
 				"is_featured": {
 					"name": "is_featured",
@@ -983,6 +1043,18 @@
 					"primaryKey": false,
 					"notNull": true,
 					"default": false
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"updated_by": {
+					"name": "updated_by",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
 				},
 				"seo_title": {
 					"name": "seo_title",
@@ -1078,11 +1150,11 @@
 					"method": "btree",
 					"with": {}
 				},
-				"products_status_idx": {
-					"name": "products_status_idx",
+				"products_is_active_idx": {
+					"name": "products_is_active_idx",
 					"columns": [
 						{
-							"expression": "status",
+							"expression": "is_active",
 							"isExpression": false,
 							"asc": true,
 							"nulls": "last"
@@ -1129,6 +1201,24 @@
 					"columnsTo": ["id"],
 					"onDelete": "set null",
 					"onUpdate": "no action"
+				},
+				"products_created_by_users_id_fk": {
+					"name": "products_created_by_users_id_fk",
+					"tableFrom": "products",
+					"tableTo": "users",
+					"columnsFrom": ["created_by"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"products_updated_by_users_id_fk": {
+					"name": "products_updated_by_users_id_fk",
+					"tableFrom": "products",
+					"tableTo": "users",
+					"columnsFrom": ["updated_by"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -1163,11 +1253,6 @@
 				"customer",
 				"distributor"
 			]
-		},
-		"public.product_status": {
-			"name": "product_status",
-			"schema": "public",
-			"values": ["active", "inactive"]
 		}
 	},
 	"schemas": {},

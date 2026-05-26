@@ -43,7 +43,7 @@ export function ProductCreateDialog({ open, onOpenChange }: ProductCreateDialogP
 							brandId: undefined,
 							categoryId: undefined,
 							specifications: [],
-							status: "active",
+							isActive: true,
 							isFeatured: false,
 							seoTitle: "",
 							seoDescription: "",

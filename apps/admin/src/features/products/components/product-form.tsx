@@ -51,12 +51,13 @@ import { Switch } from "@renovabit/ui/components/ui/switch";
 import { Textarea } from "@renovabit/ui/components/ui/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useBrands } from "@/features/brands/hooks";
 import { useCategories } from "@/features/categories/hooks";
 import { getFieldErrorId, normalizeFieldErrors } from "@/shared/lib/form/form-utils";
 import { generateSlug } from "@/shared/lib/slug";
 import { uploadImage } from "@/shared/lib/storage/storage-service";
+import { toApiValue } from "@/shared/lib/string";
 import { productKeys } from "../hooks/products-queries";
 import {
 	type CreateProductValues,
@@ -70,7 +71,6 @@ import {
 	PRODUCT_SPECS_MAX,
 	type ProductFormValues,
 	type ProductSpecification,
-	type ProductStatus,
 	productFormSchema,
 } from "../model";
 import { productImagesService } from "../service/product-images.service";
@@ -81,14 +81,7 @@ export const PRODUCT_FORM_ID = "product-form";
 
 const ACCEPTED_IMAGE_TYPES = "image/png,image/jpeg,image/webp";
 
-const STATUS_OPTIONS = [
-	{ value: "active", label: "Activo" },
-	{ value: "inactive", label: "Inactivo" },
-] as const;
-
 // ── Sortable Image Item ─────────────────────────────
-// Diseño original: aspect-square, object-cover, overlay clásico
-
 function SortableImageItem({
 	id,
 	src,
@@ -182,11 +175,6 @@ function SortableImageItem({
 
 // ── Helpers ──────────────────────────────────────────────
 
-export function toApiValue(value: string): string | undefined {
-	const trimmed = value.trim();
-	return trimmed === "" ? undefined : trimmed;
-}
-
 function getDefaultFormValues(props: ProductFormProps): ProductFormValues {
 	if (props.mode === "edit") {
 		return {
@@ -199,7 +187,7 @@ function getDefaultFormValues(props: ProductFormProps): ProductFormValues {
 			brandId: props.product.brandId,
 			categoryId: props.product.categoryId,
 			specifications: props.product.specifications ?? [],
-			status: props.product.status,
+			isActive: props.product.isActive,
 			isFeatured: props.product.isFeatured,
 			seoTitle: props.product.seoTitle ?? "",
 			seoDescription: props.product.seoDescription ?? "",
@@ -232,7 +220,7 @@ interface ProductFormEditProps {
 		brandId: string | null;
 		categoryId: string | null;
 		specifications: ProductSpecification[];
-		status: ProductStatus;
+		isActive: boolean;
 		isFeatured: boolean;
 		seoTitle: string | null;
 		seoDescription: string | null;
@@ -282,8 +270,8 @@ export function ProductForm(props: ProductFormProps) {
 	const { data: brandsData } = useBrands();
 	const { data: categoriesData } = useCategories();
 
-	const brands = useMemo(() => brandsData ?? [], [brandsData]);
-	const categories = useMemo(() => categoriesData ?? [], [categoriesData]);
+	const brands = brandsData ?? [];
+	const categories = categoriesData ?? [];
 
 	// Notificar al wrapper cuando cambia isSubmitting
 	useEffect(() => {
@@ -320,19 +308,7 @@ export function ProductForm(props: ProductFormProps) {
 			setImageError(null);
 
 			try {
-				// 1. Upload ONLY new images to R2 (existing images ya están en R2)
-				const newImageMapping: Array<{ localId: string; url: string }> = [];
-				for (const item of imageFiles) {
-					try {
-						const url = await uploadImage(item.file);
-						newImageMapping.push({ localId: item.id, url });
-					} catch {
-						setImageError(`Error al subir la imagen "${item.file.name}"`);
-						return;
-					}
-				}
-
-				// 2. Create or update product
+				// 1. Create or update product FIRST (evita imágenes huérfanas)
 				const result = await onMutation({
 					name: value.name,
 					slug: value.slug,
@@ -343,7 +319,7 @@ export function ProductForm(props: ProductFormProps) {
 					brandId: value.brandId ?? null,
 					categoryId: value.categoryId ?? null,
 					specifications: value.specifications,
-					status: value.status,
+					isActive: value.isActive,
 					isFeatured: value.isFeatured,
 					seoTitle: toApiValue(value.seoTitle),
 					seoDescription: toApiValue(value.seoDescription),
@@ -357,6 +333,18 @@ export function ProductForm(props: ProductFormProps) {
 				if (!targetProductId) {
 					onSuccess();
 					return;
+				}
+
+				// 2. Upload new images to R2 (only after confirming the product exists)
+				const newImageMapping: Array<{ localId: string; url: string }> = [];
+				for (const item of imageFiles) {
+					try {
+						const url = await uploadImage(item.file);
+						newImageMapping.push({ localId: item.id, url });
+					} catch {
+						setImageError(`Error al subir la imagen "${item.file.name}"`);
+						return;
+					}
 				}
 
 				// 3. Persistir el orden de todas las imágenes según imageOrder (paralelo)
@@ -397,6 +385,7 @@ export function ProductForm(props: ProductFormProps) {
 				onSuccess();
 			} finally {
 				setIsSubmitting(false);
+				onSubmittingChange?.(false);
 			}
 		},
 	});
@@ -741,7 +730,7 @@ export function ProductForm(props: ProductFormProps) {
 							const errorMessageId = getFieldErrorId(PRODUCT_FORM_ID, field.name);
 
 							return (
-								<Field className="sm:flex-1" data-invalid={isInvalid}>
+								<Field className="flex-1" data-invalid={isInvalid}>
 									<FieldLabel htmlFor={field.name}>
 										<span>
 											Precio (S/){" "}
@@ -785,7 +774,7 @@ export function ProductForm(props: ProductFormProps) {
 							const errorMessageId = getFieldErrorId(PRODUCT_FORM_ID, field.name);
 
 							return (
-								<Field className="sm:w-32" data-invalid={isInvalid}>
+								<Field className="flex-1" data-invalid={isInvalid}>
 									<FieldLabel htmlFor={field.name}>Stock</FieldLabel>
 									<Input
 										id={field.name}
@@ -806,48 +795,6 @@ export function ProductForm(props: ProductFormProps) {
 										aria-invalid={isInvalid}
 										aria-describedby={isInvalid ? errorMessageId : undefined}
 									/>
-									{isInvalid && (
-										<FieldError
-											id={errorMessageId}
-											errors={normalizeFieldErrors(field.state.meta.errors)}
-										/>
-									)}
-								</Field>
-							);
-						}}
-					</form.Field>
-
-					{/* ── Status ── */}
-					<form.Field name="status">
-						{(field) => {
-							const wasSubmitted = field.form.state.submissionAttempts > 0;
-							const isInvalid =
-								(field.state.meta.isTouched || wasSubmitted) && field.state.meta.errors.length > 0;
-							const errorMessageId = getFieldErrorId(PRODUCT_FORM_ID, field.name);
-
-							return (
-								<Field className="sm:w-40" data-invalid={isInvalid}>
-									<FieldLabel htmlFor={field.name}>Estado</FieldLabel>
-									<Select
-										value={field.state.value}
-										onValueChange={(val) => field.handleChange(val as ProductStatus)}
-										disabled={isSubmitting}
-									>
-										<SelectTrigger id={field.name} aria-invalid={isInvalid}>
-											<SelectValue placeholder="Seleccionar estado" className="sr-only" />
-											<span className="flex-1 text-left">
-												{STATUS_OPTIONS.find((o) => o.value === field.state.value)?.label ??
-													"Seleccionar estado"}
-											</span>
-										</SelectTrigger>
-										<SelectContent>
-											{STATUS_OPTIONS.map((opt) => (
-												<SelectItem key={opt.value} value={opt.value}>
-													{opt.label}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
 									{isInvalid && (
 										<FieldError
 											id={errorMessageId}
@@ -1247,6 +1194,44 @@ export function ProductForm(props: ProductFormProps) {
 			</header>
 
 			<div className="flex flex-col gap-5 rounded-lg border p-4">
+				<form.Field name="isActive">
+					{(field) => {
+						const wasSubmitted = field.form.state.submissionAttempts > 0;
+						const isInvalid =
+							(field.state.meta.isTouched || wasSubmitted) && field.state.meta.errors.length > 0;
+						const errorMessageId = getFieldErrorId(PRODUCT_FORM_ID, field.name);
+
+						return (
+							<Field
+								orientation="horizontal"
+								className="items-center justify-between gap-4"
+								data-invalid={isInvalid}
+							>
+								<div className="flex min-w-0 flex-col gap-1">
+									<FieldLabel htmlFor={field.name} className="cursor-pointer">
+										Producto activo
+									</FieldLabel>
+									<FieldDescription>
+										Los productos inactivos no aparecen en la tienda.
+									</FieldDescription>
+									{isInvalid && (
+										<FieldError
+											id={errorMessageId}
+											errors={normalizeFieldErrors(field.state.meta.errors)}
+										/>
+									)}
+								</div>
+								<Switch
+									id={field.name}
+									checked={field.state.value}
+									onCheckedChange={(checked) => field.handleChange(checked)}
+									disabled={isSubmitting}
+								/>
+							</Field>
+						);
+					}}
+				</form.Field>
+
 				<form.Field name="isFeatured">
 					{(field) => {
 						const wasSubmitted = field.form.state.submissionAttempts > 0;

@@ -13,7 +13,7 @@ const _insert = createInsertSchema(products, {
 	stock: t.Optional(t.Integer({ minimum: 0 })),
 	brandId: t.Optional(t.Nullable(t.String({ format: "uuid" }))),
 	categoryId: t.Optional(t.Nullable(t.String({ format: "uuid" }))),
-	status: t.Optional(t.UnionEnum(["active", "inactive"])),
+	isActive: t.Optional(t.Boolean()),
 	isFeatured: t.Optional(t.Boolean()),
 });
 

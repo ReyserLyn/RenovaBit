@@ -17,7 +17,7 @@ import {
 	useReactTable,
 	type VisibilityState,
 } from "@tanstack/react-table";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useBrands } from "@/features/brands/hooks";
 import { useCategories } from "@/features/categories/hooks";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
@@ -26,8 +26,8 @@ import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagi
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
 import { useProductsTableStore } from "@/shared/lib/stores/tables/products-table";
-import { productKeys, useProducts, useUpdateProduct } from "../hooks";
-import type { Product, ProductStatus } from "../model";
+import { productKeys, useProducts, useToggleProductField } from "../hooks";
+import type { Product } from "../model";
 import { ProductBulkDeleteDialog } from "./product-bulk-delete-dialog";
 import { getProductColumns } from "./product-column";
 
@@ -45,20 +45,17 @@ export const ProductTable = React.memo(function ProductTable({
 	const queryClient = useQueryClient();
 	const { data: productsData, isPending, isFetching, isError, error } = useProducts();
 	const products = productsData ?? EMPTY_PRODUCTS;
-	const updateProduct = useUpdateProduct();
+	const toggleProductField = useToggleProductField();
 
 	const { data: brandsData } = useBrands();
 	const { data: categoriesData } = useCategories();
 
-	const brandsById = useMemo(() => new Map((brandsData ?? []).map((b) => [b.id, b])), [brandsData]);
-	const categoriesById = useMemo(
-		() => new Map((categoriesData ?? []).map((c) => [c.id, c])),
-		[categoriesData],
-	);
+	const brandsById = new Map((brandsData ?? []).map((b) => [b.id, b]));
+	const categoriesById = new Map((categoriesData ?? []).map((c) => [c.id, c]));
 
-	const handleRefresh = useCallback(() => {
+	function handleRefresh() {
 		void queryClient.invalidateQueries({ queryKey: productKeys.all });
-	}, [queryClient]);
+	}
 
 	const [pagination, setPagination] = useState<PaginationState>({
 		pageIndex: 0,
@@ -71,32 +68,22 @@ export const ProductTable = React.memo(function ProductTable({
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-	const handleToggleStatus = useCallback(
-		async (product: Product, status: ProductStatus) => {
-			await updateProduct.mutateAsync({ id: product.id, data: { status } });
-		},
-		[updateProduct],
-	);
+	async function handleToggleStatus(product: Product, isActive: boolean) {
+		await toggleProductField.mutateAsync({ id: product.id, data: { isActive } });
+	}
 
-	const handleToggleFeatured = useCallback(
-		async (product: Product, isFeatured: boolean) => {
-			await updateProduct.mutateAsync({ id: product.id, data: { isFeatured } });
-		},
-		[updateProduct],
-	);
+	async function handleToggleFeatured(product: Product, isFeatured: boolean) {
+		await toggleProductField.mutateAsync({ id: product.id, data: { isFeatured } });
+	}
 
-	const columns = useMemo(
-		() =>
-			getProductColumns({
-				onEdit,
-				onDelete,
-				onToggleStatus: handleToggleStatus,
-				onToggleFeatured: handleToggleFeatured,
-				brandsById,
-				categoriesById,
-			}),
-		[onEdit, onDelete, handleToggleStatus, handleToggleFeatured, brandsById, categoriesById],
-	);
+	const columns = getProductColumns({
+		onEdit,
+		onDelete,
+		onToggleStatus: handleToggleStatus,
+		onToggleFeatured: handleToggleFeatured,
+		brandsById,
+		categoriesById,
+	});
 
 	const table = useReactTable({
 		data: products,

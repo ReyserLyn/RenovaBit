@@ -1,17 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ApiClientError } from "@/shared/lib/api/api-errors";
+import { resolveErrorMessage } from "@/shared/lib/api/error-utils";
 import type { Brand, BulkDeleteValues, CreateBrandValues, UpdateBrandValues } from "../model";
 import { brandsService } from "../service/brands.service";
 import { brandKeys } from "./brand-queries";
-
-// ── Helpers ────────────────────────────────────────────
-
-function resolveErrorMessage(error: unknown): string {
-	if (error instanceof ApiClientError) return error.message;
-	if (error instanceof Error) return error.message;
-	return "Error inesperado";
-}
 
 // ── Mutations ──────────────────────────────────────────
 
@@ -34,11 +26,11 @@ export function useUpdateBrand() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: ({ slug, data }: { slug: string; data: UpdateBrandValues }) =>
-			brandsService.update(slug, data),
-		onSuccess: (_data, { slug }) => {
+		mutationFn: ({ id, data }: { id: string; data: UpdateBrandValues }) =>
+			brandsService.update(id, data),
+		onSuccess: (_data, { id }) => {
 			queryClient.invalidateQueries({ queryKey: brandKeys.lists() });
-			queryClient.invalidateQueries({ queryKey: brandKeys.detail(slug) });
+			queryClient.invalidateQueries({ queryKey: brandKeys.detail(id) });
 			toast.success("Marca actualizada correctamente");
 		},
 		onError: (error) => {
@@ -47,13 +39,53 @@ export function useUpdateBrand() {
 	});
 }
 
+export function useToggleBrandField() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: ({ id, data }: { id: string; data: UpdateBrandValues }) =>
+			brandsService.update(id, data),
+		onMutate: async ({ id, data }) => {
+			await queryClient.cancelQueries({ queryKey: brandKeys.lists() });
+			await queryClient.cancelQueries({ queryKey: brandKeys.detail(id) });
+			const previousBrands = queryClient.getQueryData<Brand[]>(brandKeys.lists());
+			const previousBrand = queryClient.getQueryData<Brand>(brandKeys.detail(id));
+
+			queryClient.setQueryData(brandKeys.lists(), (old: Brand[] | undefined) => {
+				if (!old) return old;
+				return old.map((b) => (b.id === id ? { ...b, ...data } : b));
+			});
+
+			queryClient.setQueryData(brandKeys.detail(id), (old: Brand | undefined) => {
+				if (!old) return old;
+				return { ...old, ...data };
+			});
+
+			return { previousBrands, previousBrand };
+		},
+		onError: (err, { id }, context) => {
+			if (context?.previousBrands) {
+				queryClient.setQueryData(brandKeys.lists(), context.previousBrands);
+			}
+			if (context?.previousBrand) {
+				queryClient.setQueryData(brandKeys.detail(id), context.previousBrand);
+			}
+			toast.error(resolveErrorMessage(err));
+		},
+		onSettled: (_data, _error, { id }) => {
+			queryClient.invalidateQueries({ queryKey: brandKeys.lists() });
+			queryClient.invalidateQueries({ queryKey: brandKeys.detail(id) });
+		},
+	});
+}
+
 export function useDeleteBrand() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (slug: string) => brandsService.delete(slug),
-		onSuccess: (_data, slug) => {
-			queryClient.removeQueries({ queryKey: brandKeys.detail(slug) });
+		mutationFn: (id: string) => brandsService.delete(id),
+		onSuccess: (_data, id) => {
+			queryClient.removeQueries({ queryKey: brandKeys.detail(id) });
 			queryClient.invalidateQueries({ queryKey: brandKeys.lists() });
 			toast.success("Marca eliminada correctamente");
 		},

@@ -7,7 +7,6 @@ import type { BreadcrumbItem, Category, CategoryBulkDeleteResult } from "../mode
 type CreateBody = Parameters<typeof api.api.v1.categories.post>[0];
 type UpdateBody = Parameters<ReturnType<typeof api.api.v1.categories>["patch"]>[0];
 type BulkDeleteBody = Parameters<typeof api.api.v1.categories.bulk.post>[0];
-type ReorderBody = Parameters<typeof api.api.v1.categories.reorder.post>[0];
 
 // ── API Functions ────────────────────────────────────
 
@@ -46,10 +45,6 @@ async function removeMany(data: BulkDeleteBody): Promise<CategoryBulkDeleteResul
 	return unwrapResponse(api.api.v1.categories.bulk.post(data));
 }
 
-async function reorder(data: ReorderBody): Promise<Category[]> {
-	return unwrapResponse(api.api.v1.categories.reorder.post(data));
-}
-
 // ── Public API ──────────────────────────────────────
 
 export const categoriesService = {
@@ -61,5 +56,4 @@ export const categoriesService = {
 	update,
 	delete: remove,
 	deleteMany: removeMany,
-	reorder,
 };

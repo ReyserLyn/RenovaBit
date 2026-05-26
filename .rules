@@ -30,6 +30,7 @@ Use conventional commits for all commit messages.
 
 - The description must be in lowercase and imperative mood (e.g. "add" not "added" or "adds")
 - No period at the end of the description
-- The description must be 72 characters or less
+- The **entire header** `type(scope): description` must be 72 characters or less, not just the description. Keep descriptions SHORT — aim for ~45-50 chars max to leave room for type + scope + ": "
+- If the description is too long to fit, use the body for details and make the header a summary
 - Scope is optional but encouraged (e.g. `feat(ui):`, `fix(api):`)
 - Allowed scopes: `api`, `landing`, `ecommerce`, `admin`, `ui`, `biome`, `ts`, `deps`, `ci`, `repo`

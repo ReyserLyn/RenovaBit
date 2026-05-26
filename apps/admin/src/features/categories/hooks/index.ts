@@ -2,11 +2,12 @@ export {
 	useBulkDeleteCategories,
 	useCreateCategory,
 	useDeleteCategory,
-	useReorderCategories,
+	useToggleCategoryField,
 	useUpdateCategory,
 } from "./categories-mutations";
 export {
 	buildCategoryTree,
+	categoriesQueryOptions,
 	categoryKeys,
 	useCategories,
 	useCategory,

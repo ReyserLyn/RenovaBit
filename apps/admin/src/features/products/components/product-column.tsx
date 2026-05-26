@@ -22,7 +22,7 @@ import { useState } from "react";
 import type { Brand } from "@/features/brands/model";
 import type { Category } from "@/features/categories/model";
 import { DataGridColumnHeader } from "@/shared/components/data-grid/data-grid-column-header";
-import type { Product, ProductStatus } from "../model";
+import type { Product } from "../model";
 
 const shortDateTimeFormatter = new Intl.DateTimeFormat("es", {
 	dateStyle: "short",
@@ -34,11 +34,6 @@ function formatShortDate(value: Date | string): string {
 	if (Number.isNaN(d.getTime())) return "—";
 	return shortDateTimeFormatter.format(d);
 }
-
-const statusConfig: Record<ProductStatus, { label: string; className: string }> = {
-	active: { label: "Activo", className: "bg-success/10 text-success" },
-	inactive: { label: "Inactivo", className: "bg-destructive/10 text-destructive" },
-};
 
 function formatPrice(value: string): string {
 	try {
@@ -140,7 +135,7 @@ function ProductImageCell({ row }: { row: { original: Product } }) {
 interface ProductColumnsProps {
 	onEdit: (product: Product) => void;
 	onDelete: (product: Product) => void;
-	onToggleStatus: (product: Product, status: ProductStatus) => void;
+	onToggleStatus: (product: Product, isActive: boolean) => void;
 	onToggleFeatured: (product: Product, isFeatured: boolean) => void;
 	brandsById: Map<string, Brand>;
 	categoriesById: Map<string, Category>;
@@ -213,7 +208,7 @@ export function getProductColumns({
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Nombre" />,
 			cell: ({ row }) => {
 				const name = row.getValue<string>("name");
-				const isActive = row.original.status === "active";
+				const isActive = row.original.isActive;
 				return (
 					<span className={`font-medium ${!isActive ? "text-muted-foreground" : ""}`}>{name}</span>
 				);
@@ -318,28 +313,34 @@ export function getProductColumns({
 			size: 130,
 		},
 		{
-			accessorKey: "status",
+			accessorKey: "isActive",
 			meta: {
 				headerTitle: "Estado",
-				skeleton: <Skeleton className="h-5 w-20 rounded-full" />,
+				skeleton: (
+					<div className="flex items-center gap-2">
+						<Skeleton className="h-5 w-9 rounded-full" />
+						<Skeleton className="h-4 w-14" />
+					</div>
+				),
 			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Estado" />,
 			cell: ({ row }) => {
-				const status = row.getValue<ProductStatus>("status");
-				const config = statusConfig[status];
+				const isActive = row.getValue<boolean>("isActive");
 
 				return (
 					<div className="flex items-center gap-2">
 						<Switch
-							checked={status === "active"}
-							onCheckedChange={(checked) => {
-								const nextStatus: ProductStatus = checked ? "active" : "inactive";
-								onToggleStatus(row.original, nextStatus);
-							}}
-							aria-label={status === "active" ? "Desactivar producto" : "Activar producto"}
+							checked={isActive}
+							onCheckedChange={(checked) => onToggleStatus(row.original, checked)}
+							aria-label={isActive ? "Desactivar producto" : "Activar producto"}
 						/>
-						<Badge className={config.className} variant="secondary">
-							{config.label}
+						<Badge
+							className={
+								isActive ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+							}
+							variant="secondary"
+						>
+							{isActive ? "Activo" : "Inactivo"}
 						</Badge>
 					</div>
 				);

@@ -20,8 +20,10 @@ import { Textarea } from "@renovabit/ui/components/ui/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
 import { getFieldErrorId, normalizeFieldErrors } from "@/shared/lib/form/form-utils";
+import { useImageUpload } from "@/shared/lib/hooks/use-image-upload";
 import { generateSlug } from "@/shared/lib/slug";
 import { uploadImage } from "@/shared/lib/storage/storage-service";
+import { toApiValue } from "@/shared/lib/string";
 import {
 	BRAND_IMAGE_MAX_BYTES,
 	BRAND_SEO_DESCRIPTION_MAX,
@@ -37,13 +39,6 @@ import {
 export const BRAND_FORM_ID = "brand-form";
 
 const ACCEPTED_IMAGE_TYPES = "image/png,image/jpeg,image/webp";
-
-// ── Helpers ──────────────────────────────────────────────
-
-export function toApiValue(value: string): string | undefined {
-	const trimmed = value.trim();
-	return trimmed === "" ? undefined : trimmed;
-}
 
 // ── Props ────────────────────────────────────────────────
 
@@ -97,13 +92,24 @@ export function BrandForm(props: BrandFormProps) {
 	const existingImageUrl = isEdit ? props.brand.imageUrl : undefined;
 	const slugManuallyEditedRef = useRef(isEdit);
 
-	// Image state
-	const [imageFile, setImageFile] = useState<File | null>(null);
-	const [imagePreview, setImagePreview] = useState<string | null>(existingImageUrl ?? null);
-	const [imageError, setImageError] = useState<string | null>(null);
-	const [isDragging, setIsDragging] = useState(false);
+	// Image upload hook
+	const {
+		imageFile,
+		imagePreview,
+		imageError,
+		setImageError,
+		isDragging,
+		fileInputRef,
+		handleImageSelect,
+		handleFileDrop,
+		handleRemoveImage,
+		setIsDragging,
+	} = useImageUpload({
+		maxBytes: BRAND_IMAGE_MAX_BYTES,
+		initialPreview: existingImageUrl ?? null,
+	});
+
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const fileInputRef = useRef<HTMLInputElement>(null);
 	const prevSubmittingRef = useRef(false);
 	const { onSubmittingChange } = props;
 
@@ -157,55 +163,10 @@ export function BrandForm(props: BrandFormProps) {
 				onSuccess();
 			} finally {
 				setIsSubmitting(false);
+				onSubmittingChange?.(false);
 			}
 		},
 	});
-
-	function processFile(file: File) {
-		const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
-		if (!allowedTypes.includes(file.type)) {
-			setImageError("Formato no soportado. Usa PNG, JPG o WEBP.");
-			return;
-		}
-
-		if (file.size > BRAND_IMAGE_MAX_BYTES) {
-			setImageError(`La imagen no puede superar ${BRAND_IMAGE_MAX_BYTES / (1024 * 1024)} MB.`);
-			return;
-		}
-
-		setImageError(null);
-		setImageFile(file);
-
-		// Revocar blob URL anterior si existe (tanto en create como en edit)
-		if (imagePreview?.startsWith("blob:")) {
-			URL.revokeObjectURL(imagePreview);
-		}
-		setImagePreview(URL.createObjectURL(file));
-	}
-
-	function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-		const file = e.target.files?.[0];
-		if (file) processFile(file);
-	}
-
-	function handleFileDrop(e: React.DragEvent) {
-		e.preventDefault();
-		setIsDragging(false);
-		const file = e.dataTransfer.files?.[0];
-		if (file) processFile(file);
-	}
-
-	function handleRemoveImage() {
-		if (imagePreview?.startsWith("blob:")) {
-			URL.revokeObjectURL(imagePreview);
-		}
-		setImageFile(null);
-		setImagePreview(null);
-		setImageError(null);
-		if (fileInputRef.current) {
-			fileInputRef.current.value = "";
-		}
-	}
 
 	return (
 		<form

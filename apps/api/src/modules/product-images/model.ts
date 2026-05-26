@@ -6,7 +6,11 @@ import { t, type UnwrapSchema } from "elysia";
 
 const _insert = createInsertSchema(productImages, {
 	productId: t.String({ format: "uuid" }),
-	url: t.String({ minLength: 1, maxLength: 2048 }),
+	url: t.String({
+		minLength: 1,
+		maxLength: 2048,
+		pattern: "\\.(jpg|jpeg|png|webp)$",
+	}),
 	alt: t.Optional(t.String({ maxLength: 255 })),
 	sortOrder: t.Optional(t.Integer({ minimum: 0 })),
 	isPrimary: t.Optional(t.Boolean()),

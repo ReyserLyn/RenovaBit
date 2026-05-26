@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import type { Category, CategoryTreeNode } from "../model";
 import { categoriesService } from "../service/categories.service";
 
@@ -54,13 +54,18 @@ export const categoryKeys = {
 	breadcrumb: (slug: string) => [...categoryKeys.breadcrumbs(), slug] as const,
 };
 
+// ── Query Options ───────────────────────────────────────
+
+export const categoriesQueryOptions = queryOptions({
+	queryKey: categoryKeys.lists(),
+	queryFn: () => categoriesService.list(),
+	staleTime: 1000 * 60 * 5, // 5 min
+});
+
 // ── Queries ────────────────────────────────────────────
 
 export function useCategories() {
-	return useQuery({
-		queryKey: categoryKeys.lists(),
-		queryFn: () => categoriesService.list(),
-	});
+	return useQuery(categoriesQueryOptions);
 }
 
 export function useCategory(id: string) {

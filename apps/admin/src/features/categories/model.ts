@@ -86,7 +86,7 @@ export const createCategorySchema = z.object({
 		.string()
 		.max(2048, { message: "La URL de imagen no puede superar 2048 caracteres" })
 		.optional(),
-	parentId: z.string().uuid().nullable().optional(),
+	parentId: z.uuid().nullable().optional(),
 	sortOrder: z.number().int().min(0).optional(),
 	isFeatured: z.boolean().optional(),
 	isActive: z.boolean().optional(),
@@ -115,7 +115,7 @@ export const updateCategorySchema = createCategorySchema.partial();
 
 export const bulkDeleteSchema = z.object({
 	ids: z
-		.array(z.string().uuid())
+		.array(z.uuid())
 		.min(1, { message: "Selecciona al menos una categoría" })
 		.max(50, { message: "No puedes eliminar más de 50 categorías a la vez" }),
 });
@@ -134,7 +134,7 @@ export const categoryFormSchema = z.object({
 	description: z.string().max(CATEGORY_DESCRIPTION_MAX, {
 		message: `La descripción no puede superar ${CATEGORY_DESCRIPTION_MAX} caracteres`,
 	}),
-	parentId: z.string().uuid().nullable().optional(),
+	parentId: z.uuid().nullable().optional(),
 	sortOrder: z.number().int().min(0),
 	isFeatured: z.boolean(),
 	isActive: z.boolean(),

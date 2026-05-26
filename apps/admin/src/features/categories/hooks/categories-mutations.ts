@@ -1,17 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ApiClientError } from "@/shared/lib/api/api-errors";
-import type { BulkDeleteValues, CreateCategoryValues, UpdateCategoryValues } from "../model";
+import { resolveErrorMessage } from "@/shared/lib/api/error-utils";
+import type {
+	BulkDeleteValues,
+	Category,
+	CreateCategoryValues,
+	UpdateCategoryValues,
+} from "../model";
 import { categoriesService } from "../service/categories.service";
 import { categoryKeys } from "./categories-queries";
-
-// ── Helpers ────────────────────────────────────────────
-
-function resolveErrorMessage(error: unknown): string {
-	if (error instanceof ApiClientError) return error.message;
-	if (error instanceof Error) return error.message;
-	return "Error inesperado";
-}
 
 // ── Mutations ──────────────────────────────────────────
 
@@ -45,6 +42,47 @@ export function useUpdateCategory() {
 		},
 		onError: (error) => {
 			toast.error(resolveErrorMessage(error));
+		},
+	});
+}
+
+export function useToggleCategoryField() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: ({ id, data }: { id: string; data: UpdateCategoryValues }) =>
+			categoriesService.update(id, data),
+		onMutate: async ({ id, data }) => {
+			await queryClient.cancelQueries({ queryKey: categoryKeys.lists() });
+			await queryClient.cancelQueries({ queryKey: categoryKeys.detail(id) });
+			const previousCategories = queryClient.getQueryData<Category[]>(categoryKeys.lists());
+			const previousCategory = queryClient.getQueryData<Category>(categoryKeys.detail(id));
+
+			queryClient.setQueryData(categoryKeys.lists(), (old: Category[] | undefined) => {
+				if (!old) return old;
+				return old.map((c) => (c.id === id ? { ...c, ...data } : c));
+			});
+
+			queryClient.setQueryData(categoryKeys.detail(id), (old: Category | undefined) => {
+				if (!old) return old;
+				return { ...old, ...data };
+			});
+
+			return { previousCategories, previousCategory };
+		},
+		onError: (err, { id }, context) => {
+			if (context?.previousCategories) {
+				queryClient.setQueryData(categoryKeys.lists(), context.previousCategories);
+			}
+			if (context?.previousCategory) {
+				queryClient.setQueryData(categoryKeys.detail(id), context.previousCategory);
+			}
+			toast.error(resolveErrorMessage(err));
+		},
+		onSettled: (_data, _error, { id }) => {
+			queryClient.invalidateQueries({ queryKey: categoryKeys.lists() });
+			queryClient.invalidateQueries({ queryKey: categoryKeys.trees() });
+			queryClient.invalidateQueries({ queryKey: categoryKeys.detail(id) });
 		},
 	});
 }
@@ -85,23 +123,6 @@ export function useBulkDeleteCategories() {
 					`${result.deletedCount} ${result.deletedCount === 1 ? "categoría eliminada" : "categorías eliminadas"} correctamente.`,
 				);
 			}
-		},
-		onError: (error) => {
-			toast.error(resolveErrorMessage(error));
-		},
-	});
-}
-
-export function useReorderCategories() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		mutationFn: (orders: Array<{ id: string; sortOrder: number }>) =>
-			categoriesService.reorder({ orders }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: categoryKeys.lists() });
-			queryClient.invalidateQueries({ queryKey: categoryKeys.trees() });
-			toast.success("Categorías reordenadas correctamente");
 		},
 		onError: (error) => {
 			toast.error(resolveErrorMessage(error));
