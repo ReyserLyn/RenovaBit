@@ -6,6 +6,7 @@ import { homeRoute } from "./home";
 import { productImagesRoute } from "./product-images";
 import { productsRoute } from "./products";
 import { storageRoute } from "./storage";
+import { usersRoute } from "./users";
 
 const ApiV1Modules = new Elysia({ prefix: "/api/v1" })
 	.use(AuthModule)
@@ -13,7 +14,8 @@ const ApiV1Modules = new Elysia({ prefix: "/api/v1" })
 	.use(categoriesRoute)
 	.use(productsRoute)
 	.use(productImagesRoute)
-	.use(storageRoute);
+	.use(storageRoute)
+	.use(usersRoute);
 
 const RootModules = new Elysia({ name: "routes" }).use(homeRoute);
 

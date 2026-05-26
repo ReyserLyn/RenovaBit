@@ -11,139 +11,67 @@ import {
 	getPaginationRowModel,
 	getSortedRowModel,
 	type PaginationState,
-	type RowSelectionState,
 	useReactTable,
 } from "@tanstack/react-table";
 import React, { useEffect, useState } from "react";
-import { useBrands } from "@/features/brands/hooks";
-import { useCategories } from "@/features/categories/hooks";
-import { useUsers } from "@/features/users/hooks";
-import type { UserSummary } from "@/features/users/model";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridColumnVisibility } from "@/shared/components/data-grid/data-grid-column-visibility";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
-import { useProductsTableStore } from "@/shared/lib/stores/tables/products-table";
-import { productKeys, useProducts, useToggleProductField } from "../hooks";
-import type { Product } from "../model";
-import { ProductBulkDeleteDialog } from "./product-bulk-delete-dialog";
-import { getProductColumns } from "./product-column";
+import { useUsersTableStore } from "@/shared/lib/stores/tables/users-table";
+import { userKeys, useUsers } from "../hooks";
+import { getUserColumns } from "./user-column";
 
-interface ProductTableProps {
-	onEdit: (product: Product) => void;
-	onDelete: (product: Product) => void;
-}
+const EMPTY_USERS: NonNullable<ReturnType<typeof useUsers>["data"]> = [];
+const columns = getUserColumns();
 
-const EMPTY_PRODUCTS: Product[] = [];
-
-export const ProductTable = React.memo(function ProductTable({
-	onEdit,
-	onDelete,
-}: ProductTableProps) {
+export const UserTable = React.memo(function UserTable() {
 	const queryClient = useQueryClient();
-	const { data: productsData, isPending, isFetching, isError, error } = useProducts();
-	const products = productsData ?? EMPTY_PRODUCTS;
-	const toggleProductField = useToggleProductField();
-
-	const { data: brandsData } = useBrands();
-	const { data: categoriesData } = useCategories();
-	const { data: usersData } = useUsers();
-
-	const brandsById = new Map((brandsData ?? []).map((b) => [b.id, b]));
-	const categoriesById = new Map((categoriesData ?? []).map((c) => [c.id, c]));
-	const usersById = new Map<string, UserSummary>((usersData ?? []).map((u) => [u.id, u]));
+	const { data: usersData, isPending, isFetching, isError, error } = useUsers();
+	const users = usersData ?? EMPTY_USERS;
 
 	function handleRefresh() {
-		void queryClient.invalidateQueries({ queryKey: productKeys.all });
+		void queryClient.invalidateQueries({ queryKey: userKeys.all });
 	}
 
 	const [pagination, setPagination] = useState<PaginationState>({
 		pageIndex: 0,
 		pageSize: 10,
 	});
-	const sorting = useProductsTableStore((s) => s.sorting);
-	const setSorting = useProductsTableStore((s) => s.setSorting);
-	const columnVisibility = useProductsTableStore((s) => s.columnVisibility);
-	const setColumnVisibility = useProductsTableStore((s) => s.setColumnVisibility);
+	const sorting = useUsersTableStore((s) => s.sorting);
+	const setSorting = useUsersTableStore((s) => s.setSorting);
+	const columnVisibility = useUsersTableStore((s) => s.columnVisibility);
+	const setColumnVisibility = useUsersTableStore((s) => s.setColumnVisibility);
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-	async function handleToggleStatus(product: Product, isActive: boolean) {
-		await toggleProductField.mutateAsync({ id: product.id, data: { isActive } });
-	}
-
-	async function handleToggleFeatured(product: Product, isFeatured: boolean) {
-		await toggleProductField.mutateAsync({ id: product.id, data: { isFeatured } });
-	}
-
-	const columns = getProductColumns({
-		onEdit,
-		onDelete,
-		onToggleStatus: handleToggleStatus,
-		onToggleFeatured: handleToggleFeatured,
-		brandsById,
-		categoriesById,
-		usersById,
-	});
 
 	const table = useReactTable({
-		data: products,
+		data: users,
 		columns,
-		state: {
-			pagination,
-			sorting,
-			columnFilters,
-			columnVisibility,
-			rowSelection,
-		},
+		state: { pagination, sorting, columnFilters, columnVisibility },
 		onPaginationChange: setPagination,
 		onSortingChange: setSorting,
 		onColumnFiltersChange: setColumnFilters,
 		onColumnVisibilityChange: setColumnVisibility,
-		onRowSelectionChange: setRowSelection,
 		getCoreRowModel: getCoreRowModel(),
 		getFilteredRowModel: getFilteredRowModel(),
 		getSortedRowModel: getSortedRowModel(),
 		getPaginationRowModel: getPaginationRowModel(),
-		enableRowSelection: true,
 		getRowId: (row) => row.id,
 	});
-
-	useEffect(() => {
-		const validIds = new Set(products.map((product) => product.id));
-		const currentSelection = table.getState().rowSelection;
-		const hasOrphanSelection = Object.keys(currentSelection).some((id) => !validIds.has(id));
-
-		if (!hasOrphanSelection) return;
-
-		table.setRowSelection((prev) => {
-			const next: RowSelectionState = {};
-			for (const [id, selected] of Object.entries(prev)) {
-				if (selected && validIds.has(id)) {
-					next[id] = true;
-				}
-			}
-			return next;
-		});
-	}, [products, table]);
 
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
 	}, [columnFilters]);
 
 	const filteredCount = table.getFilteredRowModel().rows.length;
-	const selectedRows = table.getFilteredSelectedRowModel().rows;
-	const selectedProducts = selectedRows.map((row) => row.original);
-	const selectedCount = selectedProducts.length;
-	const selectionInfo = `${selectedCount} de ${filteredCount} filas seleccionadas`;
 
 	return (
 		<div className="flex flex-col gap-4">
 			{isError ? (
 				<div className="flex flex-col items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
 					<p className="text-sm">
-						No se pudieron cargar los productos.
+						No se pudieron cargar los usuarios.
 						{error instanceof Error ? ` ${error.message}` : ""}
 					</p>
 					<Button
@@ -166,14 +94,13 @@ export const ProductTable = React.memo(function ProductTable({
 						className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
 					/>
 					<Input
-						placeholder="Filtrar productos por nombre…"
+						placeholder="Filtrar usuarios por nombre…"
 						value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
 						onChange={(event) => table.getColumn("name")?.setFilterValue(event.target.value)}
 						className="w-full min-w-0 bg-card pl-9"
 					/>
 				</div>
 				<div className="flex shrink-0 flex-wrap items-center gap-2 sm:ms-auto">
-					<ProductBulkDeleteDialog selectedProducts={selectedProducts} />
 					<Button
 						type="button"
 						variant="outline"
@@ -205,8 +132,8 @@ export const ProductTable = React.memo(function ProductTable({
 					table={table}
 					recordCount={filteredCount}
 					isLoading={isPending}
-					emptyMessage="No se encontraron productos."
-					loadingMessage="Cargando productos…"
+					emptyMessage="No se encontraron usuarios."
+					loadingMessage="Cargando usuarios…"
 					tableLayout={{
 						cellBorder: false,
 						rowBorder: true,
@@ -226,7 +153,7 @@ export const ProductTable = React.memo(function ProductTable({
 
 						{!isPending && filteredCount > 0 ? (
 							<div className="border-t border-border bg-muted/30">
-								<DataGridPagination selectionInfo={selectionInfo} />
+								<DataGridPagination />
 							</div>
 						) : null}
 					</div>

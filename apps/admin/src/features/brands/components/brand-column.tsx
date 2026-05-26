@@ -19,6 +19,7 @@ import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import { Switch } from "@renovabit/ui/components/ui/switch";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useState } from "react";
+import type { UserSummary } from "@/features/users/model";
 import { DataGridColumnHeader } from "@/shared/components/data-grid/data-grid-column-header";
 import type { Brand } from "../model";
 
@@ -40,6 +41,7 @@ interface BrandColumnsProps {
 	onDelete: (brand: Brand) => void;
 	onToggleStatus: (brand: Brand, isActive: boolean) => void;
 	onToggleFeatured: (brand: Brand, isFeatured: boolean) => void;
+	usersById: Map<string, UserSummary>;
 }
 
 export function getBrandColumns({
@@ -47,6 +49,7 @@ export function getBrandColumns({
 	onDelete,
 	onToggleStatus,
 	onToggleFeatured,
+	usersById,
 }: BrandColumnsProps): ColumnDef<Brand>[] {
 	return [
 		{
@@ -109,7 +112,11 @@ export function getBrandColumns({
 				}
 
 				return (
-					<div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground text-xs font-medium">
+					<div
+						role="img"
+						aria-label={`Logo de ${name}`}
+						className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground text-xs font-medium"
+					>
 						{name.slice(0, 2).toUpperCase()}
 					</div>
 				);
@@ -257,6 +264,54 @@ export function getBrandColumns({
 				</span>
 			),
 			size: 140,
+		},
+		{
+			accessorKey: "createdBy",
+			meta: {
+				headerTitle: "Creado por",
+				skeleton: (
+					<div className="flex flex-col gap-1">
+						<Skeleton className="h-3.5 w-24" />
+						<Skeleton className="h-3 w-32" />
+					</div>
+				),
+			},
+			header: ({ column }) => <DataGridColumnHeader column={column} title="Creado por" />,
+			cell: ({ row }) => {
+				const userId = row.original.createdBy;
+				const user = userId ? usersById.get(userId) : undefined;
+				return (
+					<div className="flex flex-col">
+						<span className="font-medium text-sm">{user?.name ?? "—"}</span>
+						<span className="text-muted-foreground text-xs">{user?.email ?? "—"}</span>
+					</div>
+				);
+			},
+			size: 180,
+		},
+		{
+			accessorKey: "updatedBy",
+			meta: {
+				headerTitle: "Actualizado por",
+				skeleton: (
+					<div className="flex flex-col gap-1">
+						<Skeleton className="h-3.5 w-24" />
+						<Skeleton className="h-3 w-32" />
+					</div>
+				),
+			},
+			header: ({ column }) => <DataGridColumnHeader column={column} title="Actualizado por" />,
+			cell: ({ row }) => {
+				const userId = row.original.updatedBy;
+				const user = userId ? usersById.get(userId) : undefined;
+				return (
+					<div className="flex flex-col">
+						<span className="font-medium text-sm">{user?.name ?? "—"}</span>
+						<span className="text-muted-foreground text-xs">{user?.email ?? "—"}</span>
+					</div>
+				);
+			},
+			size: 180,
 		},
 		{
 			accessorKey: "isFeatured",

@@ -4,6 +4,7 @@ import { cn } from "@renovabit/ui/lib/utils";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { brandsQueryOptions } from "@/features/brands/hooks";
 import { categoriesQueryOptions } from "@/features/categories/hooks";
+import { usersQueryOptions } from "@/features/users/hooks";
 import { AppSidebar } from "@/shared/components/layout/app-sidebar";
 import { authClient } from "@/shared/lib/auth/auth-client";
 import { authSessionQueryOptions, resetAuthState } from "@/shared/lib/auth/auth-session";
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/_authenticated")({
 		await Promise.all([
 			context.queryClient.ensureQueryData(brandsQueryOptions),
 			context.queryClient.ensureQueryData(categoriesQueryOptions),
+			context.queryClient.ensureQueryData(usersQueryOptions),
 		]);
 	},
 	component: AuthenticatedLayout,

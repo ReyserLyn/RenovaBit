@@ -15,6 +15,8 @@ import {
 	useReactTable,
 } from "@tanstack/react-table";
 import React, { useEffect, useState } from "react";
+import { useUsers } from "@/features/users/hooks";
+import type { UserSummary } from "@/features/users/model";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridColumnVisibility } from "@/shared/components/data-grid/data-grid-column-visibility";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
@@ -38,6 +40,9 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 	const { data: brandsData, isPending, isFetching, isError, error } = useBrands();
 	const brands = brandsData ?? EMPTY_BRANDS;
 	const toggleBrandField = useToggleBrandField();
+	const { data: usersData } = useUsers();
+
+	const usersById = new Map<string, UserSummary>((usersData ?? []).map((u) => [u.id, u]));
 
 	function handleRefresh() {
 		void queryClient.invalidateQueries({ queryKey: brandKeys.all });
@@ -67,6 +72,7 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 		onDelete,
 		onToggleStatus: handleToggleStatus,
 		onToggleFeatured: handleToggleFeatured,
+		usersById,
 	});
 
 	const table = useReactTable({

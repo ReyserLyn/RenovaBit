@@ -1,6 +1,6 @@
 import { createTableStore } from "../table-store";
 
 export const useCategoriesTableStore = createTableStore("categories", {
-	columnVisibility: { createdAt: false, updatedAt: false },
+	columnVisibility: { createdAt: false, updatedAt: false, updatedBy: false },
 	sorting: [{ id: "parent", desc: false }],
 });

@@ -5,7 +5,6 @@ import { Card } from "@renovabit/ui/components/ui/card";
 import { Input } from "@renovabit/ui/components/ui/input";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-	type ColumnDef,
 	type ColumnFiltersState,
 	getCoreRowModel,
 	getFilteredRowModel,
@@ -13,11 +12,11 @@ import {
 	getSortedRowModel,
 	type PaginationState,
 	type RowSelectionState,
-	type SortingState,
 	useReactTable,
-	type VisibilityState,
 } from "@tanstack/react-table";
 import React, { useEffect, useState } from "react";
+import { useUsers } from "@/features/users/hooks";
+import type { UserSummary } from "@/features/users/model";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridColumnVisibility } from "@/shared/components/data-grid/data-grid-column-visibility";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
@@ -44,6 +43,9 @@ export const CategoryTable = React.memo(function CategoryTable({
 	const { data: categoriesData, isPending, isFetching, isError, error } = useCategories();
 	const categories = categoriesData ?? EMPTY_CATEGORIES;
 	const toggleCategoryField = useToggleCategoryField();
+	const { data: usersData } = useUsers();
+
+	const usersById = new Map<string, UserSummary>((usersData ?? []).map((u) => [u.id, u]));
 
 	function handleRefresh() {
 		void queryClient.invalidateQueries({ queryKey: categoryKeys.all });
@@ -82,6 +84,7 @@ export const CategoryTable = React.memo(function CategoryTable({
 		onToggleFeatured: handleToggleFeatured,
 		onToggleNavVisibility: handleToggleNavVisibility,
 		categoriesById,
+		usersById,
 	});
 
 	const table = useReactTable({

@@ -20,6 +20,7 @@ import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import { Switch } from "@renovabit/ui/components/ui/switch";
 import type { ColumnDef, Row } from "@tanstack/react-table";
 import { useState } from "react";
+import type { UserSummary } from "@/features/users/model";
 import { DataGridColumnHeader } from "@/shared/components/data-grid/data-grid-column-header";
 import type { Category } from "../model";
 
@@ -44,6 +45,7 @@ interface CategoryColumnsProps {
 	onToggleNavVisibility: (category: Category, isVisibleInNav: boolean) => void;
 	/** Mapa de id → nombre para resolver el padre */
 	categoriesById: Map<string, Category>;
+	usersById: Map<string, UserSummary>;
 }
 
 function CategoryLogoCell({ row }: { row: Row<Category> }) {
@@ -67,7 +69,11 @@ function CategoryLogoCell({ row }: { row: Row<Category> }) {
 	}
 
 	return (
-		<div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground text-xs font-medium">
+		<div
+			role="img"
+			aria-label={`Logo de ${name}`}
+			className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground text-xs font-medium"
+		>
 			{name.slice(0, 2).toUpperCase()}
 		</div>
 	);
@@ -99,6 +105,7 @@ export function getCategoryColumns({
 	onToggleFeatured,
 	onToggleNavVisibility,
 	categoriesById,
+	usersById,
 }: CategoryColumnsProps): ColumnDef<Category>[] {
 	return [
 		{
@@ -168,6 +175,29 @@ export function getCategoryColumns({
 					{row.original.slug}
 				</span>
 			),
+		},
+		{
+			id: "seo",
+			meta: {
+				headerTitle: "SEO",
+				skeleton: <Skeleton className="h-5 w-20 rounded-full" />,
+			},
+			accessorFn: (row) => Boolean(row.seoTitle?.trim()) || Boolean(row.seoDescription?.trim()),
+			header: ({ column }) => <DataGridColumnHeader column={column} title="SEO" />,
+			cell: ({ row }) => {
+				const hasSeo = row.getValue<boolean>("seo");
+
+				if (!hasSeo) {
+					return <span className="text-muted-foreground text-sm">—</span>;
+				}
+
+				return (
+					<Badge className="bg-secondary text-secondary-foreground" variant="secondary">
+						Configurado
+					</Badge>
+				);
+			},
+			size: 110,
 		},
 		{
 			id: "parent",
@@ -251,7 +281,12 @@ export function getCategoryColumns({
 			accessorKey: "isActive",
 			meta: {
 				headerTitle: "Estado",
-				skeleton: <Skeleton className="h-5 w-9 rounded-full" />,
+				skeleton: (
+					<div className="flex items-center gap-2">
+						<Skeleton className="h-5 w-9 rounded-full" />
+						<Skeleton className="h-4 w-14" />
+					</div>
+				),
 			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Estado" />,
 			cell: ({ row }) => {
@@ -278,7 +313,6 @@ export function getCategoryColumns({
 			size: 120,
 		},
 		{
-			id: "createdAt",
 			accessorKey: "createdAt",
 			meta: {
 				headerTitle: "Fecha de creación",
@@ -290,10 +324,9 @@ export function getCategoryColumns({
 					{formatShortDate(row.original.createdAt)}
 				</span>
 			),
-			size: 130,
+			size: 140,
 		},
 		{
-			id: "updatedAt",
 			accessorKey: "updatedAt",
 			meta: {
 				headerTitle: "Última edición",
@@ -305,7 +338,55 @@ export function getCategoryColumns({
 					{formatShortDate(row.original.updatedAt)}
 				</span>
 			),
-			size: 130,
+			size: 140,
+		},
+		{
+			accessorKey: "createdBy",
+			meta: {
+				headerTitle: "Creado por",
+				skeleton: (
+					<div className="flex flex-col gap-1">
+						<Skeleton className="h-3.5 w-24" />
+						<Skeleton className="h-3 w-32" />
+					</div>
+				),
+			},
+			header: ({ column }) => <DataGridColumnHeader column={column} title="Creado por" />,
+			cell: ({ row }) => {
+				const userId = row.original.createdBy;
+				const user = userId ? usersById.get(userId) : undefined;
+				return (
+					<div className="flex flex-col">
+						<span className="font-medium text-sm">{user?.name ?? "—"}</span>
+						<span className="text-muted-foreground text-xs">{user?.email ?? "—"}</span>
+					</div>
+				);
+			},
+			size: 180,
+		},
+		{
+			accessorKey: "updatedBy",
+			meta: {
+				headerTitle: "Actualizado por",
+				skeleton: (
+					<div className="flex flex-col gap-1">
+						<Skeleton className="h-3.5 w-24" />
+						<Skeleton className="h-3 w-32" />
+					</div>
+				),
+			},
+			header: ({ column }) => <DataGridColumnHeader column={column} title="Actualizado por" />,
+			cell: ({ row }) => {
+				const userId = row.original.updatedBy;
+				const user = userId ? usersById.get(userId) : undefined;
+				return (
+					<div className="flex flex-col">
+						<span className="font-medium text-sm">{user?.name ?? "—"}</span>
+						<span className="text-muted-foreground text-xs">{user?.email ?? "—"}</span>
+					</div>
+				);
+			},
+			size: 180,
 		},
 		{
 			id: "actions",

@@ -27,6 +27,8 @@ export interface Category {
 	seoTitle: string | null;
 	seoDescription: string | null;
 	seoKeywords: string | null;
+	createdBy: string | null;
+	updatedBy: string | null;
 	createdAt: Date;
 	updatedAt: Date;
 }
