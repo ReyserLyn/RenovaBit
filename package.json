@@ -1,5 +1,5 @@
 {
-	"name": "my-turborepo",
+	"name": "renovabit",
 	"private": true,
 	"scripts": {
 		"build": "turbo run build",
