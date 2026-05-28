@@ -1,0 +1,102 @@
+# Uso: docker compose -f docker-compose.prod.yaml up -d
+
+services:
+  renovabit-postgres:
+    container_name: renovabit-postgres
+    image: postgres:18.4
+    restart: always
+    env_file:
+      - .env.db
+    volumes:
+      - renovabit-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.tcp.routers.renovabit-postgres.rule=HostSNI(`db.renovabit.com`)"
+      - "traefik.tcp.routers.renovabit-postgres.entrypoints=postgres"
+      - "traefik.tcp.routers.renovabit-postgres.tls=true"
+      - "traefik.tcp.routers.renovabit-postgres.tls.certresolver=cloudflare"
+      - "traefik.tcp.services.renovabit-postgres.loadbalancer.server.port=5432"
+      - "traefik.http.routers.renovabit-postgres.service=renovabit-postgres"
+    networks:
+      - renovabit
+      - traefik
+
+  renovabit-api:
+    container_name: renovabit-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: always
+    env_file:
+      - .env.api
+    depends_on:
+      renovabit-postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.renovabit-api.rule=Host(`api.renovabit.com`)"
+      - "traefik.http.routers.renovabit-api.entrypoints=websecure"
+      - "traefik.http.routers.renovabit-api.tls=true"
+      - "traefik.http.routers.renovabit-api.tls.certresolver=cloudflare"
+      - "traefik.http.services.renovabit-api.loadbalancer.server.port=3001"
+      - "traefik.http.routers.renovabit-api.service=renovabit-api"
+    networks:
+      - renovabit
+      - traefik
+
+  renovabit-admin:
+    container_name: renovabit-admin
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      args:
+        - VITE_API_URL=http://renovabit-api:3001
+    restart: always
+    environment:
+      - VITE_API_URL=http://renovabit-api:3001
+    depends_on:
+      - renovabit-api
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "run",
+          "-e",
+          "const r = await fetch('http://localhost:3002/'); process.exit(r.ok ? 0 : 1)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.renovabit-admin.rule=Host(`admin.renovabit.com`)"
+      - "traefik.http.routers.renovabit-admin.entrypoints=websecure"
+      - "traefik.http.routers.renovabit-admin.tls=true"
+      - "traefik.http.routers.renovabit-admin.tls.certresolver=cloudflare"
+      - "traefik.http.services.renovabit-admin.loadbalancer.server.port=3002"
+      - "traefik.http.routers.renovabit-admin.service=renovabit-admin"
+    networks:
+      - renovabit
+      - traefik
+
+volumes:
+  renovabit-postgres-data:
+    name: renovabit-postgres-data
+
+networks:
+  renovabit:
+    name: renovabit
+    driver: bridge
+  traefik:
+    external: true

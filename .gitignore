@@ -68,3 +68,6 @@ todos.json
 
 # Agents
 .agents
+
+# skills
+skills-lock.json

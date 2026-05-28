@@ -1,0 +1,164 @@
+name: Deploy VPS RenovaBit
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-renovabit
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: [self-hosted, vps-reyserlyn, Linux, ARM64]
+
+    env:
+      DEPLOY_PATH: /opt/docker/renovabit
+
+    steps:
+      - name: Actualizar repo en VPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Verificar archivos de entorno
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          for f in .env.api .env.db; do
+            if [ ! -f "$f" ]; then
+              echo "::error::$f no existe en $DEPLOY_PATH"
+              exit 1
+            fi
+            echo "[+] $f encontrado"
+          done
+
+      - name: Tag imágenes actuales como prev (rollback)
+        shell: bash
+        run: |
+          for img in renovabit-api renovabit-admin; do
+            docker tag "renovabit-$img:latest" "renovabit-$img:prev" 2>/dev/null && \
+              echo "[+] Tagged $img:prev" || echo "[i] No hay imagen previa de $img"
+          done
+
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          docker compose build
+
+      - name: Deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          docker compose up -d
+
+      - name: Healthcheck
+        id: healthcheck
+        continue-on-error: true
+        shell: bash
+        run: |
+          cd "$DEPLOY_PATH"
+          sleep 5
+
+          OK=true
+          for i in 1 2 3; do
+            STATUS=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3001/ 2>/dev/null || echo "000")
+            if [ "$STATUS" != "000" ]; then
+              echo "[+] API responde HTTP $STATUS"
+              break
+            fi
+            echo "[i] Intento $i/3 - API no responde..."
+            sleep 3
+          done
+          if [ "$STATUS" = "000" ]; then
+            echo "[!] API no responde"
+            OK=false
+          fi
+
+          for i in 1 2 3; do
+            STATUS=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3002/ 2>/dev/null || echo "000")
+            if [ "$STATUS" != "000" ]; then
+              echo "[+] Admin responde HTTP $STATUS"
+              break
+            fi
+            echo "[i] Intento $i/3 - Admin no responde..."
+            sleep 3
+          done
+          if [ "$STATUS" = "000" ]; then
+            echo "[!] Admin no responde"
+            OK=false
+          fi
+
+          if [ "$OK" = "true" ]; then
+            echo "status=ok" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Rollback automático
+        if: steps.healthcheck.outputs.status == 'fail'
+        shell: bash
+        run: |
+          echo "[!] Healthcheck falló — iniciando rollback..."
+          for img in renovabit-api renovabit-admin; do
+            if docker image inspect "renovabit-$img:prev" &>/dev/null; then
+              docker tag "renovabit-$img:prev" "renovabit-$img:latest"
+              echo "[-] Restaurado $img:prev → $img:latest"
+            fi
+          done
+          cd "$DEPLOY_PATH"
+          docker compose up -d
+          echo "[i] Rollback completado, containers reiniciados con versión previa"
+
+      - name: Limpiar imágenes antiguas (>24h)
+        if: steps.healthcheck.outputs.status == 'ok'
+        shell: bash
+        run: |
+          docker image prune -f --filter "until=24h"
+
+      - name: Notificar éxito
+        if: steps.healthcheck.outputs.status == 'ok'
+        shell: bash
+        run: |
+          curl -s -X POST "${{ vars.GOTIFY_URL }}/message" \
+            -H "X-Gotify-Key: ${{ secrets.GOTIFY_APP_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"title": "[+] Deploy exitoso - Renovabit", "message": "API y Admin desplegados correctamente.", "priority": 5}'
+
+      - name: Notificar fallo + rollback
+        if: steps.healthcheck.outputs.status == 'fail'
+        shell: bash
+        run: |
+          cd "$DEPLOY_PATH"
+          {
+            echo "[!] Deploy falló — se ejecutó rollback automático a versión previa."
+            echo ""
+            echo "Logs:"
+            docker compose logs --tail=20 2>&1
+          } | jq -Rs '{title: "[!] Deploy falló + Rollback automático", message: ., priority: 8}' | \
+          curl -s -X POST "${{ vars.GOTIFY_URL }}/message" \
+            -H "X-Gotify-Key: ${{ secrets.GOTIFY_APP_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d @-
+
+      - name: Notificar fallo de build
+        if: failure()
+        shell: bash
+        run: |
+          curl -s -X POST "${{ vars.GOTIFY_URL }}/message" \
+            -H "X-Gotify-Key: ${{ secrets.GOTIFY_APP_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"title": "[!] Build falló - Renovabit", "message": "El build o deploy falló antes del healthcheck. Revisá los logs en GitHub Actions.", "priority": 8}'
