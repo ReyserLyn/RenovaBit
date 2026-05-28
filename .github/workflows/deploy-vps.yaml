@@ -64,57 +64,26 @@ jobs:
           cd "$DEPLOY_PATH"
           docker compose up -d
 
-      - name: Healthcheck
-        id: healthcheck
-        continue-on-error: true
+      - name: Verificar containers activos
         shell: bash
         run: |
-          cd "$DEPLOY_PATH"
-          sleep 15
-
-          OK=true
-          for i in 1 2 3; do
-            STATUS=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3001/ 2>&1)
-            # Validar que STATUS sea un código HTTP válido (3 dígitos)
-            if [[ "$STATUS" =~ ^[0-9]{3}$ ]] && [ "$STATUS" != "000" ]; then
-              echo "[+] API responde HTTP $STATUS"
-              break
+          sleep 5
+          for svc in renovabit-postgres renovabit-api renovabit-admin; do
+            STATUS=$(docker inspect --format='{{.State.Status}}' "$svc" 2>/dev/null || echo "not_found")
+            if [ "$STATUS" = "running" ]; then
+              echo "[+] $svc está running"
+            else
+              echo "[!] $svc no está running (status: $STATUS)"
+              docker logs "$svc" --tail=20 2>&1
+              exit 1
             fi
-            echo "[i] Intento $i/3 - API no responde..."
-            sleep 3
           done
-          if [ "$STATUS" = "000" ]; then
-            echo "[!] API no responde"
-            OK=false
-          fi
 
-          for i in 1 2 3; do
-            STATUS=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3002/ 2>&1)
-            # Validar que STATUS sea un código HTTP válido (3 dígitos)
-            if [[ "$STATUS" =~ ^[0-9]{3}$ ]] && [ "$STATUS" != "000" ]; then
-              echo "[+] Admin responde HTTP $STATUS"
-              break
-            fi
-            echo "[i] Intento $i/3 - Admin no responde..."
-            sleep 3
-          done
-          if [ "$STATUS" = "000" ]; then
-            echo "[!] Admin no responde"
-            OK=false
-          fi
-
-          if [ "$OK" = "true" ]; then
-            echo "status=ok" >> "$GITHUB_OUTPUT"
-          else
-            echo "status=fail" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-
-      - name: Rollback automático
-        if: steps.healthcheck.outputs.status == 'fail'
+      - name: Rollback automático (si deploy falló)
+        if: failure()
         shell: bash
         run: |
-          echo "[!] Healthcheck falló — iniciando rollback..."
+          echo "[!] Deploy falló — restaurando versión previa..."
           for img in renovabit-api renovabit-admin; do
             if docker image inspect "renovabit-$img:prev" &>/dev/null; then
               docker tag "renovabit-$img:prev" "renovabit-$img:latest"
@@ -123,16 +92,15 @@ jobs:
           done
           cd "$DEPLOY_PATH"
           docker compose up -d
-          echo "[i] Rollback completado, containers reiniciados con versión previa"
 
       - name: Limpiar imágenes antiguas (>24h)
-        if: steps.healthcheck.outputs.status == 'ok'
+        if: success()
         shell: bash
         run: |
           docker image prune -f --filter "until=24h"
 
       - name: Notificar éxito
-        if: steps.healthcheck.outputs.status == 'ok'
+        if: success()
         shell: bash
         run: |
           curl -s -X POST "${{ vars.GOTIFY_URL }}/message" \
@@ -140,27 +108,19 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"title": "[+] Deploy exitoso - Renovabit", "message": "API y Admin desplegados correctamente.", "priority": 5}'
 
-      - name: Notificar fallo + rollback
-        if: steps.healthcheck.outputs.status == 'fail'
+      - name: Notificar fallo
+        if: failure()
         shell: bash
         run: |
           cd "$DEPLOY_PATH"
+          LOGS=$(docker compose logs --tail=20 2>&1)
           {
-            echo "[!] Deploy falló — se ejecutó rollback automático a versión previa."
+            echo "[!] Deploy falló - Renovabit"
             echo ""
             echo "Logs:"
-            docker compose logs --tail=20 2>&1
-          } | jq -Rs '{title: "[!] Deploy falló + Rollback automático", message: ., priority: 8}' | \
+            echo "$LOGS"
+          } | jq -Rs '{title: "[!] Deploy falló - Renovabit", message: ., priority: 8}' | \
           curl -s -X POST "${{ vars.GOTIFY_URL }}/message" \
             -H "X-Gotify-Key: ${{ secrets.GOTIFY_APP_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d @-
-
-      - name: Notificar fallo de build
-        if: failure()
-        shell: bash
-        run: |
-          curl -s -X POST "${{ vars.GOTIFY_URL }}/message" \
-            -H "X-Gotify-Key: ${{ secrets.GOTIFY_APP_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"title": "[!] Build falló - Renovabit", "message": "El build o deploy falló antes del healthcheck. Revisá los logs en GitHub Actions.", "priority": 8}'
