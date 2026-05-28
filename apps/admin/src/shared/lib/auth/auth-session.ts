@@ -11,7 +11,8 @@ export const getSessionServerFn = createServerFn({ method: "GET" }).handler(
 		if (!request) return null;
 
 		try {
-			const apiUrl = process.env.VITE_API_URL ?? "http://localhost:3001";
+			const apiUrl =
+				import.meta.env.VITE_API_URL ?? process.env.VITE_API_URL ?? "http://localhost:3001";
 			const response = await fetch(`${apiUrl}/api/v1/auth/get-session`, {
 				headers: request.headers,
 				credentials: "include",

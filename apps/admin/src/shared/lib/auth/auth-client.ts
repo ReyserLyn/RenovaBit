@@ -3,7 +3,7 @@ import { createAuthClient } from "better-auth/client";
 import { adminClient, inferAdditionalFields, usernameClient } from "better-auth/client/plugins";
 
 function getApiBaseUrl(): string {
-	return process.env.VITE_API_URL ?? "http://localhost:3001";
+	return import.meta.env.VITE_API_URL ?? process.env.VITE_API_URL ?? "http://localhost:3001";
 }
 
 export const authClient = createAuthClient({
