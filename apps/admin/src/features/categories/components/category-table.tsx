@@ -111,10 +111,10 @@ export const CategoryTable = React.memo(function CategoryTable({
 		],
 	);
 
-	const [pagination, setPagination] = useState<PaginationState>({
+	const [pagination, setPagination] = useState<PaginationState>(() => ({
 		pageIndex: 0,
 		pageSize: 10,
-	});
+	}));
 	const sorting = useCategoriesTableStore((s) => s.sorting);
 	const setSorting = useCategoriesTableStore((s) => s.setSorting);
 	const columnVisibility = useCategoriesTableStore((s) => s.columnVisibility);

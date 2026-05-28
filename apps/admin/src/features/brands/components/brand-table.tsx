@@ -90,7 +90,10 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 	const setSorting = useBrandsTableStore((s) => s.setSorting);
 	const columnVisibility = useBrandsTableStore((s) => s.columnVisibility);
 	const setColumnVisibility = useBrandsTableStore((s) => s.setColumnVisibility);
-	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+	const [pagination, setPagination] = useState<PaginationState>(() => ({
+		pageIndex: 0,
+		pageSize: 10,
+	}));
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 	const table = useReactTable({

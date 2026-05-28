@@ -12,12 +12,53 @@ export function useCreateProduct() {
 
 	return useMutation({
 		mutationFn: (data: CreateProductValues) => productsService.create(data),
+		onMutate: async (data) => {
+			await queryClient.cancelQueries({ queryKey: productKeys.lists() });
+			const previousProducts = queryClient.getQueryData<Product[]>(productKeys.lists());
+
+			// Añadir optimistamente un placeholder
+			const tempId = `temp-${crypto.randomUUID()}`;
+			const optimisticProduct: Product = {
+				id: tempId,
+				name: data.name,
+				slug: data.slug ?? data.name.toLowerCase().replace(/\s+/g, "-"),
+				description: data.description ?? null,
+				sku: data.sku,
+				price: data.price,
+				stock: data.stock ?? 0,
+				brandId: data.brandId ?? null,
+				categoryId: data.categoryId ?? null,
+				specifications: data.specifications ?? null,
+				isActive: data.isActive ?? true,
+				isFeatured: data.isFeatured ?? false,
+				imageUrls: [],
+				imageCount: 0,
+				seoTitle: data.seoTitle ?? null,
+				seoDescription: data.seoDescription ?? null,
+				seoKeywords: data.seoKeywords ?? null,
+				createdBy: null,
+				updatedBy: null,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			};
+
+			queryClient.setQueryData(productKeys.lists(), (old: Product[] | undefined) => {
+				return [optimisticProduct, ...(old ?? [])];
+			});
+
+			return { previousProducts };
+		},
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: productKeys.lists() });
 			toast.success("Producto creado correctamente");
 		},
-		onError: (error) => {
+		onError: (error, _data, context) => {
+			if (context?.previousProducts) {
+				queryClient.setQueryData(productKeys.lists(), context.previousProducts);
+			}
 			toast.error(resolveErrorMessage(error));
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: productKeys.lists() });
 		},
 	});
 }

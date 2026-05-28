@@ -26,6 +26,12 @@ import { getUserColumns } from "./user-column";
 const EMPTY_USERS: NonNullable<ReturnType<typeof useUsers>["data"]> = [];
 const COLUMNS = getUserColumns();
 
+// Stable row models — created ONCE, never recreated
+const coreRowModel = getCoreRowModel();
+const filteredRowModel = getFilteredRowModel();
+const sortedRowModel = getSortedRowModel();
+const paginationRowModel = getPaginationRowModel();
+
 export const UserTable = function UserTable() {
 	const queryClient = useQueryClient();
 	const { data: usersData, isPending, isFetching, isError, error } = useUsers();
@@ -35,10 +41,10 @@ export const UserTable = function UserTable() {
 		void queryClient.invalidateQueries({ queryKey: userKeys.all });
 	}, [queryClient]);
 
-	const [pagination, setPagination] = useState<PaginationState>({
+	const [pagination, setPagination] = useState<PaginationState>(() => ({
 		pageIndex: 0,
 		pageSize: 10,
-	});
+	}));
 	const sorting = useUsersTableStore((s) => s.sorting);
 	const setSorting = useUsersTableStore((s) => s.setSorting);
 	const columnVisibility = useUsersTableStore((s) => s.columnVisibility);
@@ -53,10 +59,10 @@ export const UserTable = function UserTable() {
 		onSortingChange: setSorting,
 		onColumnFiltersChange: setColumnFilters,
 		onColumnVisibilityChange: setColumnVisibility,
-		getCoreRowModel: getCoreRowModel(),
-		getFilteredRowModel: getFilteredRowModel(),
-		getSortedRowModel: getSortedRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
+		getCoreRowModel: coreRowModel,
+		getFilteredRowModel: filteredRowModel,
+		getSortedRowModel: sortedRowModel,
+		getPaginationRowModel: paginationRowModel,
 		getRowId: (row) => row.id,
 	});
 

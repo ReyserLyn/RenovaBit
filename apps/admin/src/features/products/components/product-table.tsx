@@ -190,10 +190,10 @@ export const ProductTable = function ProductTable({ onEdit, onDelete }: ProductT
 
 	// ── Table state ──────────────────────────────────
 
-	const [pagination, setPagination] = useState<PaginationState>({
+	const [pagination, setPagination] = useState<PaginationState>(() => ({
 		pageIndex: 0,
 		pageSize: 10,
-	});
+	}));
 	const sorting = useProductsTableStore((s) => s.sorting);
 	const setSorting = useProductsTableStore((s) => s.setSorting);
 	const columnVisibility = useProductsTableStore((s) => s.columnVisibility);
