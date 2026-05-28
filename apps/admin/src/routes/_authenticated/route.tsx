@@ -25,6 +25,12 @@ export const Route = createFileRoute("/_authenticated")({
 
 		return { session };
 	},
+	loader: async ({ context }) => {
+		await Promise.all([
+			context.queryClient.ensureQueryData(brandsQueryOptions),
+			context.queryClient.ensureQueryData(categoriesQueryOptions),
+		]);
+	},
 	component: AuthenticatedLayout,
 });
 
