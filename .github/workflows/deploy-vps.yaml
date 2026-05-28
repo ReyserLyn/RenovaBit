@@ -70,12 +70,13 @@ jobs:
         shell: bash
         run: |
           cd "$DEPLOY_PATH"
-          sleep 5
+          sleep 15
 
           OK=true
           for i in 1 2 3; do
             STATUS=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3001/ 2>&1)
-            if [ "$STATUS" != "000" ] && [ -n "$STATUS" ]; then
+            # Validar que STATUS sea un código HTTP válido (3 dígitos)
+            if [[ "$STATUS" =~ ^[0-9]{3}$ ]] && [ "$STATUS" != "000" ]; then
               echo "[+] API responde HTTP $STATUS"
               break
             fi
@@ -89,7 +90,8 @@ jobs:
 
           for i in 1 2 3; do
             STATUS=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3002/ 2>&1)
-            if [ "$STATUS" != "000" ] && [ -n "$STATUS" ]; then
+            # Validar que STATUS sea un código HTTP válido (3 dígitos)
+            if [[ "$STATUS" =~ ^[0-9]{3}$ ]] && [ "$STATUS" != "000" ]; then
               echo "[+] Admin responde HTTP $STATUS"
               break
             fi
