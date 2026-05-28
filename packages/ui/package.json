@@ -13,7 +13,7 @@
 		"@renovabit/biome-config": "^",
 		"@renovabit/ts-config": "*",
 		"@tailwindcss/postcss": "^4.3.0",
-		"@types/node": "^22.15.3",
+		"@types/node": "^25.9.1",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
 		"postcss": "^8.5.14",

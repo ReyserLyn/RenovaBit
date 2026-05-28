@@ -18,7 +18,7 @@
 	"devDependencies": {
 		"@renovabit/biome-config": "*",
 		"@renovabit/ts-config": "*",
-		"ajv": "8.18.0",
+		"ajv": "8.20.0",
 		"bun-types": "catalog:",
 		"typescript": "catalog:"
 	}
