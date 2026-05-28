@@ -16,7 +16,7 @@
 		"db:studio": "drizzle-kit studio"
 	},
 	"dependencies": {
-		"drizzle-orm": "^0.42.0",
+		"drizzle-orm": "catalog:",
 		"postgres": "^3.4.5"
 	},
 	"devDependencies": {
@@ -24,6 +24,6 @@
 		"@renovabit/ts-config": "*",
 		"@types/node": "^25.6.0",
 		"drizzle-kit": "^0.30.0",
-		"typescript": "6.0.3"
+		"typescript": "catalog:"
 	}
 }

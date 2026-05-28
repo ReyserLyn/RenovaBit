@@ -59,12 +59,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 					<TanStackQueryProvider>
 						<Toaster richColors />
 						<NuqsAdapter>{children}</NuqsAdapter>
-						{import.meta.env.DEV && (
-							<TanStackDevtools
-								config={{ position: "bottom-right" }}
-								plugins={[TanStackRouterDevtools, TanStackQueryDevtools, TanStackFormDevtools]}
-							/>
-						)}
+						<TanStackDevtools
+							config={{ position: "bottom-right" }}
+							plugins={[TanStackRouterDevtools, TanStackQueryDevtools, TanStackFormDevtools]}
+						/>
 					</TanStackQueryProvider>
 				</ThemeProvider>
 				<Scripts />

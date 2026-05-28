@@ -11,6 +11,6 @@
 		"./react-internal": "./react-internal.json"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.4.15"
+		"@biomejs/biome": "catalog:"
 	}
 }
