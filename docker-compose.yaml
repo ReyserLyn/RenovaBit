@@ -58,7 +58,7 @@ services:
       context: .
       dockerfile: apps/admin/Dockerfile
       args:
-        - VITE_API_URL=http://renovabit-api:3001
+        - VITE_API_URL=https://api.renovabit.com
     restart: always
     environment:
       - VITE_API_URL=http://renovabit-api:3001
