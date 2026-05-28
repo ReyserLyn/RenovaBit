@@ -18,7 +18,6 @@ import {
 import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import { Switch } from "@renovabit/ui/components/ui/switch";
 import type { ColumnDef, Row } from "@tanstack/react-table";
-import { useState } from "react";
 import type { Brand } from "@/features/brands/model";
 import type { Category } from "@/features/categories/model";
 import type { UserSummary } from "@/features/users/model";
@@ -54,7 +53,6 @@ function ProductImageCell({ row }: { row: Row<Product> }) {
 	const imageUrls = row.original.imageUrls ?? [];
 	const imageCount = row.original.imageCount ?? 0;
 	const name = row.original.name;
-	const [imgError, setImgError] = useState<Set<number>>(new Set());
 
 	if (imageUrls.length === 0) {
 		return (
@@ -72,12 +70,8 @@ function ProductImageCell({ row }: { row: Row<Product> }) {
 	const visibleUrls = imageUrls.slice(0, maxVisible);
 	const remaining = imageCount - visibleUrls.length;
 
-	// Stacking visual: capa superior (front) = primera imagen,
-	// capa media = segunda imagen, capa inferior (back) = +N restantes
-
 	return (
 		<div className="flex items-center">
-			{/* Render en orden inverso: lo último en el DOM queda arriba (front) */}
 			{/* +N atrás (back) */}
 			{remaining > 0 && (
 				<div
@@ -93,20 +87,13 @@ function ProductImageCell({ row }: { row: Row<Product> }) {
 					className="relative h-9 w-9 overflow-hidden rounded-md border border-border"
 					style={{ zIndex: 2, marginRight: -4 }}
 				>
-					{!imgError.has(1) ? (
-						<img
-							src={visibleUrls[1]}
-							alt={`${name} 2`}
-							loading="lazy"
-							decoding="async"
-							onError={() => setImgError((prev) => new Set(prev).add(1))}
-							className="h-full w-full object-cover"
-						/>
-					) : (
-						<div className="flex h-full w-full items-center justify-center bg-muted text-[8px] text-muted-foreground">
-							{name.slice(0, 1)}
-						</div>
-					)}
+					<img
+						src={visibleUrls[1]}
+						alt={`${name} 2`}
+						loading="lazy"
+						decoding="async"
+						className="h-full w-full object-cover"
+					/>
 				</div>
 			)}
 			{/* Primera imagen (front) */}
@@ -115,20 +102,13 @@ function ProductImageCell({ row }: { row: Row<Product> }) {
 					className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm"
 					style={{ zIndex: 3 }}
 				>
-					{!imgError.has(0) ? (
-						<img
-							src={visibleUrls[0]}
-							alt={`${name} 1`}
-							loading="lazy"
-							decoding="async"
-							onError={() => setImgError((prev) => new Set(prev).add(0))}
-							className="h-full w-full object-cover"
-						/>
-					) : (
-						<div className="flex h-full w-full items-center justify-center bg-muted text-[8px] text-muted-foreground">
-							{name.slice(0, 1)}
-						</div>
-					)}
+					<img
+						src={visibleUrls[0]}
+						alt={`${name} 1`}
+						loading="lazy"
+						decoding="async"
+						className="h-full w-full object-cover"
+					/>
 				</div>
 			)}
 		</div>
@@ -297,6 +277,9 @@ export function getProductColumns({
 					</span>
 				);
 			},
+			filterFn: (row, columnId, filterValue) => {
+				return row.original.brandId === filterValue;
+			},
 			size: 130,
 		},
 		{
@@ -316,6 +299,9 @@ export function getProductColumns({
 						{category?.name ?? "—"}
 					</span>
 				);
+			},
+			filterFn: (row, columnId, filterValue) => {
+				return row.original.categoryId === filterValue;
 			},
 			size: 130,
 		},

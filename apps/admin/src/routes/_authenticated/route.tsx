@@ -4,7 +4,6 @@ import { cn } from "@renovabit/ui/lib/utils";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { brandsQueryOptions } from "@/features/brands/hooks";
 import { categoriesQueryOptions } from "@/features/categories/hooks";
-import { usersQueryOptions } from "@/features/users/hooks";
 import { AppSidebar } from "@/shared/components/layout/app-sidebar";
 import { authClient } from "@/shared/lib/auth/auth-client";
 import { authSessionQueryOptions, resetAuthState } from "@/shared/lib/auth/auth-session";
@@ -26,6 +25,7 @@ export const Route = createFileRoute("/_authenticated")({
 		return { session };
 	},
 	loader: async ({ context }) => {
+		// Preload all shared data — skip products on initial load (lazy per page)
 		await Promise.all([
 			context.queryClient.ensureQueryData(brandsQueryOptions),
 			context.queryClient.ensureQueryData(categoriesQueryOptions),

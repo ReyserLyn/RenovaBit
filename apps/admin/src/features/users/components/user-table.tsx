@@ -13,7 +13,7 @@ import {
 	type PaginationState,
 	useReactTable,
 } from "@tanstack/react-table";
-import React, { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridColumnVisibility } from "@/shared/components/data-grid/data-grid-column-visibility";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
@@ -24,16 +24,16 @@ import { userKeys, useUsers } from "../hooks";
 import { getUserColumns } from "./user-column";
 
 const EMPTY_USERS: NonNullable<ReturnType<typeof useUsers>["data"]> = [];
-const columns = getUserColumns();
+const COLUMNS = getUserColumns();
 
-export const UserTable = React.memo(function UserTable() {
+export const UserTable = function UserTable() {
 	const queryClient = useQueryClient();
 	const { data: usersData, isPending, isFetching, isError, error } = useUsers();
 	const users = usersData ?? EMPTY_USERS;
 
-	function handleRefresh() {
+	const handleRefresh = useCallback(() => {
 		void queryClient.invalidateQueries({ queryKey: userKeys.all });
-	}
+	}, [queryClient]);
 
 	const [pagination, setPagination] = useState<PaginationState>({
 		pageIndex: 0,
@@ -47,7 +47,7 @@ export const UserTable = React.memo(function UserTable() {
 
 	const table = useReactTable({
 		data: users,
-		columns,
+		columns: COLUMNS,
 		state: { pagination, sorting, columnFilters, columnVisibility },
 		onPaginationChange: setPagination,
 		onSortingChange: setSorting,
@@ -161,4 +161,4 @@ export const UserTable = React.memo(function UserTable() {
 			</Card>
 		</div>
 	);
-});
+};

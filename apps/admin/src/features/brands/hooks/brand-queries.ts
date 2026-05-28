@@ -1,4 +1,4 @@
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { brandsService } from "../service/brands.service";
 
 // ── Query Key Factory ──────────────────────────────────
@@ -17,6 +17,7 @@ export const brandKeys = {
 export const brandsQueryOptions = queryOptions({
 	queryKey: brandKeys.lists(),
 	queryFn: () => brandsService.list(),
+	placeholderData: keepPreviousData,
 	staleTime: 1000 * 60 * 5, // 5 min
 });
 

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { productsService } from "../service/products.service";
 
 // ── Query Key Factory ──────────────────────────────────
@@ -12,13 +12,19 @@ export const productKeys = {
 	detail: (id: string) => [...productKeys.details(), id] as const,
 };
 
+// ── Query Options ──────────────────────────────────────
+
+export const productsQueryOptions = queryOptions({
+	queryKey: productKeys.lists(),
+	queryFn: () => productsService.list(),
+	placeholderData: keepPreviousData,
+	staleTime: 1000 * 60 * 5, // 5 min
+});
+
 // ── Queries ────────────────────────────────────────────
 
 export function useProducts() {
-	return useQuery({
-		queryKey: productKeys.lists(),
-		queryFn: () => productsService.list(),
-	});
+	return useQuery(productsQueryOptions);
 }
 
 export function useProduct(id: string) {

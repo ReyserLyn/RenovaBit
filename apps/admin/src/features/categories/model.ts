@@ -66,27 +66,27 @@ export const createCategorySchema = z.object({
 	name: z
 		.string()
 		.trim()
-		.min(1, { message: "El nombre es obligatorio" })
+		.min(1, { error: "El nombre es obligatorio" })
 		.max(CATEGORY_NAME_MAX, {
-			message: `El nombre no puede superar ${CATEGORY_NAME_MAX} caracteres`,
+			error: `El nombre no puede superar ${CATEGORY_NAME_MAX} caracteres`,
 		}),
 	slug: z
 		.string()
 		.trim()
-		.min(1, { message: "El slug es obligatorio" })
+		.min(1, { error: "El slug es obligatorio" })
 		.max(CATEGORY_SLUG_MAX, {
-			message: `El slug no puede superar ${CATEGORY_SLUG_MAX} caracteres`,
+			error: `El slug no puede superar ${CATEGORY_SLUG_MAX} caracteres`,
 		})
 		.optional(),
 	description: z
 		.string()
 		.max(CATEGORY_DESCRIPTION_MAX, {
-			message: `La descripción no puede superar ${CATEGORY_DESCRIPTION_MAX} caracteres`,
+			error: `La descripción no puede superar ${CATEGORY_DESCRIPTION_MAX} caracteres`,
 		})
 		.optional(),
 	imageUrl: z
 		.string()
-		.max(2048, { message: "La URL de imagen no puede superar 2048 caracteres" })
+		.max(2048, { error: "La URL de imagen no puede superar 2048 caracteres" })
 		.optional(),
 	parentId: z.uuid().nullable().optional(),
 	sortOrder: z.number().int().min(0).optional(),
@@ -96,19 +96,19 @@ export const createCategorySchema = z.object({
 	seoTitle: z
 		.string()
 		.max(CATEGORY_SEO_TITLE_MAX, {
-			message: `El título SEO no puede superar ${CATEGORY_SEO_TITLE_MAX} caracteres`,
+			error: `El título SEO no puede superar ${CATEGORY_SEO_TITLE_MAX} caracteres`,
 		})
 		.optional(),
 	seoDescription: z
 		.string()
 		.max(CATEGORY_SEO_DESCRIPTION_MAX, {
-			message: `La descripción SEO no puede superar ${CATEGORY_SEO_DESCRIPTION_MAX} caracteres`,
+			error: `La descripción SEO no puede superar ${CATEGORY_SEO_DESCRIPTION_MAX} caracteres`,
 		})
 		.optional(),
 	seoKeywords: z
 		.string()
 		.max(CATEGORY_SEO_KEYWORDS_MAX, {
-			message: `Las palabras clave no pueden superar ${CATEGORY_SEO_KEYWORDS_MAX} caracteres`,
+			error: `Las palabras clave no pueden superar ${CATEGORY_SEO_KEYWORDS_MAX} caracteres`,
 		})
 		.optional(),
 });
@@ -118,8 +118,8 @@ export const updateCategorySchema = createCategorySchema.partial();
 export const bulkDeleteSchema = z.object({
 	ids: z
 		.array(z.uuid())
-		.min(1, { message: "Selecciona al menos una categoría" })
-		.max(50, { message: "No puedes eliminar más de 50 categorías a la vez" }),
+		.min(1, { error: "Selecciona al menos una categoría" })
+		.max(50, { error: "No puedes eliminar más de 50 categorías a la vez" }),
 });
 
 // ── Form Schemas ─────────────────────────────────────────
@@ -129,12 +129,12 @@ export const categoryFormSchema = z.object({
 	slug: z
 		.string()
 		.trim()
-		.min(1, { message: "El slug es obligatorio" })
+		.min(1, { error: "El slug es obligatorio" })
 		.max(CATEGORY_SLUG_MAX, {
-			message: `El slug no puede superar ${CATEGORY_SLUG_MAX} caracteres`,
+			error: `El slug no puede superar ${CATEGORY_SLUG_MAX} caracteres`,
 		}),
 	description: z.string().max(CATEGORY_DESCRIPTION_MAX, {
-		message: `La descripción no puede superar ${CATEGORY_DESCRIPTION_MAX} caracteres`,
+		error: `La descripción no puede superar ${CATEGORY_DESCRIPTION_MAX} caracteres`,
 	}),
 	parentId: z.uuid().nullable().optional(),
 	sortOrder: z.number().int().min(0),
@@ -142,13 +142,13 @@ export const categoryFormSchema = z.object({
 	isActive: z.boolean(),
 	isVisibleInNav: z.boolean(),
 	seoTitle: z.string().max(CATEGORY_SEO_TITLE_MAX, {
-		message: `El título SEO no puede superar ${CATEGORY_SEO_TITLE_MAX} caracteres`,
+		error: `El título SEO no puede superar ${CATEGORY_SEO_TITLE_MAX} caracteres`,
 	}),
 	seoDescription: z.string().max(CATEGORY_SEO_DESCRIPTION_MAX, {
-		message: `La descripción SEO no puede superar ${CATEGORY_SEO_DESCRIPTION_MAX} caracteres`,
+		error: `La descripción SEO no puede superar ${CATEGORY_SEO_DESCRIPTION_MAX} caracteres`,
 	}),
 	seoKeywords: z.string().max(CATEGORY_SEO_KEYWORDS_MAX, {
-		message: `Las palabras clave no pueden superar ${CATEGORY_SEO_KEYWORDS_MAX} caracteres`,
+		error: `Las palabras clave no pueden superar ${CATEGORY_SEO_KEYWORDS_MAX} caracteres`,
 	}),
 });
 

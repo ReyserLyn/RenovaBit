@@ -68,32 +68,32 @@ export const createProductSchema = z.object({
 	name: z
 		.string()
 		.trim()
-		.min(1, { message: "El nombre es obligatorio" })
+		.min(1, { error: "El nombre es obligatorio" })
 		.max(PRODUCT_NAME_MAX, {
-			message: `El nombre no puede superar ${PRODUCT_NAME_MAX} caracteres`,
+			error: `El nombre no puede superar ${PRODUCT_NAME_MAX} caracteres`,
 		}),
 	slug: z
 		.string()
 		.trim()
-		.min(1, { message: "El slug es obligatorio" })
+		.min(1, { error: "El slug es obligatorio" })
 		.max(PRODUCT_SLUG_MAX, {
-			message: `El slug no puede superar ${PRODUCT_SLUG_MAX} caracteres`,
+			error: `El slug no puede superar ${PRODUCT_SLUG_MAX} caracteres`,
 		})
 		.optional(),
 	description: z
 		.string()
 		.max(PRODUCT_DESCRIPTION_MAX, {
-			message: `La descripción no puede superar ${PRODUCT_DESCRIPTION_MAX} caracteres`,
+			error: `La descripción no puede superar ${PRODUCT_DESCRIPTION_MAX} caracteres`,
 		})
 		.optional(),
 	sku: z
 		.string()
 		.trim()
-		.min(1, { message: "El SKU es obligatorio" })
+		.min(1, { error: "El SKU es obligatorio" })
 		.max(PRODUCT_SKU_MAX, {
-			message: `El SKU no puede superar ${PRODUCT_SKU_MAX} caracteres`,
+			error: `El SKU no puede superar ${PRODUCT_SKU_MAX} caracteres`,
 		}),
-	price: z.string().min(1, { message: "El precio es obligatorio" }),
+	price: z.string().min(1, { error: "El precio es obligatorio" }),
 	stock: z.number().int().min(0).optional(),
 	brandId: z.uuid().nullable().optional(),
 	categoryId: z.uuid().nullable().optional(),
@@ -101,8 +101,8 @@ export const createProductSchema = z.object({
 		.array(
 			z.object({
 				id: z.string(),
-				key: z.string().min(1, { message: "La clave es obligatoria" }),
-				value: z.string().min(1, { message: "El valor es obligatorio" }),
+				key: z.string().min(1, { error: "La clave es obligatoria" }),
+				value: z.string().min(1, { error: "El valor es obligatorio" }),
 			}),
 		)
 		.max(PRODUCT_SPECS_MAX)
@@ -112,19 +112,19 @@ export const createProductSchema = z.object({
 	seoTitle: z
 		.string()
 		.max(PRODUCT_SEO_TITLE_MAX, {
-			message: `El título SEO no puede superar ${PRODUCT_SEO_TITLE_MAX} caracteres`,
+			error: `El título SEO no puede superar ${PRODUCT_SEO_TITLE_MAX} caracteres`,
 		})
 		.optional(),
 	seoDescription: z
 		.string()
 		.max(PRODUCT_SEO_DESCRIPTION_MAX, {
-			message: `La descripción SEO no puede superar ${PRODUCT_SEO_DESCRIPTION_MAX} caracteres`,
+			error: `La descripción SEO no puede superar ${PRODUCT_SEO_DESCRIPTION_MAX} caracteres`,
 		})
 		.optional(),
 	seoKeywords: z
 		.string()
 		.max(PRODUCT_SEO_KEYWORDS_MAX, {
-			message: `Las palabras clave no pueden superar ${PRODUCT_SEO_KEYWORDS_MAX} caracteres`,
+			error: `Las palabras clave no pueden superar ${PRODUCT_SEO_KEYWORDS_MAX} caracteres`,
 		})
 		.optional(),
 });
@@ -134,8 +134,8 @@ export const updateProductSchema = createProductSchema.partial();
 export const bulkDeleteSchema = z.object({
 	ids: z
 		.array(z.string())
-		.min(1, { message: "Selecciona al menos un producto" })
-		.max(50, { message: "No puedes eliminar más de 50 productos a la vez" }),
+		.min(1, { error: "Selecciona al menos un producto" })
+		.max(50, { error: "No puedes eliminar más de 50 productos a la vez" }),
 });
 
 // ── Form Schemas ─────────────────────────────────────────
@@ -145,46 +145,46 @@ export const productFormSchema = z.object({
 	slug: z
 		.string()
 		.trim()
-		.min(1, { message: "El slug es obligatorio" })
+		.min(1, { error: "El slug es obligatorio" })
 		.max(PRODUCT_SLUG_MAX, {
-			message: `El slug no puede superar ${PRODUCT_SLUG_MAX} caracteres`,
+			error: `El slug no puede superar ${PRODUCT_SLUG_MAX} caracteres`,
 		}),
 	description: z.string().max(PRODUCT_DESCRIPTION_MAX, {
-		message: `La descripción no puede superar ${PRODUCT_DESCRIPTION_MAX} caracteres`,
+		error: `La descripción no puede superar ${PRODUCT_DESCRIPTION_MAX} caracteres`,
 	}),
 	sku: z
 		.string()
 		.trim()
-		.min(1, { message: "El SKU es obligatorio" })
+		.min(1, { error: "El SKU es obligatorio" })
 		.max(PRODUCT_SKU_MAX, {
-			message: `El SKU no puede superar ${PRODUCT_SKU_MAX} caracteres`,
+			error: `El SKU no puede superar ${PRODUCT_SKU_MAX} caracteres`,
 		}),
 	price: z
 		.string()
-		.min(1, { message: "El precio es obligatorio" })
-		.regex(/^\d+(\.\d{1,2})?$/, { message: "El precio debe ser un número válido (ej: 99.99)" }),
-	stock: z.number().int().min(0, { message: "El stock no puede ser negativo" }),
+		.min(1, { error: "El precio es obligatorio" })
+		.regex(/^\d+(\.\d{1,2})?$/, { error: "El precio debe ser un número válido (ej: 99.99)" }),
+	stock: z.number().int().min(0, { error: "El stock no puede ser negativo" }),
 	brandId: z.uuid().nullable().optional(),
 	categoryId: z.uuid().nullable().optional(),
 	specifications: z
 		.array(
 			z.object({
 				id: z.string(),
-				key: z.string().min(1, { message: "La clave es obligatoria" }),
-				value: z.string().min(1, { message: "El valor es obligatorio" }),
+				key: z.string().min(1, { error: "La clave es obligatoria" }),
+				value: z.string().min(1, { error: "El valor es obligatorio" }),
 			}),
 		)
 		.max(PRODUCT_SPECS_MAX),
 	isActive: z.boolean(),
 	isFeatured: z.boolean(),
 	seoTitle: z.string().max(PRODUCT_SEO_TITLE_MAX, {
-		message: `El título SEO no puede superar ${PRODUCT_SEO_TITLE_MAX} caracteres`,
+		error: `El título SEO no puede superar ${PRODUCT_SEO_TITLE_MAX} caracteres`,
 	}),
 	seoDescription: z.string().max(PRODUCT_SEO_DESCRIPTION_MAX, {
-		message: `La descripción SEO no puede superar ${PRODUCT_SEO_DESCRIPTION_MAX} caracteres`,
+		error: `La descripción SEO no puede superar ${PRODUCT_SEO_DESCRIPTION_MAX} caracteres`,
 	}),
 	seoKeywords: z.string().max(PRODUCT_SEO_KEYWORDS_MAX, {
-		message: `Las palabras clave no pueden superar ${PRODUCT_SEO_KEYWORDS_MAX} caracteres`,
+		error: `Las palabras clave no pueden superar ${PRODUCT_SEO_KEYWORDS_MAX} caracteres`,
 	}),
 });
 

@@ -14,7 +14,7 @@ import {
 	type RowSelectionState,
 	useReactTable,
 } from "@tanstack/react-table";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useUsers } from "@/features/users/hooks";
 import type { UserSummary } from "@/features/users/model";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
@@ -35,6 +35,12 @@ interface CategoryTableProps {
 
 const EMPTY_CATEGORIES: Category[] = [];
 
+// Stable row models — created ONCE, never recreated
+const coreRowModel = getCoreRowModel();
+const filteredRowModel = getFilteredRowModel();
+const sortedRowModel = getSortedRowModel();
+const paginationRowModel = getPaginationRowModel();
+
 export const CategoryTable = React.memo(function CategoryTable({
 	onEdit,
 	onDelete,
@@ -45,11 +51,65 @@ export const CategoryTable = React.memo(function CategoryTable({
 	const toggleCategoryField = useToggleCategoryField();
 	const { data: usersData } = useUsers();
 
-	const usersById = new Map<string, UserSummary>((usersData ?? []).map((u) => [u.id, u]));
+	// Stabilize lookup maps (js-index-maps)
+	const usersById = useMemo(
+		() => new Map<string, UserSummary>((usersData ?? []).map((u) => [u.id, u])),
+		[usersData],
+	);
+	const categoriesById = useMemo(
+		() => new Map((categories ?? []).map((c) => [c.id, c])),
+		[categories],
+	);
 
-	function handleRefresh() {
+	// Stable refresh handler
+	const handleRefresh = useCallback(() => {
 		void queryClient.invalidateQueries({ queryKey: categoryKeys.all });
-	}
+	}, [queryClient]);
+
+	// Stable toggle handlers
+	const handleToggleStatus = useCallback(
+		async (category: Category, isActive: boolean) => {
+			await toggleCategoryField.mutateAsync({ id: category.id, data: { isActive } });
+		},
+		[toggleCategoryField],
+	);
+
+	const handleToggleFeatured = useCallback(
+		async (category: Category, isFeatured: boolean) => {
+			await toggleCategoryField.mutateAsync({ id: category.id, data: { isFeatured } });
+		},
+		[toggleCategoryField],
+	);
+
+	const handleToggleNavVisibility = useCallback(
+		async (category: Category, isVisibleInNav: boolean) => {
+			await toggleCategoryField.mutateAsync({ id: category.id, data: { isVisibleInNav } });
+		},
+		[toggleCategoryField],
+	);
+
+	// Stabilize columns array to prevent table re-initialization
+	const columns = useMemo(
+		() =>
+			getCategoryColumns({
+				onEdit,
+				onDelete,
+				onToggleStatus: handleToggleStatus,
+				onToggleFeatured: handleToggleFeatured,
+				onToggleNavVisibility: handleToggleNavVisibility,
+				categoriesById,
+				usersById,
+			}),
+		[
+			onEdit,
+			onDelete,
+			handleToggleStatus,
+			handleToggleFeatured,
+			handleToggleNavVisibility,
+			categoriesById,
+			usersById,
+		],
+	);
 
 	const [pagination, setPagination] = useState<PaginationState>({
 		pageIndex: 0,
@@ -61,31 +121,6 @@ export const CategoryTable = React.memo(function CategoryTable({
 	const setColumnVisibility = useCategoriesTableStore((s) => s.setColumnVisibility);
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-	async function handleToggleStatus(category: Category, isActive: boolean) {
-		await toggleCategoryField.mutateAsync({ id: category.id, data: { isActive } });
-	}
-
-	async function handleToggleFeatured(category: Category, isFeatured: boolean) {
-		await toggleCategoryField.mutateAsync({ id: category.id, data: { isFeatured } });
-	}
-
-	async function handleToggleNavVisibility(category: Category, isVisibleInNav: boolean) {
-		await toggleCategoryField.mutateAsync({ id: category.id, data: { isVisibleInNav } });
-	}
-
-	// Mapa para resolver el nombre de la categoría padre
-	const categoriesById = new Map(categories.map((c) => [c.id, c]));
-
-	const columns = getCategoryColumns({
-		onEdit,
-		onDelete,
-		onToggleStatus: handleToggleStatus,
-		onToggleFeatured: handleToggleFeatured,
-		onToggleNavVisibility: handleToggleNavVisibility,
-		categoriesById,
-		usersById,
-	});
 
 	const table = useReactTable({
 		data: categories,
@@ -102,10 +137,10 @@ export const CategoryTable = React.memo(function CategoryTable({
 		onColumnFiltersChange: setColumnFilters,
 		onColumnVisibilityChange: setColumnVisibility,
 		onRowSelectionChange: setRowSelection,
-		getCoreRowModel: getCoreRowModel(),
-		getFilteredRowModel: getFilteredRowModel(),
-		getSortedRowModel: getSortedRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
+		getCoreRowModel: coreRowModel,
+		getFilteredRowModel: filteredRowModel,
+		getSortedRowModel: sortedRowModel,
+		getPaginationRowModel: paginationRowModel,
 		enableRowSelection: true,
 		getRowId: (row) => row.id,
 	});

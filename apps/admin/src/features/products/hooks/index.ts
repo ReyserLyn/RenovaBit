@@ -5,4 +5,5 @@ export {
 	useToggleProductField,
 	useUpdateProduct,
 } from "./products-mutations";
-export { productKeys, useProduct, useProducts } from "./products-queries";
+export { productKeys, productsQueryOptions, useProduct, useProducts } from "./products-queries";
+export { useProductFilters } from "./use-product-filters";

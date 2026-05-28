@@ -1,4 +1,4 @@
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import type { Category, CategoryTreeNode } from "../model";
 import { categoriesService } from "../service/categories.service";
 
@@ -59,6 +59,7 @@ export const categoryKeys = {
 export const categoriesQueryOptions = queryOptions({
 	queryKey: categoryKeys.lists(),
 	queryFn: () => categoriesService.list(),
+	placeholderData: keepPreviousData,
 	staleTime: 1000 * 60 * 5, // 5 min
 });
 

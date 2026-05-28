@@ -54,6 +54,7 @@ export function useToggleCategoryField() {
 			categoriesService.update(id, data),
 		onMutate: async ({ id, data }) => {
 			await queryClient.cancelQueries({ queryKey: categoryKeys.lists() });
+			await queryClient.cancelQueries({ queryKey: categoryKeys.trees() });
 			await queryClient.cancelQueries({ queryKey: categoryKeys.detail(id) });
 			const previousCategories = queryClient.getQueryData<Category[]>(categoryKeys.lists());
 			const previousCategory = queryClient.getQueryData<Category>(categoryKeys.detail(id));

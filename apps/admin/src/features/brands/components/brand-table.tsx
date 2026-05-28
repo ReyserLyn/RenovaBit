@@ -14,7 +14,7 @@ import {
 	type RowSelectionState,
 	useReactTable,
 } from "@tanstack/react-table";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useUsers } from "@/features/users/hooks";
 import type { UserSummary } from "@/features/users/model";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
@@ -35,6 +35,12 @@ interface BrandTableProps {
 
 const EMPTY_BRANDS: Brand[] = [];
 
+// Stable row models — created ONCE, never recreated
+const coreRowModel = getCoreRowModel();
+const filteredRowModel = getFilteredRowModel();
+const sortedRowModel = getSortedRowModel();
+const paginationRowModel = getPaginationRowModel();
+
 export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: BrandTableProps) {
 	const queryClient = useQueryClient();
 	const { data: brandsData, isPending, isFetching, isError, error } = useBrands();
@@ -42,39 +48,51 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 	const toggleBrandField = useToggleBrandField();
 	const { data: usersData } = useUsers();
 
-	const usersById = new Map<string, UserSummary>((usersData ?? []).map((u) => [u.id, u]));
+	// Stabilize users lookup map (js-index-maps)
+	const usersById = useMemo(
+		() => new Map<string, UserSummary>((usersData ?? []).map((u) => [u.id, u])),
+		[usersData],
+	);
 
-	function handleRefresh() {
+	// Stable refresh handler
+	const handleRefresh = useCallback(() => {
 		void queryClient.invalidateQueries({ queryKey: brandKeys.all });
-	}
+	}, [queryClient]);
 
-	const [pagination, setPagination] = useState<PaginationState>({
-		pageIndex: 0,
-		pageSize: 10,
-	});
+	// Stable toggle handlers
+	const handleToggleStatus = useCallback(
+		async (brand: Brand, isActive: boolean) => {
+			await toggleBrandField.mutateAsync({ id: brand.id, data: { isActive } });
+		},
+		[toggleBrandField],
+	);
+
+	const handleToggleFeatured = useCallback(
+		async (brand: Brand, isFeatured: boolean) => {
+			await toggleBrandField.mutateAsync({ id: brand.id, data: { isFeatured } });
+		},
+		[toggleBrandField],
+	);
+
+	// Stabilize columns array to prevent table re-initialization
+	const columns = useMemo(
+		() =>
+			getBrandColumns({
+				onEdit,
+				onDelete,
+				onToggleStatus: handleToggleStatus,
+				onToggleFeatured: handleToggleFeatured,
+				usersById,
+			}),
+		[onEdit, onDelete, handleToggleStatus, handleToggleFeatured, usersById],
+	);
 	const sorting = useBrandsTableStore((s) => s.sorting);
 	const setSorting = useBrandsTableStore((s) => s.setSorting);
 	const columnVisibility = useBrandsTableStore((s) => s.columnVisibility);
 	const setColumnVisibility = useBrandsTableStore((s) => s.setColumnVisibility);
+	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-	async function handleToggleStatus(brand: Brand, isActive: boolean) {
-		await toggleBrandField.mutateAsync({ id: brand.id, data: { isActive } });
-	}
-
-	async function handleToggleFeatured(brand: Brand, isFeatured: boolean) {
-		await toggleBrandField.mutateAsync({ id: brand.id, data: { isFeatured } });
-	}
-
-	const columns = getBrandColumns({
-		onEdit,
-		onDelete,
-		onToggleStatus: handleToggleStatus,
-		onToggleFeatured: handleToggleFeatured,
-		usersById,
-	});
-
 	const table = useReactTable({
 		data: brands,
 		columns,
@@ -90,10 +108,10 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 		onColumnFiltersChange: setColumnFilters,
 		onColumnVisibilityChange: setColumnVisibility,
 		onRowSelectionChange: setRowSelection,
-		getCoreRowModel: getCoreRowModel(),
-		getFilteredRowModel: getFilteredRowModel(),
-		getSortedRowModel: getSortedRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
+		getCoreRowModel: coreRowModel,
+		getFilteredRowModel: filteredRowModel,
+		getSortedRowModel: sortedRowModel,
+		getPaginationRowModel: paginationRowModel,
 		enableRowSelection: true,
 		getRowId: (row) => row.id,
 	});
