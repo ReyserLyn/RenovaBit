@@ -19,40 +19,40 @@ services:
     networks:
       - renovabit
 
-  renovabit-api:
-    container_name: renovabit-api
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-    env_file:
-      - .env.api
-    environment:
-      - NODE_ENV=development
-    depends_on:
-      renovabit-postgres:
-        condition: service_healthy
-    networks:
-      - renovabit
+  # renovabit-api:
+  #   container_name: renovabit-api
+  #   build:
+  #     context: .
+  #     dockerfile: apps/api/Dockerfile
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3001:3001"
+  #   env_file:
+  #     - .env.api
+  #   environment:
+  #     - NODE_ENV=development
+  #   depends_on:
+  #     renovabit-postgres:
+  #       condition: service_healthy
+  #   networks:
+  #     - renovabit
 
-  renovabit-admin:
-    container_name: renovabit-admin
-    build:
-      context: .
-      dockerfile: apps/admin/Dockerfile
-      args:
-        - VITE_API_URL=http://renovabit-api:3001
-    restart: unless-stopped
-    ports:
-      - "3002:3002"
-    environment:
-      - VITE_API_URL=http://renovabit-api:3001
-    depends_on:
-      - renovabit-api
-    networks:
-      - renovabit
+  # renovabit-admin:
+  #   container_name: renovabit-admin
+  #   build:
+  #     context: .
+  #     dockerfile: apps/admin/Dockerfile
+  #     args:
+  #       - VITE_API_URL=http://renovabit-api:3001
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3002:3002"
+  #   environment:
+  #     - VITE_API_URL=http://renovabit-api:3001
+  #   depends_on:
+  #     - renovabit-api
+  #   networks:
+  #     - renovabit
 
 networks:
   renovabit:

@@ -1,21 +1,18 @@
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
+import { getRequestHeaders } from "@tanstack/react-start/server";
 import type { Session } from "./auth-client";
 
 // ── Server function — obtiene la sesión desde la API ──
 
 export const getSessionServerFn = createServerFn({ method: "GET" }).handler(
 	async (): Promise<Session | null> => {
-		const request = getRequest();
-		if (!request) return null;
-
 		try {
-			const apiUrl =
-				import.meta.env.VITE_API_URL ?? process.env.VITE_API_URL ?? "http://localhost:3001";
+			const apiUrl = process.env.VITE_API_URL ?? "http://localhost:3001";
+			const headers = getRequestHeaders();
+
 			const response = await fetch(`${apiUrl}/api/v1/auth/get-session`, {
-				headers: request.headers,
-				credentials: "include",
+				headers: { cookie: headers.get?.("cookie") ?? "" },
 			});
 
 			if (!response.ok) return null;
