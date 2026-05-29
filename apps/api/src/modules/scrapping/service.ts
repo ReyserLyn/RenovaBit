@@ -2,10 +2,9 @@ import * as cheerio from "cheerio";
 import { logger } from "@/utils/logger";
 import type { ScrapedItem } from "./model";
 
-export const BASE_URL =
+const BASE_URL =
 	process.env.SCRAPING_REMATAZO_BASE_URL || "https://asesor.rematazo.pe/distribucion2.php";
-export const PHOTOS_BASE_URL =
-	process.env.SCRAPING_REMATAZO_PHOTOS_URL || "https://rematazo.pe/fotos";
+const PHOTOS_BASE_URL = process.env.SCRAPING_REMATAZO_PHOTOS_URL || "https://rematazo.pe/fotos";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
@@ -112,7 +111,10 @@ async function fetchProductImage(providerId: string): Promise<string | null> {
 
 		return url;
 	} catch (error) {
-		logger.withMetadata({ providerId }).withError(error).warn("Error fetching product image");
+		logger
+			.withMetadata({ providerId })
+			.withError(error)
+			.warn("Error al verificar imagen del producto");
 		return null;
 	}
 }

@@ -19,6 +19,33 @@ services:
     networks:
       - renovabit
 
+  renovabit-redis:
+    container_name: renovabit-redis
+    image: redis:8.8-alpine
+    restart: unless-stopped
+    env_file:
+      - .env.redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - ./docker-volumes/redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - renovabit
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "-a",
+          "${REDIS_PASSWORD}",
+          "--no-auth-warning",
+          "ping",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # renovabit-api:
   #   container_name: renovabit-api
   #   build:

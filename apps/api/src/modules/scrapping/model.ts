@@ -1,7 +1,7 @@
 import type { Static } from "@sinclair/typebox";
 import { t, type UnwrapSchema } from "elysia";
 
-// ── Scraped Item ────────────────────────────────────
+// ── Scraped Item (uso interno del service) ─────────
 
 export const ScrapedItemSchema = t.Object({
 	providerId: t.String(),
@@ -12,18 +12,21 @@ export const ScrapedItemSchema = t.Object({
 
 export type ScrapedItem = Static<typeof ScrapedItemSchema>;
 
-// ── Query ──────────────────────────────────────────
+// ── Run Response ───────────────────────────────────
 
-const RunQuerySchema = t.Object({
-	limit: t.Optional(t.String()),
+const RunResponse = t.Object({
+	success: t.Boolean(),
+	jobId: t.String(),
+	message: t.String(),
 });
 
 // ── Export ─────────────────────────────────────────
 
 export const ScrapingModel = {
-	runQuery: RunQuerySchema,
-	scrapedItem: ScrapedItemSchema,
-	scrapedItemList: t.Array(ScrapedItemSchema),
+	runQuery: t.Object({
+		limit: t.Optional(t.String()),
+	}),
+	runResponse: RunResponse,
 } as const;
 
 export type ScrapingModel = {

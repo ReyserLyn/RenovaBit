@@ -1,13 +1,12 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
+import { enqueueManualScraping } from "@/jobs/scraping.queue";
 import { ScrapingModel } from "./model";
-import { PHOTOS_BASE_URL, scrapingService } from "./service";
 
 export const scrapingController = new Elysia({ prefix: "/scraping" }).post(
 	"/run",
 	async ({ query: { limit } }) => {
-		const raw = limit ?? "50";
-		const parsed = Number.parseInt(raw, 10);
+		const parsed = Number.parseInt(limit ?? "50", 10);
 
 		if (Number.isNaN(parsed) || parsed < 1 || parsed > 2000) {
 			throw createApiError({
@@ -18,35 +17,24 @@ export const scrapingController = new Elysia({ prefix: "/scraping" }).post(
 			});
 		}
 
-		console.log(`[i] Scraping manual iniciado con limit=${parsed}...`);
-		const items = await scrapingService.fetchProductList(parsed);
-		console.log(`[+] Scraping completado: ${items.length} items obtenidos`);
-
-		for (const item of items) {
-			const imageUrl = `${PHOTOS_BASE_URL}/${item.providerId}.png`;
-			console.log(`[i] ${item.providerId}: ${imageUrl}`);
-		}
+		const job = await enqueueManualScraping(parsed);
 
 		return {
 			success: true,
-			count: items.length,
-			items,
+			jobId: job.id ?? "",
+			message: `Scraping encolado con limit=${parsed}`,
 		};
 	},
 	{
 		isAdmin: true,
 		query: ScrapingModel.runQuery,
 		response: {
-			200: t.Object({
-				success: t.Boolean(),
-				count: t.Integer(),
-				items: ScrapingModel.scrapedItemList,
-			}),
+			200: ScrapingModel.runResponse,
 		},
 		detail: {
 			tags: ["Scraping"],
 			summary: "Ejecutar scraping manual",
-			description: "Obtiene el listado de productos desde el proveedor externo (admin only)",
+			description: "Encola un job de scraping para procesamiento en background (admin only)",
 		},
 	},
 );

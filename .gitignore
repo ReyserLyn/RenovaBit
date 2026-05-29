@@ -15,6 +15,7 @@ node_modules
 .env.api
 .env.admin
 .env.db
+.env.redis
 
 # Testing
 coverage
