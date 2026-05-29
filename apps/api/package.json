@@ -24,9 +24,11 @@
 		"@elysiajs/openapi": "^1.4.15",
 		"@loglayer/elysia": "^2.1.0",
 		"@loglayer/transport-simple-pretty-terminal": "^3.0.2",
+		"@openrouter/ai-sdk-provider": "^2.9.0",
 		"@renovabit/backend-errors": "*",
 		"@renovabit/db": "*",
 		"@sinclair/typebox": "^0.34.49",
+		"ai": "^6.0.193",
 		"better-auth": "catalog:",
 		"bullmq": "^5.77.6",
 		"cheerio": "^1.2.0",
@@ -37,7 +39,8 @@
 		"loglayer": "^9.1.0",
 		"nanoid": "catalog:",
 		"serialize-error": "catalog:",
-		"slugify": "catalog:"
+		"slugify": "catalog:",
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@renovabit/ts-config": "*",

@@ -1,26 +1,37 @@
 import { Worker } from "bullmq";
+import { cleanupOrphanedReports, runSync } from "@/modules/product-processing/sync/sync.service";
 import { scrapingService } from "@/modules/scrapping/service";
 import { logger } from "@/utils/logger";
 import { connection } from "@/utils/queue";
 
 type ScrapingJobData = {
 	limit: number;
+	trigger: "manual" | "automatic";
 };
+
+// Cleanup orphaned reports from previous crash
+await cleanupOrphanedReports();
 
 export const scrapingWorker = new Worker<ScrapingJobData>(
 	"scraping",
 	async (job) => {
-		logger.withMetadata({ jobId: job.id, limit: job.data.limit }).info("Iniciando scraping job");
+		const { limit } = job.data;
+		const trigger = job.data.trigger || "automatic";
 
-		const items = await scrapingService.fetchProductList(job.data.limit);
+		logger.withMetadata({ jobId: job.id, limit, trigger }).info("Iniciando scraping job");
 
-		return items;
+		const items = await scrapingService.fetchProductList(limit);
+		const { reportId, stats } = await runSync(items, trigger, job.id);
+
+		logger.withMetadata({ jobId: job.id, reportId, ...stats }).info("Job de scraping completado");
+
+		return { reportId, stats };
 	},
 	{
 		connection,
 		concurrency: 1,
-		lockDuration: 60_000,
-		stalledInterval: 30_000,
+		lockDuration: 120_000,
+		stalledInterval: 60_000,
 	},
 );
 
