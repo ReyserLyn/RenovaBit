@@ -1,9 +1,11 @@
+import { redisStorage } from "@better-auth/redis-storage";
 import { db } from "@renovabit/db";
 import * as schema from "@renovabit/db/schema";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { betterAuth } from "better-auth/minimal";
 import { admin, openAPI, username } from "better-auth/plugins";
 import { appOrigins } from "@/utils/origins";
+import { getRedis } from "@/utils/redis";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -16,6 +18,7 @@ export const auth = betterAuth({
 		: [...appOrigins, "http://localhost:*/**", "https://*.renovabit.com"],
 	rateLimit: {
 		enabled: true,
+		storage: "secondary-storage",
 		window: 60,
 		max: 100,
 		customRules: {
@@ -38,6 +41,10 @@ export const auth = betterAuth({
 		schema,
 		usePlural: true,
 		camelCase: false,
+	}),
+	secondaryStorage: redisStorage({
+		client: getRedis(),
+		keyPrefix: "better-auth:",
 	}),
 	emailAndPassword: {
 		enabled: true,
