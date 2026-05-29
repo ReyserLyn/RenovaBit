@@ -1,7 +1,9 @@
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { ElysiaAdapter } from "@bull-board/elysia";
+import { Elysia } from "elysia";
 import { scrapingQueue } from "@/jobs/scraping.queue";
+import { auth } from "@/utils/auth/auth";
 
 const serverAdapter = new ElysiaAdapter({
 	prefix: "/queues",
@@ -16,4 +18,23 @@ createBullBoard({
 	},
 });
 
-export const bullBoardPlugin = await serverAdapter.registerPlugin();
+const rawPlugin = await serverAdapter.registerPlugin();
+
+export const bullBoardPlugin = new Elysia({ name: "bull-board" }).group("/admin", (app) =>
+	app
+		.onBeforeHandle(async ({ request, set }) => {
+			try {
+				const session = await auth.api.getSession({
+					headers: request.headers,
+				});
+				if (!session || session.user.role !== "admin") {
+					set.status = 403;
+					return { error: "Acceso denegado" };
+				}
+			} catch {
+				set.status = 401;
+				return { error: "No autorizado" };
+			}
+		})
+		.use(rawPlugin),
+);

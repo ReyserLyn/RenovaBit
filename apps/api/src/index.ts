@@ -13,7 +13,7 @@ const app = new Elysia()
 	.use(LoggerPlugin)
 	.get("/favicon.ico", () => Bun.file("public/favicon.ico"))
 	.use(DocsPlugin)
-	.group("/admin", (app) => app.use(bullBoardPlugin))
+	.use(bullBoardPlugin)
 	.use(modules)
 	.onError(errorHandler)
 	.listen(3001);
