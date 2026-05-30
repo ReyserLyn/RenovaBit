@@ -15,7 +15,7 @@ export function enqueueManualScraping(limit: number, userId?: string) {
 scrapingQueue
 	.add(
 		"run",
-		{ limit: 100, trigger: "automatic" },
+		{ limit: 300, trigger: "automatic" },
 		{
 			repeat: { every: 300_000, key: "auto-scraping" },
 		},

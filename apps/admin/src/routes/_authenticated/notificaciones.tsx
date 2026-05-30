@@ -9,11 +9,13 @@ import {
 	CardTitle,
 } from "@renovabit/ui/components/ui/card";
 import { Separator } from "@renovabit/ui/components/ui/separator";
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { parseAsString, useQueryState } from "nuqs";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NotificationTable } from "@/features/notifications/components/notification-table";
 import { useMarkAsRead } from "@/features/notifications/hooks/notification-mutations";
+import { notificationKeys } from "@/features/notifications/hooks/notification-queries";
 import type {
 	AppNotification,
 	NotificationData,
@@ -240,7 +242,32 @@ function TimelineStep({ label, time, isLast }: { label: string; time: string; is
 function NotificacionesPage() {
 	const [selectedId, setSelectedId] = useQueryState("id", parseAsString);
 	const [selectedNotification, setSelectedNotification] = useState<AppNotification | null>(null);
+	const queryClient = useQueryClient();
 	const markReadMutation = useMarkAsRead();
+
+	// Sincronizar selectedNotification cuando cambia selectedId (bell, URL directa)
+	useEffect(() => {
+		const check = () => {
+			if (!selectedId) {
+				setSelectedNotification(null);
+				return;
+			}
+			const queries = queryClient.getQueriesData<{ notifications: AppNotification[] }>({
+				queryKey: notificationKeys.lists(),
+			});
+			for (const [, qData] of queries) {
+				const found = qData?.notifications.find((n) => n.id === selectedId);
+				if (found) {
+					setSelectedNotification(found);
+					return;
+				}
+			}
+		};
+
+		check();
+		const unsubscribe = queryClient.getQueryCache().subscribe(check);
+		return unsubscribe;
+	}, [selectedId, queryClient]);
 
 	const handleRowClick = useCallback(
 		(notification: AppNotification) => {

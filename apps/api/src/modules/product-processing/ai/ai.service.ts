@@ -10,6 +10,8 @@ const openrouter = createOpenRouter({
 
 const MODEL = "openai/gpt-4o-mini";
 const AI_TIMEOUT_MS = 30_000;
+const AI_MAX_RETRIES = 1;
+const AI_RETRY_DELAY_MS = 1000;
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 	return Promise.race([
@@ -23,32 +25,41 @@ export async function extractFromRawName(
 	context: ExtractionContext,
 ): Promise<ProductExtractionOutput> {
 	const prompt = buildExtractionPrompt(rawName, context);
+	let lastError: unknown;
 
-	try {
-		const { output } = await withTimeout(
-			generateText({
-				model: openrouter(MODEL),
-				output: Output.object({ schema: productExtractionSchema }),
-				prompt,
-				temperature: 0,
-			}),
-			AI_TIMEOUT_MS,
-		);
+	for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt++) {
+		try {
+			const { output } = await withTimeout(
+				generateText({
+					model: openrouter(MODEL),
+					output: Output.object({ schema: productExtractionSchema }),
+					prompt,
+					temperature: 0,
+				}),
+				AI_TIMEOUT_MS,
+			);
 
-		return {
-			...output,
-			specifications: output.specifications.map((s) => ({
-				id: s.id || crypto.randomUUID(),
-				key: s.key,
-				value: s.value,
-			})),
-			needsReview: output.needsReview ?? true,
-		};
-	} catch (error) {
-		logger
-			.withMetadata({ rawName })
-			.withError(error)
-			.warn("IA falló, se reintentará en próximo sync");
-		throw error;
+			return {
+				...output,
+				specifications: output.specifications.map((s) => ({
+					id: s.id || crypto.randomUUID(),
+					key: s.key,
+					value: s.value,
+				})),
+				needsReview: output.needsReview ?? true,
+			};
+		} catch (error) {
+			lastError = error;
+			if (attempt < AI_MAX_RETRIES) {
+				logger.withMetadata({ rawName, attempt }).warn("IA falló, reintentando...");
+				await new Promise((r) => setTimeout(r, AI_RETRY_DELAY_MS * (attempt + 1)));
+			}
+		}
 	}
+
+	logger
+		.withMetadata({ rawName, attempts: AI_MAX_RETRIES + 1 })
+		.withError(lastError)
+		.warn("IA falló después de reintentos, se reintentará en próximo sync");
+	throw lastError;
 }

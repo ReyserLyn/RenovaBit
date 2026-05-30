@@ -14,7 +14,8 @@ Ejemplo: "AUDIFONOS, PHILIPS, TTAH4205RD BT 29H BASS BOOST-5768"
 
 ### NOMBRE (SEO - de aquí se deriva el slug)
 - SIEMPRE inicia con la categoría: "Laptop...", "Audífono...", "Procesador..."
-- En laptops/procesadores incluye modelo y generación
+- En laptops/procesadores incluye modelo y generación.
+- SI el raw contiene "SIN COOLER", "CON COOLER", "OEM", "BLISTER", "WOF", "TRAY", "BOX", inclúyelo en el nombre. Son variantes del mismo modelo y DEBEN diferenciarse.
 - NO exageres longitud. Lo necesario para identificar el producto.
 
 ### CATEGORÍA
