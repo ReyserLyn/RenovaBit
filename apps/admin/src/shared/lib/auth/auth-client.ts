@@ -1,10 +1,7 @@
 import type { auth } from "@renovabit/backend-client";
 import { createAuthClient } from "better-auth/client";
 import { adminClient, inferAdditionalFields, usernameClient } from "better-auth/client/plugins";
-
-function getApiBaseUrl(): string {
-	return import.meta.env.VITE_API_URL ?? process.env.VITE_API_URL ?? "http://localhost:3001";
-}
+import { getApiBaseUrl } from "@/shared/lib/env";
 
 export const authClient = createAuthClient({
 	baseURL: getApiBaseUrl(),

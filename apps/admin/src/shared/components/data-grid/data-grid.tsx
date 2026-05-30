@@ -132,7 +132,6 @@ function DataGridProvider<TData extends object>({
 			recordCount: props.recordCount,
 			isLoading: props.isLoading || false,
 		}),
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[
 			table,
 			props.recordCount,

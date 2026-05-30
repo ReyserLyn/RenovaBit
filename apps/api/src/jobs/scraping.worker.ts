@@ -55,6 +55,7 @@ export const scrapingWorker = new Worker<ScrapingJobData>(
 				message: `${stats.processed} procesados | ${stats.created} creados | ${stats.updated} actualizados | ${stats.errors} errores`,
 				data: {
 					reportId,
+					jobId: job.id,
 					trigger,
 					stats,
 					startedAt,

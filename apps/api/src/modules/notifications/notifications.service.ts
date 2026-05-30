@@ -24,8 +24,24 @@ export async function getNotifications(userId: string, page = 1, limit = 20, unr
 		.where(and(eq(adminNotifications.userId, userId), eq(adminNotifications.isRead, false)));
 
 	const rows = await db
-		.select()
+		.select({
+			id: adminNotifications.id,
+			userId: adminNotifications.userId,
+			type: adminNotifications.type,
+			title: adminNotifications.title,
+			message: adminNotifications.message,
+			data: adminNotifications.data,
+			isRead: adminNotifications.isRead,
+			createdAt: adminNotifications.createdAt,
+			user: {
+				id: users.id,
+				email: users.email,
+				username: users.username,
+				displayUsername: users.displayUsername,
+			},
+		})
 		.from(adminNotifications)
+		.leftJoin(users, eq(adminNotifications.userId, users.id))
 		.where(where)
 		.orderBy(desc(adminNotifications.createdAt))
 		.limit(limit)

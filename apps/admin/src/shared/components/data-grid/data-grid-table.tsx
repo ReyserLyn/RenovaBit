@@ -360,12 +360,7 @@ function DataGridTableBase({ children }: { children: ReactNode }) {
 			colSizes[`--col-${header.column.id}-size`] = header.column.getSize();
 		}
 		return colSizes;
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [
-		props.tableLayout?.columnsResizable,
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		table.getState().columnSizing,
-	]);
+	}, [props.tableLayout?.columnsResizable, table.getState().columnSizing]);
 
 	return (
 		<table

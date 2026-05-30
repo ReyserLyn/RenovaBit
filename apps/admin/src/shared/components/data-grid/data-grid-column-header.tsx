@@ -257,7 +257,6 @@ function DataGridColumnHeaderInner<TData, TValue>({
 		}
 
 		return items;
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [
 		filter,
 		canSort,
