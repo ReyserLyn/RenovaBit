@@ -1,11 +1,12 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { Elysia } from "elysia";
 import { enqueueManualScraping } from "@/jobs/scraping.queue";
+import { auth } from "@/utils/auth/auth";
 import { ScrapingModel } from "./model";
 
 export const scrapingController = new Elysia({ prefix: "/scraping" }).post(
 	"/run",
-	async ({ query: { limit } }) => {
+	async ({ query: { limit }, request }) => {
 		const parsed = Number.parseInt(limit ?? "100", 10);
 
 		if (Number.isNaN(parsed) || parsed < 1 || parsed > 2000) {
@@ -17,7 +18,8 @@ export const scrapingController = new Elysia({ prefix: "/scraping" }).post(
 			});
 		}
 
-		const job = await enqueueManualScraping(parsed);
+		const session = await auth.api.getSession({ headers: request.headers });
+		const job = await enqueueManualScraping(parsed, session?.user.id);
 
 		return {
 			success: true,

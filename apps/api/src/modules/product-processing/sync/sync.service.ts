@@ -98,7 +98,8 @@ export async function runSync(
 	items: ScrapedItem[],
 	trigger: "manual" | "automatic",
 	jobId?: string,
-): Promise<{ reportId: string; stats: SyncStats }> {
+	onProgress?: (data: { reportId: string } & SyncStats & { total: number }) => void,
+): Promise<{ reportId: string; stats: SyncStats; startedAt: string }> {
 	const stats: SyncStats = {
 		processed: 0,
 		created: 0,
@@ -111,12 +112,15 @@ export async function runSync(
 	const [report] = await db
 		.insert(syncReports)
 		.values({ status: "running", trigger, jobId: jobId ?? null })
-		.returning({ id: syncReports.id });
+		.returning({ id: syncReports.id, startedAt: syncReports.startedAt });
 
 	if (!report) throw new Error("No se pudo crear el reporte de sync");
 
 	const reportId = report.id;
+	const startedAt = report.startedAt.toISOString();
 	const scrapedIds = new Set(items.map((i) => i.providerId));
+	const progressStep = Math.max(1, Math.floor(items.length * 0.05)); // 5%
+	let lastProgress = 0;
 
 	for (let i = 0; i < items.length; i += AI_BATCH_SIZE) {
 		const batch = items.slice(i, i + AI_BATCH_SIZE);
@@ -131,6 +135,11 @@ export async function runSync(
 				logger.withMetadata({ reportId, error: msg }).error("Error procesando item en sync");
 			}
 		}
+
+		if (onProgress && stats.processed - lastProgress >= progressStep) {
+			lastProgress = stats.processed;
+			onProgress({ reportId, ...stats, total: items.length });
+		}
 	}
 
 	// Solo marcar out-of-stock en automatico (full scan)
@@ -143,7 +152,7 @@ export async function runSync(
 		.set({ status: "completed", stats, completedAt: new Date() })
 		.where(eq(syncReports.id, reportId));
 
-	return { reportId, stats };
+	return { reportId, stats, startedAt };
 }
 
 async function processItem(item: ScrapedItem, reportId: string, stats: SyncStats): Promise<void> {

@@ -8,8 +8,8 @@ export const scrapingQueue = createQueue("scraping", {
 	},
 });
 
-export function enqueueManualScraping(limit: number) {
-	return scrapingQueue.add("run", { limit, trigger: "manual" }, { priority: 1 });
+export function enqueueManualScraping(limit: number, userId?: string) {
+	return scrapingQueue.add("run", { limit, trigger: "manual", userId }, { priority: 1 });
 }
 
 scrapingQueue
