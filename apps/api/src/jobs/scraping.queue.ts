@@ -12,15 +12,12 @@ export function enqueueManualScraping(limit: number) {
 	return scrapingQueue.add("run", { limit, trigger: "manual" }, { priority: 1 });
 }
 
-const REPEATABLE_JOB_ID = "auto-scraping";
-
 scrapingQueue
 	.add(
 		"run",
-		{ limit: 50, trigger: "automatic" },
+		{ limit: 100, trigger: "automatic" },
 		{
-			jobId: REPEATABLE_JOB_ID,
-			repeat: { every: 300_000 },
+			repeat: { every: 300_000, key: "auto-scraping" },
 		},
 	)
 	.catch((err) => {

@@ -48,15 +48,7 @@ export async function extractFromRawName(
 		logger
 			.withMetadata({ rawName })
 			.withError(error)
-			.warn("IA fallo, usando fallback con datos crudos");
-
-		return {
-			name: rawName.trim(),
-			brand: "Sin marca",
-			category: "Sin categoria",
-			description: rawName.trim(),
-			specifications: [],
-			needsReview: true,
-		};
+			.warn("IA falló, se reintentará en próximo sync");
+		throw error;
 	}
 }

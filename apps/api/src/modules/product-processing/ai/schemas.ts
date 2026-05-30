@@ -8,8 +8,8 @@ export const productSpecSchema = z.object({
 
 export const productExtractionSchema = z.object({
 	name: z.string().min(1),
-	brand: z.string().min(1),
-	category: z.string().min(1),
+	brand: z.string(),
+	category: z.string(),
 	description: z.string(),
 	specifications: z.array(productSpecSchema),
 	needsReview: z.boolean(),

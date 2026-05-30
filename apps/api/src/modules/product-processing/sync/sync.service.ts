@@ -42,9 +42,10 @@ async function ensureUniqueSlug(baseSlug: string, providerId: string): Promise<s
 }
 
 async function findOrCreateBrand(name: string): Promise<string | null> {
-	if (!name || name === "Desconocido" || name === "Sin marca") return null;
+	const cleanName = name?.trim();
+	if (!cleanName) return null;
 
-	const brandSlug = makeSlug(name);
+	const brandSlug = makeSlug(cleanName);
 	const [existing] = await db
 		.select({ id: brands.id })
 		.from(brands)
@@ -55,7 +56,7 @@ async function findOrCreateBrand(name: string): Promise<string | null> {
 
 	const [created] = await db
 		.insert(brands)
-		.values({ name, slug: brandSlug, isActive: true })
+		.values({ name: cleanName, slug: brandSlug, isActive: true })
 		.returning({ id: brands.id });
 
 	return created?.id ?? null;
@@ -63,7 +64,7 @@ async function findOrCreateBrand(name: string): Promise<string | null> {
 
 async function findOrCreateCategory(name: string): Promise<string | null> {
 	const cleanName = name?.trim();
-	if (!cleanName || cleanName === "Sin categoria") return null;
+	if (!cleanName) return null;
 
 	const categorySlug = makeSlug(cleanName);
 	const [existing] = await db
@@ -254,7 +255,7 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 		db.select({ name: categories.name }).from(categories).where(eq(categories.isActive, true)),
 	]);
 
-	const aiResult = await extractFromRawName(rawName, {
+	const aiResult = await extractFromRawName(rawName.replace(/\s+/g, " "), {
 		brands: existingBrands.map((b) => b.name),
 		categories: existingCategories.map((c) => c.name),
 	});
