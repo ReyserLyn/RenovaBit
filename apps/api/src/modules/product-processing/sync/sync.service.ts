@@ -352,15 +352,15 @@ async function markOutOfStock(scrapedProviderIds: Set<string>, reportId: string)
 			),
 		);
 
-	for (const p of toMark) {
-		await db.insert(productChanges).values({
+	await db.insert(productChanges).values(
+		toMark.map((p) => ({
 			productId: p.productId,
 			syncReportId: reportId,
 			source: "sync",
 			changeType: "out_of_stock",
 			reason: "Producto ya no listado por el proveedor",
-		});
-	}
+		})),
+	);
 
 	return toMark.length;
 }
