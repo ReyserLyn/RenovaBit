@@ -20,7 +20,6 @@ import { Switch } from "@renovabit/ui/components/ui/switch";
 import type { ColumnDef, Row } from "@tanstack/react-table";
 import type { Brand } from "@/features/brands/model";
 import type { Category } from "@/features/categories/model";
-import type { UserSummary } from "@/features/users/model";
 import { DataGridColumnHeader } from "@/shared/components/data-grid/data-grid-column-header";
 import type { Product } from "../model";
 
@@ -124,7 +123,6 @@ interface ProductColumnsProps {
 	onToggleFeatured: (product: Product, isFeatured: boolean) => void;
 	brandsById: Map<string, Brand>;
 	categoriesById: Map<string, Category>;
-	usersById: Map<string, UserSummary>;
 }
 
 // ── Column factory ──────────────────────────────────
@@ -136,7 +134,6 @@ export function getProductColumns({
 	onToggleFeatured,
 	brandsById,
 	categoriesById,
-	usersById,
 }: ProductColumnsProps): ColumnDef<Product>[] {
 	return [
 		{
@@ -425,16 +422,7 @@ export function getProductColumns({
 				),
 			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Creado por" />,
-			cell: ({ row }) => {
-				const userId = row.original.createdBy;
-				const user = userId ? usersById.get(userId) : undefined;
-				return (
-					<div className="flex flex-col">
-						<span className="font-medium text-sm">{user?.name ?? "—"}</span>
-						<span className="text-muted-foreground text-xs">{user?.email ?? "—"}</span>
-					</div>
-				);
-			},
+			cell: ({ row }) => <span className="text-sm">{row.original.createdByName ?? "—"}</span>,
 			size: 180,
 		},
 		{
@@ -449,16 +437,7 @@ export function getProductColumns({
 				),
 			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Actualizado por" />,
-			cell: ({ row }) => {
-				const userId = row.original.updatedBy;
-				const user = userId ? usersById.get(userId) : undefined;
-				return (
-					<div className="flex flex-col">
-						<span className="font-medium text-sm">{user?.name ?? "—"}</span>
-						<span className="text-muted-foreground text-xs">{user?.email ?? "—"}</span>
-					</div>
-				);
-			},
+			cell: ({ row }) => <span className="text-sm">{row.original.updatedByName ?? "—"}</span>,
 			size: 180,
 		},
 		{

@@ -30,6 +30,8 @@ export interface Product {
 	isFeatured: boolean;
 	imageUrls?: string[];
 	imageCount?: number;
+	createdByName?: string | null;
+	updatedByName?: string | null;
 	seoTitle: string | null;
 	seoDescription: string | null;
 	seoKeywords: string | null;

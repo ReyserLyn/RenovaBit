@@ -91,15 +91,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 			markAllAsRead: markAllReadMutation.mutate,
 			clearCompleted,
 		}),
-		[
-			data,
-			progress,
-			lastCompleted,
-			isConnected,
-			markReadMutation.mutate,
-			markAllReadMutation.mutate,
-			clearCompleted,
-		],
+		[data, progress, lastCompleted, isConnected, clearCompleted],
 	);
 
 	return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;

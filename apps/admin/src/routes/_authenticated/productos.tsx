@@ -3,6 +3,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@renovabit/ui/components/ui/button";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
+import { brandsQueryOptions } from "@/features/brands/hooks";
+import { categoriesQueryOptions } from "@/features/categories/hooks";
 import { ProductCreateDialog } from "@/features/products/components/product-create-dialog";
 import { ProductDeleteDialog } from "@/features/products/components/product-delete-dialog";
 import { ProductEditDialog } from "@/features/products/components/product-edit-dialog";
@@ -11,6 +13,10 @@ import type { Product } from "@/features/products/model";
 import { PageHeader } from "@/shared/components/layout/page-header";
 
 export const Route = createFileRoute("/_authenticated/productos")({
+	loader: ({ context }) => {
+		context.queryClient.ensureQueryData(brandsQueryOptions);
+		context.queryClient.ensureQueryData(categoriesQueryOptions);
+	},
 	component: ProductsPage,
 });
 

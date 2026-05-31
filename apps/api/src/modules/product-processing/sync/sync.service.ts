@@ -8,6 +8,7 @@ import {
 	syncReports,
 } from "@renovabit/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
+import pLimit from "p-limit";
 import slugify from "slugify";
 import type { ScrapedItem } from "@/modules/scrapping/model";
 import { logger } from "@/utils/logger";
@@ -16,7 +17,7 @@ import type { SyncStats } from "./sync.model";
 
 const PROVIDER_SOURCE = "rematazo";
 const MARKUP = 1.1;
-const AI_BATCH_SIZE = 3;
+const AI_CONCURRENCY = 5;
 
 function makeSlug(value: string): string {
 	return slugify(value, { lower: true, strict: true, trim: true });
@@ -122,23 +123,26 @@ export async function runSync(
 	const progressStep = Math.max(1, Math.floor(items.length * 0.05)); // 5%
 	let lastProgress = 0;
 
-	for (let i = 0; i < items.length; i += AI_BATCH_SIZE) {
-		const batch = items.slice(i, i + AI_BATCH_SIZE);
-		const results = await Promise.allSettled(
-			batch.map((item) => processItem(item, reportId, stats)),
-		);
+	// Procesar items concurrentemente con p-limit para controlar carga de IA
+	const limit = pLimit(AI_CONCURRENCY);
+	const results = await Promise.allSettled(
+		items.map((item) =>
+			limit(async () => {
+				await processItem(item, reportId, stats);
+				// Emitir progreso cada 5% de items
+				if (onProgress && stats.processed - lastProgress >= progressStep) {
+					lastProgress = stats.processed;
+					onProgress({ reportId, ...stats, total: items.length });
+				}
+			}),
+		),
+	);
 
-		for (const result of results) {
-			if (result.status === "rejected") {
-				stats.errors++;
-				const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
-				logger.withMetadata({ reportId, error: msg }).error("Error procesando item en sync");
-			}
-		}
-
-		if (onProgress && stats.processed - lastProgress >= progressStep) {
-			lastProgress = stats.processed;
-			onProgress({ reportId, ...stats, total: items.length });
+	for (const result of results) {
+		if (result.status === "rejected") {
+			stats.errors++;
+			const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+			logger.withMetadata({ reportId, error: msg }).error("Error procesando item en sync");
 		}
 	}
 

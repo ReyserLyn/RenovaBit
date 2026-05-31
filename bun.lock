@@ -104,6 +104,7 @@
         "ioredis": "^5.11.0",
         "loglayer": "^9.1.0",
         "nanoid": "catalog:",
+        "p-limit": "^7.3.0",
         "serialize-error": "catalog:",
         "slugify": "catalog:",
         "zod": "^4.4.3",

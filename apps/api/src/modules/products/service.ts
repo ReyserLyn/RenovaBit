@@ -15,6 +15,8 @@ type Product = InferSelectModel<typeof products>;
 export type ProductWithImage = Product & {
 	imageUrls: string[];
 	imageCount: number;
+	createdByName: string | null;
+	updatedByName: string | null;
 };
 
 type ListOptions = {
@@ -192,6 +194,12 @@ async function list(options: ListOptions = {}, isAdmin = false): Promise<Product
 				SELECT COUNT(*)::int
 				FROM product_images pi3
 				WHERE pi3.product_id = products.id
+			)`,
+			createdByName: sql<string | null>`(
+				SELECT u.name FROM users u WHERE u.id = products.created_by
+			)`,
+			updatedByName: sql<string | null>`(
+				SELECT u.name FROM users u WHERE u.id = products.updated_by
 			)`,
 		})
 		.from(products)

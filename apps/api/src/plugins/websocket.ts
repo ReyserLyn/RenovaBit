@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import type { Redis } from "ioredis";
 import { auth } from "@/utils/auth/auth";
 import { logger } from "@/utils/logger";
 import { getRedis } from "@/utils/redis";
@@ -14,6 +15,7 @@ interface WsHandle {
 
 const BROADCAST_CHANNEL = "admin:broadcast";
 const HEARTBEAT_INTERVAL = 30_000;
+const SUBSCRIBER_RECONNECT_DELAY_MS = 5000;
 
 // ── Estado local de conexiones ────────────────────
 
@@ -22,62 +24,91 @@ const wsMap = new Map<string, WsHandle>(); // wsId → WsHandle
 const aliveMap = new Map<string, boolean>();
 const pingTimers = new Map<string, ReturnType<typeof setInterval>>();
 
-// ── Redis Pub/Sub: subscriber ─────────────────────
-// Usa un cliente duplicado porque un cliente en modo subscriber
-// no puede ejecutar otros comandos (como publish).
+// ── Subscriber gestionado por el plugin ───────────
+// Referencia mutable para que onStart/onStop puedan accederla.
+let subscriber: Redis | null = null;
+let subscriberReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-function initSubscriber(): void {
+function handleSubscriberMessage(channel: string, message: string): void {
+	if (channel !== BROADCAST_CHANNEL) return;
+
+	for (const [, socketIds] of connections) {
+		for (const socketId of socketIds) {
+			const ws = wsMap.get(socketId);
+			if (!ws) continue;
+			try {
+				ws.send(message);
+			} catch (error) {
+				logger.withError(error).warn("[WS] Error reenviando mensaje pub/sub a cliente");
+			}
+		}
+	}
+}
+
+async function subscribeWithRetry(client: Redis): Promise<void> {
 	try {
-		const subscriber = getRedis().duplicate();
+		await client.subscribe(BROADCAST_CHANNEL);
+		logger.info("[WS] Subscriber Redis conectado al canal admin:broadcast");
+	} catch (err) {
+		logger.withError(err).error("[WS] No se pudo suscribir al canal Redis — reintentando...");
+		subscriberReconnectTimer = setTimeout(() => {
+			if (client.status === "ready" || client.status === "connect") {
+				subscribeWithRetry(client);
+			}
+		}, SUBSCRIBER_RECONNECT_DELAY_MS);
+	}
+}
+
+function startSubscriber(): void {
+	if (subscriber) return;
+
+	try {
+		subscriber = getRedis().duplicate();
 
 		subscriber.on("error", (err) => {
 			logger.withError(err).error("[WS] Error en subscriber Redis");
 		});
 
-		subscriber
-			.subscribe(BROADCAST_CHANNEL)
-			.then(() => {
-				logger.info("[WS] Subscriber Redis conectado al canal admin:broadcast");
-			})
-			.catch((err) => {
-				logger.withError(err).error("[WS] No se pudo suscribir al canal Redis");
-			});
-
-		subscriber.on("message", (channel, message) => {
-			if (channel !== BROADCAST_CHANNEL) return;
-
-			for (const [, socketIds] of connections) {
-				for (const socketId of socketIds) {
-					const ws = wsMap.get(socketId);
-					if (!ws) continue;
-					try {
-						ws.send(message);
-					} catch (error) {
-						logger.withError(error).warn("[WS] Error reenviando mensaje pub/sub a cliente");
-					}
-				}
+		// Reconectar suscripción cuando el cliente se recupera
+		subscriber.on("ready", () => {
+			logger.info("[WS] Subscriber Redis reconectado");
+			if (subscriber) {
+				subscribeWithRetry(subscriber);
 			}
 		});
 
-		// Cleanup en shutdown
-		const cleanup = () => {
-			subscriber
-				.unsubscribe()
-				.catch((err) => logger.withError(err).warn("[WS] Error al desuscribir"));
-			subscriber
-				.quit()
-				.catch((err) => logger.withError(err).warn("[WS] Error al cerrar subscriber"));
-		};
+		subscriber.on("message", handleSubscriberMessage);
 
-		process.on("SIGTERM", cleanup);
-		process.on("SIGINT", cleanup);
+		subscribeWithRetry(subscriber);
 	} catch (error) {
 		logger.withError(error).error("[WS] No se pudo inicializar subscriber Redis");
+		subscriber = null;
 	}
 }
 
-// Inicializar al cargar el módulo
-initSubscriber();
+async function stopSubscriber(): Promise<void> {
+	if (subscriberReconnectTimer) {
+		clearTimeout(subscriberReconnectTimer);
+		subscriberReconnectTimer = null;
+	}
+
+	if (!subscriber) return;
+
+	const client = subscriber;
+	subscriber = null;
+
+	try {
+		await client.unsubscribe();
+	} catch (err) {
+		logger.withError(err).warn("[WS] Error al desuscribir");
+	}
+
+	try {
+		await client.quit();
+	} catch (err) {
+		logger.withError(err).warn("[WS] Error al cerrar subscriber");
+	}
+}
 
 // ── Broadcast API ─────────────────────────────────
 // Fire-and-forget: publica en Redis sin bloquear al caller.
@@ -110,6 +141,14 @@ export const WebSocketPlugin = new Elysia({ name: "ws" })
 				}
 			},
 		},
+	})
+	// Inicializar subscriber Redis cuando arranca el servidor
+	.onStart(() => {
+		startSubscriber();
+	})
+	// Limpiar subscriber al detener el servidor
+	.onStop(() => {
+		return stopSubscriber();
 	})
 	.ws("/ws", {
 		wsAuth: true,

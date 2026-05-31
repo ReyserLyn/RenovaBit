@@ -12,7 +12,6 @@ import {
 } from "@renovabit/ui/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-	type ColumnFiltersState,
 	getCoreRowModel,
 	getFilteredRowModel,
 	getPaginationRowModel,
@@ -21,11 +20,9 @@ import {
 	type RowSelectionState,
 	useReactTable,
 } from "@tanstack/react-table";
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useBrands } from "@/features/brands/hooks";
 import { useCategories } from "@/features/categories/hooks";
-import { useUsers } from "@/features/users/hooks";
-import type { UserSummary } from "@/features/users/model";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridColumnVisibility } from "@/shared/components/data-grid/data-grid-column-visibility";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
@@ -33,7 +30,7 @@ import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scro
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
 import { useProductsTableStore } from "@/shared/lib/stores/tables/products-table";
 import { productKeys, useProducts, useToggleProductField } from "../hooks";
-import { useProductFilters } from "../hooks/use-product-filters";
+import { useProductTableFilters } from "../hooks/use-product-table-filters";
 import type { Product } from "../model";
 import { ProductBulkDeleteDialog } from "./product-bulk-delete-dialog";
 import { getProductColumns } from "./product-column";
@@ -46,9 +43,8 @@ interface ProductTableProps {
 }
 
 const EMPTY_PRODUCTS: Product[] = [];
-const SEARCH_DEBOUNCE_MS = 300;
 
-// Stable row models — created ONCE, never recreated (like old-old-renovabit)
+// Stable row models — created ONCE, never recreated
 const coreRowModel = getCoreRowModel();
 const filteredRowModel = getFilteredRowModel();
 const sortedRowModel = getSortedRowModel();
@@ -64,7 +60,6 @@ export const ProductTable = function ProductTable({ onEdit, onDelete }: ProductT
 
 	const { data: brandsData } = useBrands();
 	const { data: categoriesData } = useCategories();
-	const { data: usersData } = useUsers();
 
 	// Build lookup Maps for O(1) access (js-index-maps)
 	const brandsById = useMemo(() => new Map((brandsData ?? []).map((b) => [b.id, b])), [brandsData]);
@@ -80,39 +75,27 @@ export const ProductTable = function ProductTable({ onEdit, onDelete }: ProductT
 		() => new Map((categoriesData ?? []).map((c) => [c.slug, c])),
 		[categoriesData],
 	);
-	const usersById = useMemo(
-		() => new Map<string, UserSummary>((usersData ?? []).map((u) => [u.id, u])),
-		[usersData],
-	);
 
-	// ── URL-persisted filters (nuqs) ──────────────────
-	const filters = useProductFilters();
+	// ── Filters (extracted hook) ────────────────────
 
-	// ── Debounced search ─────────────────────────────
-	// Local state for instant input feel; URL update is deferred 300ms
-	const searchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-	const [localSearch, setLocalSearch] = useState(filters.search);
-
-	// Sync URL → local when search changes externally (e.g. URL back/forward)
-	useEffect(() => {
-		setLocalSearch(filters.search);
-	}, [filters.search]);
-
-	const handleSearchChange = useCallback(
-		(value: string) => {
-			setLocalSearch(value);
-			clearTimeout(searchTimerRef.current);
-			searchTimerRef.current = setTimeout(() => {
-				filters.setSearch(value);
-			}, SEARCH_DEBOUNCE_MS);
-		},
-		[filters.setSearch],
-	);
-
-	// Cleanup on unmount
-	useEffect(() => {
-		return () => clearTimeout(searchTimerRef.current);
-	}, []);
+	const {
+		filters,
+		localSearch,
+		handleSearchChange,
+		handleBrandChange,
+		handleCategoryChange,
+		handleStatusChange,
+		handleClearFilters,
+		handleRemoveBrandFilter,
+		handleRemoveCategoryFilter,
+		handleRemoveStatusFilter,
+		columnFilters,
+		setColumnFilters,
+		brandLabel,
+		categoryLabel,
+		statusLabel,
+		hasActiveFilters,
+	} = useProductTableFilters(brandsBySlug, categoriesBySlug);
 
 	// ── Stable handlers ──────────────────────────────
 
@@ -134,60 +117,6 @@ export const ProductTable = function ProductTable({ onEdit, onDelete }: ProductT
 		[toggleProductField],
 	);
 
-	// ── Select filter handlers wrapped in startTransition ──
-	// This keeps the UI responsive — select closes immediately,
-	// table recalculation is deferred to low-priority.
-
-	const handleBrandChange = useCallback(
-		(value: string | null) => {
-			startTransition(() => {
-				void filters.setBrandSlug(value === "all" ? null : value);
-			});
-		},
-		[filters.setBrandSlug],
-	);
-
-	const handleCategoryChange = useCallback(
-		(value: string | null) => {
-			startTransition(() => {
-				void filters.setCategorySlug(value === "all" ? null : value);
-			});
-		},
-		[filters.setCategorySlug],
-	);
-
-	const handleStatusChange = useCallback(
-		(value: string | null) => {
-			const next = (value ?? "all") as "all" | "active" | "inactive";
-			startTransition(() => {
-				void filters.setStatus(next);
-			});
-		},
-		[filters.setStatus],
-	);
-
-	const handleClearFilters = useCallback(() => {
-		startTransition(() => {
-			void filters.setBrandSlug(null);
-			void filters.setCategorySlug(null);
-			void filters.setStatus("all");
-			void filters.setSearch("");
-		});
-	}, [filters.setBrandSlug, filters.setCategorySlug, filters.setStatus, filters.setSearch]);
-
-	const handleRemoveBrandFilter = useCallback(
-		() => startTransition(() => void filters.setBrandSlug(null)),
-		[filters.setBrandSlug],
-	);
-	const handleRemoveCategoryFilter = useCallback(
-		() => startTransition(() => void filters.setCategorySlug(null)),
-		[filters.setCategorySlug],
-	);
-	const handleRemoveStatusFilter = useCallback(
-		() => startTransition(() => void filters.setStatus("all")),
-		[filters.setStatus],
-	);
-
 	// ── Table state ──────────────────────────────────
 
 	const [pagination, setPagination] = useState<PaginationState>(() => ({
@@ -198,29 +127,7 @@ export const ProductTable = function ProductTable({ onEdit, onDelete }: ProductT
 	const setSorting = useProductsTableStore((s) => s.setSorting);
 	const columnVisibility = useProductsTableStore((s) => s.columnVisibility);
 	const setColumnVisibility = useProductsTableStore((s) => s.setColumnVisibility);
-	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-	// ── Sync nuqs filters → TanStack columnFilters ─────
-	useEffect(() => {
-		const next: ColumnFiltersState = [];
-
-		if (filters.brandSlug) {
-			const brand = brandsBySlug.get(filters.brandSlug);
-			if (brand) next.push({ id: "brand", value: brand.id });
-		}
-		if (filters.categorySlug) {
-			const category = categoriesBySlug.get(filters.categorySlug);
-			if (category) next.push({ id: "category", value: category.id });
-		}
-		if (filters.status === "active") {
-			next.push({ id: "isActive", value: true });
-		} else if (filters.status === "inactive") {
-			next.push({ id: "isActive", value: false });
-		}
-
-		setColumnFilters(next);
-	}, [filters.brandSlug, filters.categorySlug, filters.status, brandsBySlug, categoriesBySlug]);
 
 	// ── Columns ──────────────────────────────────────
 
@@ -233,17 +140,8 @@ export const ProductTable = function ProductTable({ onEdit, onDelete }: ProductT
 				onToggleFeatured: handleToggleFeatured,
 				brandsById,
 				categoriesById,
-				usersById,
 			}),
-		[
-			onEdit,
-			onDelete,
-			handleToggleStatus,
-			handleToggleFeatured,
-			brandsById,
-			categoriesById,
-			usersById,
-		],
+		[onEdit, onDelete, handleToggleStatus, handleToggleFeatured, brandsById, categoriesById],
 	);
 
 	// ── Table instance ───────────────────────────────
@@ -316,14 +214,6 @@ export const ProductTable = function ProductTable({ onEdit, onDelete }: ProductT
 	const selectedProducts = selectedRows.map((row) => row.original);
 	const selectedCount = selectedProducts.length;
 	const selectionInfo = `${selectedCount} de ${filteredCount} filas seleccionadas`;
-
-	const selectedBrand = filters.brandSlug ? brandsBySlug.get(filters.brandSlug) : null;
-	const selectedCategory = filters.categorySlug ? categoriesBySlug.get(filters.categorySlug) : null;
-
-	const brandLabel = selectedBrand?.name ?? "Todas las marcas";
-	const categoryLabel = selectedCategory?.name ?? "Todas las categorías";
-	const statusLabel =
-		filters.status === "active" ? "Activos" : filters.status === "inactive" ? "Inactivos" : "Todos";
 
 	// ── Render ───────────────────────────────────────
 
@@ -398,10 +288,7 @@ export const ProductTable = function ProductTable({ onEdit, onDelete }: ProductT
 					</Select>
 				</div>
 
-				{(filters.brandSlug ||
-					filters.categorySlug ||
-					filters.status !== "all" ||
-					filters.search) && (
+				{hasActiveFilters && (
 					<Button
 						type="button"
 						variant="ghost"

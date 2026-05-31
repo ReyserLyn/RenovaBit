@@ -7,10 +7,14 @@ import { BrandCreateDialog } from "@/features/brands/components/brand-create-dia
 import { BrandDeleteDialog } from "@/features/brands/components/brand-delete-dialog";
 import { BrandEditDialog } from "@/features/brands/components/brand-edit-dialog";
 import { BrandTable } from "@/features/brands/components/brand-table";
+import { brandsQueryOptions } from "@/features/brands/hooks";
 import type { Brand } from "@/features/brands/model";
 import { PageHeader } from "@/shared/components/layout/page-header";
 
 export const Route = createFileRoute("/_authenticated/marcas")({
+	loader: ({ context }) => {
+		context.queryClient.ensureQueryData(brandsQueryOptions);
+	},
 	component: MarcasPage,
 });
 

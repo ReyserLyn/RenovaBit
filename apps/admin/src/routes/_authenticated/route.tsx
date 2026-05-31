@@ -2,8 +2,6 @@ import { buttonVariants } from "@renovabit/ui/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@renovabit/ui/components/ui/sidebar";
 import { cn } from "@renovabit/ui/lib/utils";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { brandsQueryOptions } from "@/features/brands/hooks";
-import { categoriesQueryOptions } from "@/features/categories/hooks";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
 import { SyncProgressPanel } from "@/features/notifications/components/sync-progress-panel";
 import { NotificationsProvider } from "@/features/notifications/context/notifications-context";
@@ -26,13 +24,6 @@ export const Route = createFileRoute("/_authenticated")({
 		}
 
 		return { session };
-	},
-	loader: async ({ context }) => {
-		// Preload all shared data — skip products on initial load (lazy per page)
-		await Promise.all([
-			context.queryClient.ensureQueryData(brandsQueryOptions),
-			context.queryClient.ensureQueryData(categoriesQueryOptions),
-		]);
 	},
 	component: AuthenticatedLayout,
 });

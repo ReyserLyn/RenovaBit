@@ -21,12 +21,14 @@ const _insert = createInsertSchema(products, {
 
 const ProductResponse = createSelectSchema(products);
 
-// List response incluye URLs de imágenes para mostrar en la tabla
+// List response incluye URLs de imágenes y nombres de creador/editor
 const ProductListResponse = t.Composite([
 	ProductResponse,
 	t.Object({
 		imageUrls: t.Array(t.String()),
 		imageCount: t.Integer({ minimum: 0 }),
+		createdByName: t.Nullable(t.String()),
+		updatedByName: t.Nullable(t.String()),
 	}),
 ]);
 
