@@ -1,19 +1,21 @@
 import { Button } from "@renovabit/ui/components/ui/button";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { parseAsString, useQueryState } from "nuqs";
+import { z } from "zod";
 import { useProduct } from "@/features/products/hooks";
 import { HistoryTable } from "@/features/reports/components/history-table";
 import { useProductChanges } from "@/features/reports/hooks/product-changes-queries";
 import { PageHeader } from "@/shared/components/layout/page-header";
 
 export const Route = createFileRoute("/_authenticated/historial")({
-	validateSearch: (search: Record<string, unknown>) => ({
-		producto: (search.producto as string) || undefined,
+	validateSearch: z.object({
+		producto: z.string().optional(),
 	}),
 	component: HistorialPage,
 });
 
 function HistorialPage() {
+	const navigate = useNavigate();
 	const [productId] = useQueryState("producto", parseAsString);
 	const { data: product } = useProduct(productId ?? "");
 	const { data: changes, isPending } = useProductChanges(productId ?? "");
@@ -43,7 +45,10 @@ function HistorialPage() {
 							variant="outline"
 							size="sm"
 							onClick={() =>
-								window.open(`/productos?busqueda=${encodeURIComponent(product.sku ?? "")}`, "_self")
+								navigate({
+									to: "/productos",
+									search: { busqueda: product.sku ?? "" },
+								})
 							}
 						>
 							Ver en catálogo

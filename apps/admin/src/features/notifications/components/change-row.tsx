@@ -1,4 +1,5 @@
 import { Badge } from "@renovabit/ui/components/ui/badge";
+import { Link } from "@tanstack/react-router";
 import type { ReportChange } from "@/features/reports/service/reports.service";
 import { formatDateTimeSeconds } from "@/shared/lib/format-date";
 import { CHANGE_LABELS } from "../model";
@@ -24,8 +25,9 @@ export function ChangeRow({ change }: { change: ReportChange }) {
 	};
 
 	return (
-		<a
-			href={`/historial?producto=${change.productId}`}
+		<Link
+			to="/historial"
+			search={{ producto: change.productId }}
 			className="flex items-center gap-3 border-b px-4 py-3 text-sm last:border-b-0 hover:bg-muted/30 cursor-pointer no-underline text-inherit"
 		>
 			<Badge variant={info.variant} size="sm" className="shrink-0 w-18 justify-center">
@@ -48,6 +50,6 @@ export function ChangeRow({ change }: { change: ReportChange }) {
 			<span className="text-muted-foreground text-xs tabular-nums shrink-0 w-32 text-right">
 				{formatDateTimeSeconds(change.createdAt)}
 			</span>
-		</a>
+		</Link>
 	);
 }

@@ -165,7 +165,11 @@ export const AnimatedThemeToggler = ({
 			const newTheme = !isDark;
 			setIsDark(newTheme);
 			document.documentElement.classList.toggle("dark");
-			localStorage.setItem("theme", newTheme ? "dark" : "light");
+			try {
+				localStorage.setItem("theme", newTheme ? "dark" : "light");
+			} catch {
+				// localStorage bloqueado o no disponible
+			}
 		};
 
 		if (typeof document.startViewTransition !== "function") {

@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { parseAsString, useQueryState } from "nuqs";
 import { useCallback, useEffect, useState } from "react";
+import { z } from "zod";
 import { NotificationDetail } from "@/features/notifications/components/notification-detail";
 import { NotificationTable } from "@/features/notifications/components/notification-table";
 import { useMarkAsRead } from "@/features/notifications/hooks/notification-mutations";
@@ -11,8 +12,8 @@ import { notificationDataSchema } from "@/features/notifications/model";
 import { PageHeader } from "@/shared/components/layout/page-header";
 
 export const Route = createFileRoute("/_authenticated/notificaciones")({
-	validateSearch: (search: Record<string, unknown>): { id?: string } => ({
-		id: (search.id as string) || undefined,
+	validateSearch: z.object({
+		id: z.string().optional(),
 	}),
 	component: NotificacionesPage,
 });

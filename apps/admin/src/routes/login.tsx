@@ -11,7 +11,8 @@ export const Route = createFileRoute("/login")({
 			throw redirect({ to: "/" });
 		}
 
-		if (session) {
+		// signOut solo en cliente
+		if (session && !import.meta.env.SSR) {
 			await authClient.signOut();
 			await resetAuthState(context.queryClient);
 		}

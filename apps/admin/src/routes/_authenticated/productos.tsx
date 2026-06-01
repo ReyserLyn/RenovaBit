@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@renovabit/ui/components/ui/button";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
+import { z } from "zod";
 import { brandsQueryOptions } from "@/features/brands/hooks";
 import { categoriesQueryOptions } from "@/features/categories/hooks";
 import { ProductCreateDialog } from "@/features/products/components/product-create-dialog";
@@ -12,7 +13,16 @@ import { ProductTable } from "@/features/products/components/product-table";
 import type { Product } from "@/features/products/model";
 import { PageHeader } from "@/shared/components/layout/page-header";
 
+const productosSearchSchema = z.object({
+	busqueda: z.string().optional(),
+	marca: z.string().optional(),
+	categoria: z.string().optional(),
+	estado: z.string().optional(),
+});
+
 export const Route = createFileRoute("/_authenticated/productos")({
+	validateSearch: productosSearchSchema,
+	loaderDeps: ({ search }) => ({ ...search }),
 	loader: ({ context }) => {
 		context.queryClient.ensureQueryData(brandsQueryOptions);
 		context.queryClient.ensureQueryData(categoriesQueryOptions);
