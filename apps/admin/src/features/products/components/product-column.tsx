@@ -1,5 +1,6 @@
 import {
 	Bookmark01Icon,
+	Cancel01Icon,
 	Delete01Icon,
 	Edit01Icon,
 	MoreHorizontalIcon,
@@ -125,6 +126,7 @@ interface ProductColumnsProps {
 	onToggleStatus: (product: Product, isActive: boolean) => void;
 	onToggleFeatured: (product: Product, isFeatured: boolean) => void;
 	onHistory: (product: Product) => void;
+	onBlacklist: (product: Product) => void;
 	brandsById: Map<string, Brand>;
 	categoriesById: Map<string, Category>;
 }
@@ -137,6 +139,7 @@ export function getProductColumns({
 	onToggleStatus,
 	onToggleFeatured,
 	onHistory,
+	onBlacklist,
 	brandsById,
 	categoriesById,
 }: ProductColumnsProps): ColumnDef<Product>[] {
@@ -504,6 +507,12 @@ export function getProductColumns({
 								<HugeiconsIcon icon={Time01Icon} className="mr-2 size-4" />
 								Ver historial
 							</DropdownMenuItem>
+							{product.providerIds && product.providerIds.length > 0 && (
+								<DropdownMenuItem onClick={() => onBlacklist(product)}>
+									<HugeiconsIcon icon={Cancel01Icon} className="mr-2 size-4" />
+									Añadir a lista negra
+								</DropdownMenuItem>
+							)}
 							<DropdownMenuItem onClick={() => onToggleFeatured(product, !product.isFeatured)}>
 								<HugeiconsIcon icon={Bookmark01Icon} className="mr-2 size-4" />
 								{product.isFeatured ? "Quitar destacado" : "Destacar producto"}

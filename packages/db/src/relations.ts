@@ -4,6 +4,7 @@ import { brands } from "./schema/brands";
 import { categories } from "./schema/categories";
 import { productImages, products } from "./schema/products";
 import { productProviders } from "./schema/providers";
+import { scrapingBlacklist } from "./schema/scraping-blacklist";
 import { adminNotifications, productChanges, syncReports } from "./schema/sync";
 
 // ── Brands ───────────────────────────────────────────
@@ -77,6 +78,15 @@ export const productChangesRelations = relations(productChanges, ({ one }) => ({
 	}),
 	user: one(users, {
 		fields: [productChanges.userId],
+		references: [users.id],
+	}),
+}));
+
+// ── Scraping Blacklist ─────────────────────────────
+
+export const scrapingBlacklistRelations = relations(scrapingBlacklist, ({ one }) => ({
+	createdByUser: one(users, {
+		fields: [scrapingBlacklist.createdBy],
 		references: [users.id],
 	}),
 }));

@@ -41,6 +41,7 @@ interface ProductTableProps {
 	onEdit: (product: Product) => void;
 	onDelete: (product: Product) => void;
 	onHistory: (product: Product) => void;
+	onBlacklist: (product: Product) => void;
 }
 
 const EMPTY_PRODUCTS: Product[] = [];
@@ -57,6 +58,7 @@ export const ProductTable = function ProductTable({
 	onEdit,
 	onDelete,
 	onHistory,
+	onBlacklist,
 }: ProductTableProps) {
 	const queryClient = useQueryClient();
 	const { data: productsData, isPending, isFetching, isError, error } = useProducts();
@@ -146,6 +148,7 @@ export const ProductTable = function ProductTable({
 				onToggleStatus: handleToggleStatus,
 				onToggleFeatured: handleToggleFeatured,
 				onHistory,
+				onBlacklist,
 				brandsById,
 				categoriesById,
 			}),
@@ -155,6 +158,7 @@ export const ProductTable = function ProductTable({
 			handleToggleStatus,
 			handleToggleFeatured,
 			onHistory,
+			onBlacklist,
 			brandsById,
 			categoriesById,
 		],

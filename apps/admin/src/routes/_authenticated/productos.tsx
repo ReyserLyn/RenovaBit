@@ -6,6 +6,7 @@ import { useCallback, useState } from "react";
 import { z } from "zod";
 import { brandsQueryOptions } from "@/features/brands/hooks";
 import { categoriesQueryOptions } from "@/features/categories/hooks";
+import { BlacklistProductDialog } from "@/features/products/components/blacklist-product-dialog";
 import { ProductCreateDialog } from "@/features/products/components/product-create-dialog";
 import { ProductDeleteDialog } from "@/features/products/components/product-delete-dialog";
 import { ProductEditDialog } from "@/features/products/components/product-edit-dialog";
@@ -35,6 +36,7 @@ function ProductsPage() {
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+	const [isBlacklistDialogOpen, setIsBlacklistDialogOpen] = useState(false);
 	const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
 	const handleEdit = useCallback((product: Product) => {
@@ -45,6 +47,11 @@ function ProductsPage() {
 	const handleDelete = useCallback((product: Product) => {
 		setSelectedProduct(product);
 		setIsDeleteDialogOpen(true);
+	}, []);
+
+	const handleBlacklist = useCallback((product: Product) => {
+		setSelectedProduct(product);
+		setIsBlacklistDialogOpen(true);
 	}, []);
 
 	const handleHistory = useCallback(
@@ -81,7 +88,21 @@ function ProductsPage() {
 				onOpenChange={setIsDeleteDialogOpen}
 			/>
 
-			<ProductTable onEdit={handleEdit} onDelete={handleDelete} onHistory={handleHistory} />
+			<BlacklistProductDialog
+				product={selectedProduct}
+				open={isBlacklistDialogOpen}
+				onOpenChange={(open) => {
+					setIsBlacklistDialogOpen(open);
+					if (!open) setSelectedProduct(null);
+				}}
+			/>
+
+			<ProductTable
+				onEdit={handleEdit}
+				onDelete={handleDelete}
+				onHistory={handleHistory}
+				onBlacklist={handleBlacklist}
+			/>
 		</div>
 	);
 }

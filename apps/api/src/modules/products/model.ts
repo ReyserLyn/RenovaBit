@@ -21,7 +21,12 @@ const _insert = createInsertSchema(products, {
 
 const ProductResponse = createSelectSchema(products);
 
-// List response incluye URLs de imágenes y nombres de creador/editor
+const ProviderRef = t.Object({
+	source: t.String(),
+	externalId: t.String(),
+});
+
+// List response incluye URLs de imágenes, nombres de creador/editor, y providers
 const ProductListResponse = t.Composite([
 	ProductResponse,
 	t.Object({
@@ -29,6 +34,7 @@ const ProductListResponse = t.Composite([
 		imageCount: t.Integer({ minimum: 0 }),
 		createdByName: t.Nullable(t.String()),
 		updatedByName: t.Nullable(t.String()),
+		providerIds: t.Array(ProviderRef),
 	}),
 ]);
 
@@ -63,6 +69,7 @@ export const ProductModel = {
 		brandId: t.Optional(t.String({ format: "uuid" })),
 		categoryId: t.Optional(t.String({ format: "uuid" })),
 		isFeatured: t.Optional(t.Boolean()),
+		search: t.Optional(t.String()),
 	}),
 
 	// Batch

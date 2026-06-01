@@ -9,7 +9,7 @@ import {
 	syncReports,
 } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, desc, eq, getTableColumns, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import slugify from "slugify";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
 import type { ProductModel } from "./model";
@@ -24,12 +24,14 @@ export type ProductWithImage = Product & {
 	imageCount: number;
 	createdByName: string | null;
 	updatedByName: string | null;
+	providerIds: Array<{ source: string; externalId: string }>;
 };
 
 type ListOptions = {
 	brandId?: string;
 	categoryId?: string;
 	isFeatured?: boolean;
+	search?: string;
 };
 
 type BulkDeleteResult = {
@@ -173,6 +175,10 @@ async function list(options: ListOptions = {}, isAdmin = false): Promise<Product
 	if (options.categoryId) conditions.push(eq(products.categoryId, options.categoryId));
 	if (options.isFeatured !== undefined)
 		conditions.push(eq(products.isFeatured, options.isFeatured));
+	if (options.search) {
+		const term = `%${options.search}%`;
+		conditions.push(or(ilike(products.name, term), ilike(products.sku, term)) ?? undefined);
+	}
 
 	const where =
 		conditions.length === 0
@@ -207,6 +213,14 @@ async function list(options: ListOptions = {}, isAdmin = false): Promise<Product
 			)`,
 			updatedByName: sql<string | null>`(
 				SELECT u.name FROM users u WHERE u.id = products.updated_by
+			)`,
+			providerIds: sql<Array<{ source: string; externalId: string }>>`COALESCE(
+				(
+					SELECT jsonb_agg(jsonb_build_object('source', pp.source, 'externalId', pp.external_id))
+					FROM product_providers pp
+					WHERE pp.product_id = products.id
+				),
+				'[]'::jsonb
 			)`,
 		})
 		.from(products)

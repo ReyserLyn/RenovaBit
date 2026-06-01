@@ -34,6 +34,7 @@ export interface Product {
 	imageCount?: number;
 	createdByName?: string | null;
 	updatedByName?: string | null;
+	providerIds?: Array<{ source: string; externalId: string }>;
 	seoTitle: string | null;
 	seoDescription: string | null;
 	seoKeywords: string | null;

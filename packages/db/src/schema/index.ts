@@ -3,4 +3,5 @@ export * from "./brands";
 export * from "./categories";
 export * from "./products";
 export * from "./providers";
+export * from "./scraping-blacklist";
 export * from "./sync";

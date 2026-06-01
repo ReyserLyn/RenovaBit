@@ -5,6 +5,7 @@ import {
 	productChanges,
 	productProviders,
 	products,
+	scrapingBlacklist,
 	syncReports,
 } from "@renovabit/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
@@ -139,16 +140,32 @@ export async function runSync(
 	if (!report) throw new Error("No se pudo crear el reporte de sync");
 
 	const reportId = report.id;
-	logger.withMetadata({ reportId, count: items.length, trigger }).info("Sync iniciado");
+	// ── Filtrar IDs en lista negra ──────────────────
+	const blacklisted = await db
+		.select({ externalId: scrapingBlacklist.externalId })
+		.from(scrapingBlacklist)
+		.where(eq(scrapingBlacklist.source, PROVIDER_SOURCE));
+
+	const blockedIds = new Set(blacklisted.map((b) => b.externalId));
+	const filtered = items.filter((item) => !blockedIds.has(item.providerId));
+	const skippedCount = items.length - filtered.length;
+
+	if (skippedCount > 0) {
+		logger
+			.withMetadata({ reportId, skipped: skippedCount, total: items.length })
+			.info(`Sync: ${skippedCount} items omitidos por lista negra`);
+	}
+
+	logger.withMetadata({ reportId, count: filtered.length, trigger }).info("Sync iniciado");
 	const startedAt = report.startedAt.toISOString();
-	const scrapedIds = new Set(items.map((i) => i.providerId));
-	const progressStep = Math.max(1, Math.floor(items.length * 0.05));
+	const scrapedIds = new Set(filtered.map((i) => i.providerId));
+	const progressStep = Math.max(1, Math.floor(filtered.length * 0.05));
 	let lastProgress = 0;
 
 	// Procesar items concurrentemente con p-limit para controlar carga de IA
 	const limit = pLimit(AI_CONCURRENCY);
 	const results = await Promise.allSettled(
-		items.map((item) =>
+		filtered.map((item) =>
 			limit(async () => {
 				try {
 					await processItem(item, reportId, stats);
@@ -162,7 +179,7 @@ export async function runSync(
 				// Emitir progreso cada 5% de items
 				if (onProgress && stats.processed - lastProgress >= progressStep) {
 					lastProgress = stats.processed;
-					onProgress({ reportId, ...stats, total: items.length });
+					onProgress({ reportId, ...stats, total: filtered.length });
 				}
 			}),
 		),
