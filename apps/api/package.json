@@ -22,6 +22,7 @@
 		"@bull-board/ui": "^7.1.5",
 		"@elysiajs/cors": "^1.4.2",
 		"@elysiajs/openapi": "^1.4.15",
+		"@imgly/background-removal-node": "^1.4.5",
 		"@loglayer/elysia": "^2.1.0",
 		"@loglayer/transport-simple-pretty-terminal": "^3.0.2",
 		"@openrouter/ai-sdk-provider": "^2.9.0",
@@ -40,6 +41,7 @@
 		"nanoid": "catalog:",
 		"p-limit": "^7.3.0",
 		"serialize-error": "catalog:",
+		"sharp": "^0.34.5",
 		"slugify": "catalog:",
 		"zod": "^4.4.3"
 	},

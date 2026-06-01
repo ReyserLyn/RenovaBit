@@ -1,12 +1,8 @@
 import { Progress } from "@renovabit/ui/components/ui/progress";
-import { useSidebar } from "@renovabit/ui/components/ui/sidebar";
-import { cn } from "@renovabit/ui/lib/utils";
 import { useNotifications } from "../context/notifications-context";
 
 export function SyncProgressPanel() {
 	const { progress } = useNotifications();
-	const { state: sidebarState } = useSidebar();
-	const isSidebarExpanded = sidebarState === "expanded";
 
 	if (!progress) return null;
 
@@ -17,10 +13,7 @@ export function SyncProgressPanel() {
 			role="status"
 			aria-live="polite"
 			aria-label="Progreso de sincronización"
-			className={cn(
-				"fixed bottom-4 z-50 w-80 rounded-lg border bg-background p-4 shadow-lg transition-all",
-				isSidebarExpanded ? "right-[calc(1rem+var(--sidebar-width))]" : "right-4",
-			)}
+			className="fixed bottom-4 right-4 z-50 w-80 rounded-lg border bg-background p-4 shadow-lg"
 		>
 			<div className="flex items-center justify-between mb-2">
 				<span className="text-sm font-medium">Sincronizando...</span>

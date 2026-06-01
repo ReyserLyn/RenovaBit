@@ -121,6 +121,8 @@ CREATE TABLE "products" (
 	"specifications" jsonb DEFAULT '[]'::jsonb,
 	"is_active" boolean DEFAULT true NOT NULL,
 	"is_featured" boolean DEFAULT false NOT NULL,
+	"needs_review" boolean DEFAULT false NOT NULL,
+	"review_reason" varchar(500),
 	"created_by" uuid,
 	"updated_by" uuid,
 	"seo_title" varchar(255),
@@ -131,6 +133,62 @@ CREATE TABLE "products" (
 	CONSTRAINT "products_name_unique" UNIQUE("name"),
 	CONSTRAINT "products_slug_unique" UNIQUE("slug"),
 	CONSTRAINT "products_sku_unique" UNIQUE("sku")
+);
+--> statement-breakpoint
+CREATE TABLE "product_providers" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"product_id" uuid NOT NULL,
+	"external_id" varchar(255) NOT NULL,
+	"source" varchar(100) NOT NULL,
+	"raw_name" text,
+	"raw_price" numeric(12, 2),
+	"raw_stock" integer DEFAULT 0,
+	"last_sync_at" timestamp,
+	"last_seen_at" timestamp,
+	"is_unavailable" boolean DEFAULT false,
+	"needs_review" boolean DEFAULT false,
+	"review_reason" text,
+	"raw_image_url" text,
+	"raw_image_hash" varchar(64),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "product_providers_external_unique" UNIQUE("source","external_id")
+);
+--> statement-breakpoint
+CREATE TABLE "admin_notifications" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"type" varchar(50) NOT NULL,
+	"title" varchar(255) NOT NULL,
+	"message" text,
+	"data" jsonb,
+	"is_read" boolean DEFAULT false NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "product_changes" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"product_id" uuid NOT NULL,
+	"sync_report_id" uuid,
+	"user_id" uuid,
+	"source" varchar(50) NOT NULL,
+	"change_type" varchar(50) NOT NULL,
+	"field" varchar(50),
+	"old_value" jsonb,
+	"new_value" jsonb,
+	"reason" text,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "sync_reports" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"job_id" varchar(128),
+	"trigger" varchar(50) DEFAULT 'manual' NOT NULL,
+	"status" varchar(50) DEFAULT 'running' NOT NULL,
+	"stats" jsonb DEFAULT '{"processed":0,"created":0,"updated":0,"unchanged":0,"errors":0,"outOfStock":0}'::jsonb NOT NULL,
+	"error_message" text,
+	"started_at" timestamp DEFAULT now() NOT NULL,
+	"completed_at" timestamp
 );
 --> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -145,6 +203,11 @@ ALTER TABLE "products" ADD CONSTRAINT "products_brand_id_brands_id_fk" FOREIGN K
 ALTER TABLE "products" ADD CONSTRAINT "products_category_id_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "products" ADD CONSTRAINT "products_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "products" ADD CONSTRAINT "products_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_providers" ADD CONSTRAINT "product_providers_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "admin_notifications" ADD CONSTRAINT "admin_notifications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_changes" ADD CONSTRAINT "product_changes_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_changes" ADD CONSTRAINT "product_changes_sync_report_id_sync_reports_id_fk" FOREIGN KEY ("sync_report_id") REFERENCES "public"."sync_reports"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_changes" ADD CONSTRAINT "product_changes_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "accounts_userId_idx" ON "accounts" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "sessions_userId_idx" ON "sessions" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "users_role_idx" ON "users" USING btree ("role");--> statement-breakpoint
@@ -165,4 +228,12 @@ CREATE INDEX "products_sku_idx" ON "products" USING btree ("sku");--> statement-
 CREATE INDEX "products_brand_id_idx" ON "products" USING btree ("brand_id");--> statement-breakpoint
 CREATE INDEX "products_category_id_idx" ON "products" USING btree ("category_id");--> statement-breakpoint
 CREATE INDEX "products_is_active_idx" ON "products" USING btree ("is_active");--> statement-breakpoint
-CREATE INDEX "products_featured_idx" ON "products" USING btree ("is_featured");
+CREATE INDEX "products_featured_idx" ON "products" USING btree ("is_featured");--> statement-breakpoint
+CREATE INDEX "product_providers_product_idx" ON "product_providers" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "admin_notifications_user_idx" ON "admin_notifications" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "admin_notifications_unread_idx" ON "admin_notifications" USING btree ("user_id","is_read") WHERE "admin_notifications"."is_read" = false;--> statement-breakpoint
+CREATE INDEX "product_changes_product_idx" ON "product_changes" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "product_changes_report_idx" ON "product_changes" USING btree ("sync_report_id");--> statement-breakpoint
+CREATE INDEX "product_changes_type_idx" ON "product_changes" USING btree ("change_type");--> statement-breakpoint
+CREATE INDEX "sync_reports_status_idx" ON "sync_reports" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "sync_reports_started_at_idx" ON "sync_reports" USING btree ("started_at");

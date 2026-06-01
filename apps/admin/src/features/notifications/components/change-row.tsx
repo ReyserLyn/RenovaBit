@@ -1,22 +1,8 @@
 import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Link } from "@tanstack/react-router";
-import type { ReportChange } from "@/features/reports/service/reports.service";
+import type { ReportChange } from "@/features/reports/model";
+import { CHANGE_LABELS, formatChangeValue } from "@/features/reports/model";
 import { formatDateTimeSeconds } from "@/shared/lib/format-date";
-import { CHANGE_LABELS } from "../model";
-
-function formatOldNew(oldVal: unknown, newVal: unknown, changeType: string): string {
-	const fmt = (v: unknown) => {
-		if (v === null || v === undefined) return "—";
-		if (typeof v === "object") {
-			const o = v as Record<string, unknown>;
-			if ("price" in o) return `S/ ${o.price}`;
-			if ("stock" in o) return String(o.stock);
-			return JSON.stringify(o);
-		}
-		return String(v);
-	};
-	return `${fmt(oldVal)} → ${fmt(newVal)}`;
-}
 
 export function ChangeRow({ change }: { change: ReportChange }) {
 	const info = CHANGE_LABELS[change.changeType] ?? {
@@ -41,7 +27,7 @@ export function ChangeRow({ change }: { change: ReportChange }) {
 
 			{change.oldValue !== null || change.newValue !== null ? (
 				<span className="text-xs text-muted-foreground shrink-0 tabular-nums">
-					{formatOldNew(change.oldValue, change.newValue, change.changeType)}
+					{formatChangeValue(change.oldValue, change.newValue)}
 				</span>
 			) : (
 				<span className="text-muted-foreground text-xs shrink-0">{change.reason ?? "—"}</span>

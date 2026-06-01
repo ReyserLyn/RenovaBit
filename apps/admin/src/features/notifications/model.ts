@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CHANGE_LABELS } from "@/features/reports/model";
 
 // ── Schemas ────────────────────────────────────────
 
@@ -56,17 +57,9 @@ export type SyncProgress = SyncStats & { total: number; reportId: string };
 export type SyncCompletedEvent = { reportId: string; stats: SyncStats; trigger: string };
 
 // ── Change Type Labels ────────────────────────────
-// Mapea changeType de reports a label + variant para badges
+// Re-exportado desde reports/model
 
-export const CHANGE_LABELS: Record<
-	string,
-	{ label: string; variant: "success" | "warning" | "info" | "destructive" }
-> = {
-	created: { label: "Creado", variant: "success" },
-	price_changed: { label: "Precio", variant: "warning" },
-	stock_changed: { label: "Stock", variant: "info" },
-	out_of_stock: { label: "Sin stock", variant: "destructive" },
-};
+export { CHANGE_LABELS };
 
 export const SORT_OPTIONS = [
 	{ label: "Nombre A-Z", value: "name-asc" },

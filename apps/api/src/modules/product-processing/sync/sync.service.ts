@@ -11,8 +11,10 @@ import { and, eq, inArray } from "drizzle-orm";
 import pLimit from "p-limit";
 import slugify from "slugify";
 import type { ScrapedItem } from "@/modules/scrapping/model";
+import { scrapingService } from "@/modules/scrapping/service";
 import { logger } from "@/utils/logger";
 import { extractFromRawName } from "../ai/ai.service";
+import { processProductImage, removeImageReviewReason } from "../image-pipeline/process";
 import type { SyncStats } from "./sync.model";
 
 const PROVIDER_SOURCE = "rematazo";
@@ -84,6 +86,24 @@ async function findOrCreateCategory(name: string): Promise<string | null> {
 	return created?.id ?? null;
 }
 
+async function markMissingImage(productId: string): Promise<void> {
+	const [product] = await db
+		.select({ needsReview: products.needsReview, reviewReason: products.reviewReason })
+		.from(products)
+		.where(eq(products.id, productId))
+		.limit(1);
+	if (!product) return;
+	const reasons = product.reviewReason?.split(";").map((r) => r.trim()) ?? [];
+	if (reasons.includes("Sin imagen")) return;
+	reasons.push("Sin imagen");
+	await db
+		.update(products)
+		.set({ needsReview: true, reviewReason: reasons.join("; ") })
+		.where(eq(products.id, productId));
+}
+
+// ── Orphan cleanup ─────────────────────────────────
+
 export async function cleanupOrphanedReports(): Promise<void> {
 	await db
 		.update(syncReports)
@@ -95,6 +115,7 @@ export async function cleanupOrphanedReports(): Promise<void> {
 		.where(eq(syncReports.status, "running"));
 }
 
+// ── Main sync ──────────────────────────────────────
 export async function runSync(
 	items: ScrapedItem[],
 	trigger: "manual" | "automatic",
@@ -118,9 +139,10 @@ export async function runSync(
 	if (!report) throw new Error("No se pudo crear el reporte de sync");
 
 	const reportId = report.id;
+	logger.withMetadata({ reportId, count: items.length, trigger }).info("Sync iniciado");
 	const startedAt = report.startedAt.toISOString();
 	const scrapedIds = new Set(items.map((i) => i.providerId));
-	const progressStep = Math.max(1, Math.floor(items.length * 0.05)); // 5%
+	const progressStep = Math.max(1, Math.floor(items.length * 0.05));
 	let lastProgress = 0;
 
 	// Procesar items concurrentemente con p-limit para controlar carga de IA
@@ -128,7 +150,15 @@ export async function runSync(
 	const results = await Promise.allSettled(
 		items.map((item) =>
 			limit(async () => {
-				await processItem(item, reportId, stats);
+				try {
+					await processItem(item, reportId, stats);
+				} catch (error) {
+					const msg = error instanceof Error ? error.message : String(error);
+					logger
+						.withMetadata({ reportId, providerId: item.providerId, error: msg })
+						.error("Error procesando item en sync");
+					throw error;
+				}
 				// Emitir progreso cada 5% de items
 				if (onProgress && stats.processed - lastProgress >= progressStep) {
 					lastProgress = stats.processed;
@@ -156,9 +186,12 @@ export async function runSync(
 		.set({ status: "completed", stats, completedAt: new Date() })
 		.where(eq(syncReports.id, reportId));
 
+	logger.withMetadata({ reportId, ...stats }).info("Sync completado");
+
 	return { reportId, stats, startedAt };
 }
 
+// ── Process item ───────────────────────────────────
 async function processItem(item: ScrapedItem, reportId: string, stats: SyncStats): Promise<void> {
 	const { providerId } = item;
 	stats.processed++;
@@ -169,6 +202,8 @@ async function processItem(item: ScrapedItem, reportId: string, stats: SyncStats
 			productId: productProviders.productId,
 			rawPrice: productProviders.rawPrice,
 			rawStock: productProviders.rawStock,
+			rawImageUrl: productProviders.rawImageUrl,
+			rawImageHash: productProviders.rawImageHash,
 		})
 		.from(productProviders)
 		.where(
@@ -181,20 +216,23 @@ async function processItem(item: ScrapedItem, reportId: string, stats: SyncStats
 
 	if (existing) {
 		const changed = await updateExistingProduct(existing.productId, existing, item, reportId);
-		if (changed) {
-			stats.updated++;
-		} else {
-			stats.unchanged++;
-		}
+		changed ? stats.updated++ : stats.unchanged++;
 	} else {
 		await createNewProduct(item, reportId);
 		stats.created++;
 	}
 }
 
+// ── Update existing ────────────────────────────────
 async function updateExistingProduct(
 	productId: string,
-	existing: { id: string; rawPrice: string | null; rawStock: number | null },
+	existing: {
+		id: string;
+		rawPrice: string | null;
+		rawStock: number | null;
+		rawImageUrl: string | null;
+		rawImageHash: string | null;
+	},
 	item: ScrapedItem,
 	reportId: string,
 ): Promise<boolean> {
@@ -231,7 +269,42 @@ async function updateExistingProduct(
 		})
 		.where(eq(productProviders.id, existing.id));
 
-	if (!priceChanged && !stockChanged) return false;
+	// ── Imagen ──────────────────────────────────────
+	let imageChanged = false;
+	const newImageUrl = await scrapingService.fetchProductImage(item.providerId);
+
+	if (newImageUrl) {
+		if (newImageUrl !== existing.rawImageUrl || !existing.rawImageHash) {
+			imageChanged = true;
+
+			const result = await processProductImage({
+				productId,
+				imageUrl: newImageUrl,
+			});
+
+			await db
+				.update(productProviders)
+				.set({ rawImageUrl: newImageUrl, rawImageHash: result.hash })
+				.where(eq(productProviders.id, existing.id));
+
+			await removeImageReviewReason(productId);
+
+			await db.insert(productChanges).values({
+				productId,
+				syncReportId: reportId,
+				source: "sync",
+				changeType: "image_changed",
+				field: "imagen",
+				oldValue: existing.rawImageHash ? { hash: existing.rawImageHash } : { detectada: false },
+				newValue: { hash: result.hash },
+				reason: "Imagen del proveedor detectada o actualizada",
+			});
+		}
+	} else if (existing.rawImageUrl) {
+		await markMissingImage(productId);
+	}
+
+	if (!priceChanged && !stockChanged && !imageChanged) return false;
 
 	if (priceChanged) {
 		await db.insert(productChanges).values({
@@ -260,6 +333,7 @@ async function updateExistingProduct(
 	return true;
 }
 
+// ── Create new ─────────────────────────────────────
 async function createNewProduct(item: ScrapedItem, reportId: string): Promise<void> {
 	const { providerId, rawName, rawPrice, rawStock } = item;
 
@@ -279,6 +353,13 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 	const categoryId = await findOrCreateCategory(aiResult.category);
 	const price = applyMarkup(rawPrice);
 	const sku = makeSku(providerId);
+	const imageUrl = await scrapingService.fetchProductImage(providerId);
+
+	const reviewReasons: string[] = [];
+	if (!brandId) reviewReasons.push("Sin marca");
+	if (!categoryId) reviewReasons.push("Sin categoria");
+	if (!imageUrl) reviewReasons.push("Sin imagen");
+	if (aiResult.needsReview) reviewReasons.push("IA no confia en datos");
 
 	const [product] = await db
 		.insert(products)
@@ -293,6 +374,8 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 			brandId,
 			categoryId,
 			isActive: true,
+			needsReview: reviewReasons.length > 0,
+			reviewReason: reviewReasons.length > 0 ? reviewReasons.join("; ") : null,
 		})
 		.returning({ id: products.id });
 
@@ -305,6 +388,8 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 		rawName,
 		rawPrice,
 		rawStock,
+		rawImageUrl: imageUrl,
+		rawImageHash: null,
 		lastSyncAt: new Date(),
 		lastSeenAt: new Date(),
 		needsReview: aiResult.needsReview,
@@ -318,14 +403,28 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 		changeType: "created",
 		reason: `Producto creado desde ${PROVIDER_SOURCE}`,
 	});
+
+	// ── Procesar imagen INLINE para productos nuevos ──
+	if (imageUrl) {
+		try {
+			const result = await processProductImage({ productId: product.id, imageUrl });
+			await db
+				.update(productProviders)
+				.set({ rawImageHash: result.hash })
+				.where(eq(productProviders.productId, product.id));
+		} catch (error) {
+			logger
+				.withError(error)
+				.withMetadata({ productId: product.id })
+				.warn("Error al procesar imagen en creación, se reintentará en próximo sync");
+		}
+	}
 }
 
+// ── Mark out of stock ──────────────────────────────
 async function markOutOfStock(scrapedProviderIds: Set<string>, reportId: string): Promise<number> {
 	const active = await db
-		.select({
-			productId: productProviders.productId,
-			providerId: productProviders.externalId,
-		})
+		.select({ productId: productProviders.productId, providerId: productProviders.externalId })
 		.from(productProviders)
 		.where(
 			and(eq(productProviders.source, PROVIDER_SOURCE), eq(productProviders.isUnavailable, false)),

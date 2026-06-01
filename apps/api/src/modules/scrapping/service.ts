@@ -10,6 +10,8 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
 const FETCH_TIMEOUT_MS = 15_000;
 
+export const SYNC_USER_AGENT = "RenovabitBot/1.0";
+
 const RETRYABLE_KEYWORDS = [
 	"socket",
 	"econnreset",
@@ -31,7 +33,10 @@ async function fetchProductList(limit: number): Promise<ScrapedItem[]> {
 	let lastError: unknown;
 	for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 		try {
-			const res = await fetch(BASE_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+			const res = await fetch(BASE_URL, {
+				headers: { "User-Agent": SYNC_USER_AGENT },
+				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+			});
 
 			if (!res.ok) {
 				throw new Error(`HTTP ${res.status} al obtener listado de productos`);
@@ -101,6 +106,7 @@ async function fetchProductImage(providerId: string): Promise<string | null> {
 		const url = `${PHOTOS_BASE_URL}/${trimmedId}.png`;
 		const res = await fetch(url, {
 			method: "HEAD",
+			headers: { "User-Agent": SYNC_USER_AGENT },
 			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 		});
 

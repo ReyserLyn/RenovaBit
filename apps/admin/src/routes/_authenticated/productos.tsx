@@ -14,10 +14,10 @@ import type { Product } from "@/features/products/model";
 import { PageHeader } from "@/shared/components/layout/page-header";
 
 const productosSearchSchema = z.object({
-	busqueda: z.string().optional(),
-	marca: z.string().optional(),
-	categoria: z.string().optional(),
-	estado: z.string().optional(),
+	busqueda: z.coerce.string().optional(),
+	marca: z.coerce.string().optional(),
+	categoria: z.coerce.string().optional(),
+	estado: z.coerce.string().optional(),
 });
 
 export const Route = createFileRoute("/_authenticated/productos")({

@@ -31,6 +31,8 @@ export function useCreateProduct() {
 				specifications: data.specifications ?? null,
 				isActive: data.isActive ?? true,
 				isFeatured: data.isFeatured ?? false,
+				needsReview: false,
+				reviewReason: null,
 				imageUrls: [],
 				imageCount: 0,
 				seoTitle: data.seoTitle ?? null,

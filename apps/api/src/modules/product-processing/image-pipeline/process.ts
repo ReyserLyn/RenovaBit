@@ -1,0 +1,143 @@
+import path from "node:path";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { db } from "@renovabit/db";
+import { productImages, products } from "@renovabit/db/schema";
+import { and, eq } from "drizzle-orm";
+import { runPipeline } from "@/modules/product-processing/image-pipeline";
+import { SYNC_USER_AGENT } from "@/modules/scrapping/service";
+import { logger } from "@/utils/logger";
+import { R2_BUCKET_NAME, r2Client } from "@/utils/storage/client";
+import { deleteObjectsByPrefix, getPublicUrl } from "@/utils/storage/helpers";
+
+// ── Config ────────────────────────────────────────
+
+const LOGO_PATH = path.join(import.meta.dir, "..", "..", "..", "assets", "logo-stacked-light.svg");
+const ENABLE_REMOVE_BG =
+	process.env.ENABLE_REMOVE_BG !== "false" && process.env.ENABLE_REMOVE_BG !== "0";
+const FETCH_TIMEOUT_MS = 30_000;
+const MAX_INPUT_BYTES = 15 * 1024 * 1024;
+
+// ── Public API ─────────────────────────────────────
+
+export interface ProcessImageInput {
+	productId: string;
+	imageUrl: string;
+}
+
+export interface ProcessImageResult {
+	productId: string;
+	url: string;
+	hash: string;
+}
+
+/**
+ * Procesa una imagen individual: descarga → pipeline → R2 → DB.
+ * Usado inline en createNewProduct y desde el worker BullMQ.
+ */
+export async function processProductImage(input: ProcessImageInput): Promise<ProcessImageResult> {
+	const { productId, imageUrl } = input;
+
+	logger.withMetadata({ productId, imageUrl }).info("[image] Iniciando procesamiento");
+
+	// 1. Descargar
+	const { buffer, contentType } = await fetchImageBuffer(imageUrl);
+
+	// Hash del contenido original para detectar cambios futuros
+	const hasher = new Bun.CryptoHasher("sha256");
+	hasher.update(buffer);
+	const hash = hasher.digest("hex");
+
+	// 2. Pipeline
+	const processed = await runPipeline(buffer, {
+		logoPath: LOGO_PATH,
+		logoPosition: "top-right",
+		enableRemoveBg: ENABLE_REMOVE_BG,
+		inputContentType: contentType,
+	});
+
+	// 3. Limpiar R2 anterior
+	await deleteObjectsByPrefix(`products/${productId}/`);
+
+	// 4. Subir a R2
+	const key = `products/${productId}/processed.webp`;
+	await r2Client.send(
+		new PutObjectCommand({
+			Bucket: R2_BUCKET_NAME,
+			Key: key,
+			Body: processed,
+			ContentType: "image/webp",
+		}),
+	);
+
+	const publicUrl = getPublicUrl(key);
+
+	// 5. Guardar en DB: eliminar la imagen procesada anterior (misma URL)
+	await db
+		.delete(productImages)
+		.where(and(eq(productImages.productId, productId), eq(productImages.url, publicUrl)));
+
+	await db.insert(productImages).values({
+		productId,
+		url: publicUrl,
+		alt: null,
+		sortOrder: 0,
+		isPrimary: true,
+	});
+
+	// 6. Quitar "Sin imagen" de review
+	await removeImageReviewReason(productId);
+
+	logger.withMetadata({ productId, publicUrl }).info("[image] Procesamiento completado");
+
+	return { productId, url: publicUrl, hash };
+}
+
+// ── Helpers ────────────────────────────────────────
+
+async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer; contentType: string }> {
+	const res = await fetch(url, {
+		headers: { "User-Agent": SYNC_USER_AGENT },
+		signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+	});
+
+	if (!res.ok) {
+		throw new Error(`Error al descargar imagen: HTTP ${res.status}`);
+	}
+
+	const contentType = res.headers.get("content-type")?.split(";")[0]?.trim() ?? "image/png";
+	if (!contentType.startsWith("image/")) {
+		throw new Error(`Tipo de contenido inválido: ${contentType}`);
+	}
+
+	const arrayBuffer = await res.arrayBuffer();
+	const buffer = Buffer.from(arrayBuffer);
+
+	if (buffer.length > MAX_INPUT_BYTES) {
+		throw new Error(`Imagen demasiado grande: ${(buffer.length / 1024 / 1024).toFixed(1)} MB`);
+	}
+
+	return { buffer, contentType };
+}
+
+export async function removeImageReviewReason(productId: string): Promise<void> {
+	const [product] = await db
+		.select({ needsReview: products.needsReview, reviewReason: products.reviewReason })
+		.from(products)
+		.where(eq(products.id, productId))
+		.limit(1);
+
+	if (!product?.needsReview || !product.reviewReason) return;
+
+	const reasons = product.reviewReason.split(";").map((r) => r.trim());
+	const remaining = reasons.filter((r) => r !== "Sin imagen");
+
+	if (remaining.length === reasons.length) return;
+
+	await db
+		.update(products)
+		.set({
+			needsReview: remaining.length > 0,
+			reviewReason: remaining.length > 0 ? remaining.join("; ") : null,
+		})
+		.where(eq(products.id, productId));
+}

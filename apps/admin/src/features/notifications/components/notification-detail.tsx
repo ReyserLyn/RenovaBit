@@ -18,7 +18,7 @@ import { Separator } from "@renovabit/ui/components/ui/separator";
 import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import { useMemo, useState } from "react";
 import { useReportChanges } from "@/features/reports/hooks/reports-queries";
-import type { ReportChange } from "@/features/reports/service/reports.service";
+import type { ReportChange } from "@/features/reports/model";
 import { formatDateTimeSeconds, formatDuration } from "@/shared/lib/format-date";
 import { getUserDisplayName, getUserInitials } from "../lib/user-helpers";
 import type { AppNotification, NotificationData, SortOption, SyncStats } from "../model";

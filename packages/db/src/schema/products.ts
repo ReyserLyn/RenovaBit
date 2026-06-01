@@ -44,6 +44,9 @@ export const products = pgTable(
 		isActive: boolean("is_active").default(true).notNull(),
 		isFeatured: boolean("is_featured").default(false).notNull(),
 
+		needsReview: boolean("needs_review").default(false).notNull(),
+		reviewReason: varchar("review_reason", { length: 500 }),
+
 		createdBy: uuid("created_by").references(() => users.id),
 		updatedBy: uuid("updated_by").references(() => users.id),
 

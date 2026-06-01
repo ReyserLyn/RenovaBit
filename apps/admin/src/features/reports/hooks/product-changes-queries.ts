@@ -1,7 +1,7 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { api } from "@/shared/lib/api/api-client";
 import { unwrapResponse } from "@/shared/lib/api/api-errors";
-import type { ProductChange } from "../service/reports.service";
+import type { ProductChange } from "../model";
 
 export const productChangeKeys = {
 	byProduct: (productId: string) => ["product-changes", productId] as const,

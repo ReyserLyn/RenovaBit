@@ -28,6 +28,8 @@ export interface Product {
 	specifications: ProductSpecification[] | null;
 	isActive: boolean;
 	isFeatured: boolean;
+	needsReview: boolean;
+	reviewReason: string | null;
 	imageUrls?: string[];
 	imageCount?: number;
 	createdByName?: string | null;

@@ -18,6 +18,7 @@ import {
 } from "@renovabit/ui/components/ui/dropdown-menu";
 import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import { Switch } from "@renovabit/ui/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@renovabit/ui/components/ui/tooltip";
 import type { ColumnDef, Row } from "@tanstack/react-table";
 import { useCallback } from "react";
 import type { Brand } from "@/features/brands/model";
@@ -355,13 +356,43 @@ export function getProductColumns({
 					return <span className="text-muted-foreground text-sm">—</span>;
 				}
 
-				return (
-					<Badge className="bg-primary/10 text-primary" variant="secondary">
-						Destacado
-					</Badge>
-				);
+				return <Badge variant="secondary">Destacado</Badge>;
 			},
 			size: 100,
+		},
+		{
+			accessorKey: "needsReview",
+			meta: {
+				headerTitle: "Revisión",
+				skeleton: <Skeleton className="h-5 w-16 rounded-full" />,
+			},
+			header: ({ column }) => <DataGridColumnHeader column={column} title="Revisión" />,
+			cell: ({ row }) => {
+				const needsReview = row.getValue<boolean>("needsReview");
+				const reason = row.original.reviewReason;
+
+				if (!needsReview) {
+					return <span className="text-muted-foreground text-sm">—</span>;
+				}
+
+				if (!reason) {
+					return <Badge variant="info">Revisar</Badge>;
+				}
+
+				return (
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<Badge variant="info" className="cursor-help">
+									Revisar
+								</Badge>
+							}
+						/>
+						<TooltipContent>{reason}</TooltipContent>
+					</Tooltip>
+				);
+			},
+			size: 90,
 		},
 		{
 			id: "seo",

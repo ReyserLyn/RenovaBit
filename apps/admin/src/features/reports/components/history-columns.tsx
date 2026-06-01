@@ -6,7 +6,8 @@ import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DataGridColumnHeader } from "@/shared/components/data-grid/data-grid-column-header";
-import type { ProductChange, RecentChange } from "../service/reports.service";
+import type { ProductChange, RecentChange } from "../model";
+import { CHANGE_LABELS, formatChangeValue } from "../model";
 
 const dateFormatter = new Intl.DateTimeFormat("es-PE", {
 	day: "2-digit",
@@ -19,31 +20,6 @@ const dateFormatter = new Intl.DateTimeFormat("es-PE", {
 function formatDate(iso: string): string {
 	const d = new Date(iso);
 	return Number.isNaN(d.getTime()) ? "—" : dateFormatter.format(d);
-}
-
-const CHANGE_LABELS: Record<
-	string,
-	{ label: string; variant: "success" | "warning" | "info" | "destructive" }
-> = {
-	created: { label: "Creado", variant: "success" },
-	price_changed: { label: "Precio", variant: "warning" },
-	stock_changed: { label: "Stock", variant: "info" },
-	out_of_stock: { label: "Sin stock", variant: "destructive" },
-};
-
-function formatOldNew(oldVal: unknown, newVal: unknown, _changeType: string): string {
-	const fmt = (v: unknown) => {
-		if (v === null || v === undefined) return "—";
-		if (typeof v === "object") {
-			const o = v as Record<string, unknown>;
-			if ("price" in o) return `S/ ${o.price}`;
-			if ("stock" in o) return String(o.stock);
-			return JSON.stringify(o);
-		}
-		return String(v);
-	};
-
-	return `${fmt(oldVal)} → ${fmt(newVal)}`;
 }
 
 /** Celda con ID de reporte + botón de copiar + feedback visual */
@@ -153,14 +129,14 @@ export function getHistoryColumns(): ColumnDef<ProductChange>[] {
 					return (
 						<div className="flex items-center gap-1.5 tabular-nums">
 							<span className="text-muted-foreground line-through text-xs">
-								{formatOldNew(c.oldValue, null, c.changeType).split(" → ")[0]}
+								{formatChangeValue(c.oldValue, null).split(" → ")[0]}
 							</span>
 							<HugeiconsIcon
 								icon={Cancel01Icon}
 								className="size-3 text-muted-foreground rotate-90"
 							/>
 							<span className="font-medium text-sm">
-								{formatOldNew(null, c.newValue, c.changeType).split(" → ")[1]}
+								{formatChangeValue(null, c.newValue).split(" → ")[1]}
 							</span>
 						</div>
 					);
@@ -232,14 +208,14 @@ export function getRecentChangesColumns(): ColumnDef<RecentChange>[] {
 					return (
 						<div className="flex items-center gap-1.5 tabular-nums">
 							<span className="text-muted-foreground line-through text-xs">
-								{formatOldNew(c.oldValue, null, c.changeType).split(" → ")[0]}
+								{formatChangeValue(c.oldValue, null).split(" → ")[0]}
 							</span>
 							<HugeiconsIcon
 								icon={Cancel01Icon}
 								className="size-3 text-muted-foreground rotate-90"
 							/>
 							<span className="font-medium text-sm">
-								{formatOldNew(null, c.newValue, c.changeType).split(" → ")[1]}
+								{formatChangeValue(null, c.newValue).split(" → ")[1]}
 							</span>
 						</div>
 					);

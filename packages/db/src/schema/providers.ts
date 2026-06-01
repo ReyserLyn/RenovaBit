@@ -43,6 +43,9 @@ export const productProviders = pgTable(
 		needsReview: boolean("needs_review").default(false),
 		reviewReason: text("review_reason"),
 
+		rawImageUrl: text("raw_image_url"),
+		rawImageHash: varchar("raw_image_hash", { length: 64 }),
+
 		...lifecycleDates,
 	},
 	(table) => [

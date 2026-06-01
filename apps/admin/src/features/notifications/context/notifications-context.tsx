@@ -7,9 +7,9 @@ import {
 	useEffect,
 	useMemo,
 	useRef,
-	useState,
 } from "react";
 import { toast } from "sonner";
+import { useSyncStore } from "@/shared/lib/stores/sync-store";
 import { useMarkAllAsRead, useMarkAsRead } from "../hooks/notification-mutations";
 import { useNotificationsList } from "../hooks/notification-queries";
 import { useWebSocket } from "../hooks/use-websocket";
@@ -31,31 +31,32 @@ const NotificationsContext = createContext<NotificationsContextValue | null>(nul
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
 	const queryClient = useQueryClient();
-	const [progress, setProgress] = useState<SyncProgress | null>(null);
-	const [lastCompleted, setLastCompleted] = useState<SyncCompletedEvent | null>(null);
+	const syncStore = useSyncStore();
 	const completedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const { data } = useNotificationsList(4);
 
 	const isConnected = useWebSocket({
-		onProgress: useCallback((p: SyncProgress) => {
-			setProgress(p);
-		}, []),
+		onProgress: useCallback(
+			(p: SyncProgress) => {
+				syncStore.setProgress(p);
+			},
+			[syncStore],
+		),
 		onCompleted: useCallback(
 			(e: SyncCompletedEvent) => {
-				setProgress(null);
-				setLastCompleted(e);
+				syncStore.setCompleted(e);
 
 				const { processed, created, updated, errors } = e.stats;
 				toast.success(
 					`Sync completado: ${processed} procesados, ${created} creados, ${updated} actualizados${errors > 0 ? `, ${errors} errores` : ""}`,
 				);
 
-				completedTimeoutRef.current = setTimeout(() => setLastCompleted(null), 10_000);
+				completedTimeoutRef.current = setTimeout(() => syncStore.clearCompleted(), 60_000);
 
 				queryClient.invalidateQueries({ queryKey: ["notifications"] });
 			},
-			[queryClient],
+			[queryClient, syncStore],
 		),
 	});
 
@@ -76,8 +77,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 			clearTimeout(completedTimeoutRef.current);
 			completedTimeoutRef.current = null;
 		}
-		setLastCompleted(null);
-	}, []);
+		syncStore.clearCompleted();
+	}, [syncStore]);
 
 	const markAsRead = markReadMutation.mutate;
 	const markAllAsRead = markAllReadMutation.mutate;
@@ -87,14 +88,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 			notifications: data?.notifications ?? [],
 			total: data?.total ?? 0,
 			unreadCount: data?.unreadCount ?? 0,
-			progress,
-			lastCompleted,
+			progress: syncStore.progress,
+			lastCompleted: syncStore.lastCompleted,
 			isConnected,
 			markAsRead,
 			markAllAsRead,
 			clearCompleted,
 		}),
-		[data, progress, lastCompleted, isConnected, markAsRead, markAllAsRead, clearCompleted],
+		[
+			data,
+			syncStore.progress,
+			syncStore.lastCompleted,
+			isConnected,
+			markAsRead,
+			markAllAsRead,
+			clearCompleted,
+		],
 	);
 
 	return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;

@@ -25,20 +25,13 @@ import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scro
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
 import { useDebouncedValue } from "@/shared/lib/hooks/use-debounced-value";
 import { recentChangesQueryOptions } from "../hooks/reports-queries";
-import type { RecentChange } from "../service/reports.service";
+import type { RecentChange } from "../model";
+import { CHANGE_TYPE_OPTIONS } from "../model";
 import { getRecentChangesColumns } from "./history-columns";
 
 interface RecentChangesTableProps {
 	onProductClick?: (productId: string) => void;
 }
-
-const TYPE_OPTIONS = [
-	{ label: "Todos", value: "all" },
-	{ label: "Precio", value: "price_changed" },
-	{ label: "Stock", value: "stock_changed" },
-	{ label: "Creado", value: "created" },
-	{ label: "Sin stock", value: "out_of_stock" },
-];
 
 const coreRowModel = getCoreRowModel();
 const sortedRowModel = getSortedRowModel();
@@ -110,7 +103,7 @@ export const RecentChangesTable = React.memo(function RecentChangesTable({
 				<div className="flex flex-col gap-1.5">
 					<label className="text-muted-foreground text-xs font-medium">Tipo</label>
 					<Select
-						items={TYPE_OPTIONS}
+						items={CHANGE_TYPE_OPTIONS}
 						value={typeFilter}
 						onValueChange={(value) => setTypeFilter(value ?? "all")}
 					>
@@ -118,7 +111,7 @@ export const RecentChangesTable = React.memo(function RecentChangesTable({
 							<SelectValue placeholder="Todos" />
 						</SelectTrigger>
 						<SelectContent>
-							{TYPE_OPTIONS.map((opt) => (
+							{CHANGE_TYPE_OPTIONS.map((opt) => (
 								<SelectItem key={opt.value} value={opt.value}>
 									{opt.label}
 								</SelectItem>

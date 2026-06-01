@@ -25,21 +25,14 @@ import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
-import type { ProductChange } from "../service/reports.service";
+import type { ProductChange } from "../model";
+import { CHANGE_TYPE_OPTIONS } from "../model";
 import { getHistoryColumns } from "./history-columns";
 
 interface HistoryTableProps {
 	changes: ProductChange[];
 	isPending: boolean;
 }
-
-const TYPE_OPTIONS = [
-	{ label: "Todos", value: "all" },
-	{ label: "Precio", value: "price_changed" },
-	{ label: "Stock", value: "stock_changed" },
-	{ label: "Creado", value: "created" },
-	{ label: "Sin stock", value: "out_of_stock" },
-];
 
 const coreRowModel = getCoreRowModel();
 const filteredRowModel = getFilteredRowModel();
@@ -127,12 +120,16 @@ export function HistoryTable({ changes, isPending }: HistoryTableProps) {
 			<div className="flex flex-wrap items-end gap-3">
 				<div className="flex flex-col gap-1.5">
 					<label className="text-muted-foreground text-xs font-medium">Tipo</label>
-					<Select items={TYPE_OPTIONS} value={typeFilter ?? "all"} onValueChange={handleTypeChange}>
+					<Select
+						items={CHANGE_TYPE_OPTIONS}
+						value={typeFilter ?? "all"}
+						onValueChange={handleTypeChange}
+					>
 						<SelectTrigger className="h-8 w-[140px]">
 							<SelectValue placeholder="Todos" />
 						</SelectTrigger>
 						<SelectContent>
-							{TYPE_OPTIONS.map((opt) => (
+							{CHANGE_TYPE_OPTIONS.map((opt) => (
 								<SelectItem key={opt.value} value={opt.value}>
 									{opt.label}
 								</SelectItem>

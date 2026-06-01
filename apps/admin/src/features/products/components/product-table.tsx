@@ -106,6 +106,8 @@ export const ProductTable = function ProductTable({
 
 	const handleRefresh = useCallback(() => {
 		void queryClient.invalidateQueries({ queryKey: productKeys.all });
+		void queryClient.invalidateQueries({ queryKey: ["brands"] });
+		void queryClient.invalidateQueries({ queryKey: ["categories"] });
 	}, [queryClient]);
 
 	const handleToggleStatus = useCallback(
