@@ -48,7 +48,10 @@ export async function getNotifications(userId: string, page = 1, limit = 20, unr
 		.offset((page - 1) * limit);
 
 	return {
-		notifications: rows,
+		notifications: rows.map((r) => ({
+			...r,
+			createdAt: r.createdAt.toISOString(),
+		})),
 		total: Number(result?.count ?? 0),
 		unreadCount: Number(unreadResult?.count ?? 0),
 	};

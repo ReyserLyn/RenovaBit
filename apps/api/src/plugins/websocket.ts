@@ -81,8 +81,12 @@ function startSubscriber(): void {
 
 		subscribeWithRetry(subscriber);
 	} catch (error) {
-		logger.withError(error).error("[WS] No se pudo inicializar subscriber Redis");
+		logger
+			.withError(error)
+			.error("[WS] No se pudo inicializar subscriber Redis — reintentando en 5s...");
 		subscriber = null;
+		// Reintentar inicialización si Redis no estaba disponible al arrancar
+		subscriberReconnectTimer = setTimeout(startSubscriber, SUBSCRIBER_RECONNECT_DELAY_MS);
 	}
 }
 

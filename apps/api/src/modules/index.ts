@@ -7,6 +7,7 @@ import { homeRoute } from "./home";
 import { notificationsRoute } from "./notifications";
 import { productImagesRoute } from "./product-images";
 import { productsRoute } from "./products";
+import { reportsRoute } from "./reports";
 import { scrapingController } from "./scrapping";
 import { storageRoute } from "./storage";
 import { usersRoute } from "./users";
@@ -17,6 +18,7 @@ const ApiV1Modules = new Elysia({ prefix: "/api/v1" })
 	.use(categoriesRoute)
 	.use(productsRoute)
 	.use(productImagesRoute)
+	.use(reportsRoute)
 	.use(notificationsRoute)
 	.use(storageRoute)
 	.use(usersRoute)

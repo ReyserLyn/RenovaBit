@@ -9,13 +9,14 @@ import {
 	DropdownMenuTrigger,
 } from "@renovabit/ui/components/ui/dropdown-menu";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { formatTime } from "@/shared/lib/format-date";
 import { useNotifications } from "../context/notifications-context";
 import type { AppNotification } from "../model";
 import { notificationDataSchema } from "../model";
 
 function formatSummary(notification: AppNotification): string {
-	const data = notificationDataSchema.parse(notification.data);
-	const s = data.stats;
+	const result = notificationDataSchema.safeParse(notification.data);
+	const s = result.success ? result.data.stats : undefined;
 	if (!s) return notification.title;
 	return `${s.processed} procesados · ${s.created} creados · ${s.updated} actualizados`;
 }
@@ -67,12 +68,7 @@ export function NotificationBell() {
 						>
 							<div className="flex w-full items-start justify-between gap-2">
 								<div className="flex-1 min-w-0">
-									<p className="text-xs text-muted-foreground">
-										{new Date(String(n.createdAt)).toLocaleTimeString("es-PE", {
-											hour: "2-digit",
-											minute: "2-digit",
-										})}
-									</p>
+									<p className="text-xs text-muted-foreground">{formatTime(n.createdAt)}</p>
 									<p className="text-sm">{formatSummary(n)}</p>
 								</div>
 								{!n.isRead && (

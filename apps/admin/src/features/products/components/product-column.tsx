@@ -3,6 +3,7 @@ import {
 	Delete01Icon,
 	Edit01Icon,
 	MoreHorizontalIcon,
+	Time01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "@renovabit/ui/components/ui/badge";
@@ -18,6 +19,7 @@ import {
 import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import { Switch } from "@renovabit/ui/components/ui/switch";
 import type { ColumnDef, Row } from "@tanstack/react-table";
+import { useCallback } from "react";
 import type { Brand } from "@/features/brands/model";
 import type { Category } from "@/features/categories/model";
 import { DataGridColumnHeader } from "@/shared/components/data-grid/data-grid-column-header";
@@ -121,6 +123,7 @@ interface ProductColumnsProps {
 	onDelete: (product: Product) => void;
 	onToggleStatus: (product: Product, isActive: boolean) => void;
 	onToggleFeatured: (product: Product, isFeatured: boolean) => void;
+	onHistory: (product: Product) => void;
 	brandsById: Map<string, Brand>;
 	categoriesById: Map<string, Category>;
 }
@@ -132,6 +135,7 @@ export function getProductColumns({
 	onDelete,
 	onToggleStatus,
 	onToggleFeatured,
+	onHistory,
 	brandsById,
 	categoriesById,
 }: ProductColumnsProps): ColumnDef<Product>[] {
@@ -464,6 +468,10 @@ export function getProductColumns({
 							<DropdownMenuItem onClick={() => onEdit(product)}>
 								<HugeiconsIcon icon={Edit01Icon} className="mr-2 size-4" />
 								Editar
+							</DropdownMenuItem>
+							<DropdownMenuItem onClick={() => onHistory(product)}>
+								<HugeiconsIcon icon={Time01Icon} className="mr-2 size-4" />
+								Ver historial
 							</DropdownMenuItem>
 							<DropdownMenuItem onClick={() => onToggleFeatured(product, !product.isFeatured)}>
 								<HugeiconsIcon icon={Bookmark01Icon} className="mr-2 size-4" />

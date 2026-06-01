@@ -170,6 +170,27 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 		},
 	)
 
+	// ── Product Changes (historial) ──────────────────
+	.get(
+		"/:id/changes",
+		async ({ params: { id } }) => {
+			const changes = await ProductService.getChanges(id);
+			return {
+				changes: changes.map((c) => ({
+					...c,
+					reportStartedAt: c.reportStartedAt?.toISOString() ?? null,
+					createdAt: c.createdAt.toISOString(),
+				})),
+				total: changes.length,
+			};
+		},
+		{
+			isAdmin: true,
+			params: ProductModel.idParams,
+			detail: { summary: "Historial de cambios del producto", tags: ["Products"] },
+		},
+	)
+
 	// ── Bulk Delete ─────────────────────────────────
 	.post(
 		"/bulk",

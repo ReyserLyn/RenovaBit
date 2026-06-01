@@ -29,7 +29,7 @@ export const notificationDataSchema = z.object({
 export const userInfoSchema = z.object({
 	id: z.string(),
 	email: z.string(),
-	username: z.string(),
+	username: z.string().nullable(),
 	displayUsername: z.string().nullable(),
 });
 
@@ -54,3 +54,25 @@ export type UserInfo = z.infer<typeof userInfoSchema>;
 
 export type SyncProgress = SyncStats & { total: number; reportId: string };
 export type SyncCompletedEvent = { reportId: string; stats: SyncStats; trigger: string };
+
+// ── Change Type Labels ────────────────────────────
+// Mapea changeType de reports a label + variant para badges
+
+export const CHANGE_LABELS: Record<
+	string,
+	{ label: string; variant: "success" | "warning" | "info" | "destructive" }
+> = {
+	created: { label: "Creado", variant: "success" },
+	price_changed: { label: "Precio", variant: "warning" },
+	stock_changed: { label: "Stock", variant: "info" },
+	out_of_stock: { label: "Sin stock", variant: "destructive" },
+};
+
+export const SORT_OPTIONS = [
+	{ label: "Nombre A-Z", value: "name-asc" },
+	{ label: "Nombre Z-A", value: "name-desc" },
+	{ label: "Por tipo", value: "type" },
+	{ label: "Más reciente", value: "newest" },
+] as const;
+
+export type SortOption = (typeof SORT_OPTIONS)[number]["value"];

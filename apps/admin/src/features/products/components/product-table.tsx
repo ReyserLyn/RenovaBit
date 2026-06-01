@@ -40,6 +40,7 @@ import { getProductColumns } from "./product-column";
 interface ProductTableProps {
 	onEdit: (product: Product) => void;
 	onDelete: (product: Product) => void;
+	onHistory: (product: Product) => void;
 }
 
 const EMPTY_PRODUCTS: Product[] = [];
@@ -52,7 +53,11 @@ const paginationRowModel = getPaginationRowModel();
 
 // ── Component ──────────────────────────────────────
 
-export const ProductTable = function ProductTable({ onEdit, onDelete }: ProductTableProps) {
+export const ProductTable = function ProductTable({
+	onEdit,
+	onDelete,
+	onHistory,
+}: ProductTableProps) {
 	const queryClient = useQueryClient();
 	const { data: productsData, isPending, isFetching, isError, error } = useProducts();
 	const products = productsData ?? EMPTY_PRODUCTS;
@@ -138,10 +143,19 @@ export const ProductTable = function ProductTable({ onEdit, onDelete }: ProductT
 				onDelete,
 				onToggleStatus: handleToggleStatus,
 				onToggleFeatured: handleToggleFeatured,
+				onHistory,
 				brandsById,
 				categoriesById,
 			}),
-		[onEdit, onDelete, handleToggleStatus, handleToggleFeatured, brandsById, categoriesById],
+		[
+			onEdit,
+			onDelete,
+			handleToggleStatus,
+			handleToggleFeatured,
+			onHistory,
+			brandsById,
+			categoriesById,
+		],
 	);
 
 	// ── Table instance ───────────────────────────────

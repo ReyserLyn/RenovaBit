@@ -1,7 +1,7 @@
 import { Add01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@renovabit/ui/components/ui/button";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
 import { brandsQueryOptions } from "@/features/brands/hooks";
 import { categoriesQueryOptions } from "@/features/categories/hooks";
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/_authenticated/productos")({
 });
 
 function ProductsPage() {
+	const navigate = useNavigate();
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -35,6 +36,13 @@ function ProductsPage() {
 		setSelectedProduct(product);
 		setIsDeleteDialogOpen(true);
 	}, []);
+
+	const handleHistory = useCallback(
+		(product: Product) => {
+			navigate({ to: "/historial", search: { producto: product.id } });
+		},
+		[navigate],
+	);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -63,7 +71,7 @@ function ProductsPage() {
 				onOpenChange={setIsDeleteDialogOpen}
 			/>
 
-			<ProductTable onEdit={handleEdit} onDelete={handleDelete} />
+			<ProductTable onEdit={handleEdit} onDelete={handleDelete} onHistory={handleHistory} />
 		</div>
 	);
 }

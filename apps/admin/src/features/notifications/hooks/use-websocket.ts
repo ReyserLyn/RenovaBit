@@ -14,12 +14,18 @@ type WsCallbacks = {
 const WS_URL = getWsUrl();
 const RECONNECT_DELAY = 3000;
 
+/**
+ * Hook de WebSocket con heartbeat y reconexión automática.
+ *
+ * Los callbacks se mantienen estables vía ref pattern (React 19).
+ * `connect` usa `[]` como deps para no reconectar cuando cambian los callbacks.
+ */
 export function useWebSocket(callbacks: WsCallbacks) {
 	const [isConnected, setIsConnected] = useState(false);
 	const wsRef = useRef<WebSocket | null>(null);
 	const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	// Ref para que el handler de mensajes siempre lea los callbacks más recientes
 	const callbacksRef = useRef(callbacks);
-
 	callbacksRef.current = callbacks;
 
 	const connect = useCallback(() => {

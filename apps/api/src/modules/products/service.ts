@@ -1,6 +1,13 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { brands, categories, productImages, products } from "@renovabit/db/schema";
+import {
+	brands,
+	categories,
+	productChanges,
+	productImages,
+	products,
+	syncReports,
+} from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, desc, eq, getTableColumns, inArray, ne, sql } from "drizzle-orm";
 import slugify from "slugify";
@@ -401,12 +408,36 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 		});
 }
 
+// ── Product Changes (historial) ───────────────────
+
+async function getChanges(productId: string) {
+	return db
+		.select({
+			id: productChanges.id,
+			syncReportId: productChanges.syncReportId,
+			reportTrigger: syncReports.trigger,
+			reportStartedAt: syncReports.startedAt,
+			changeType: productChanges.changeType,
+			field: productChanges.field,
+			oldValue: productChanges.oldValue,
+			newValue: productChanges.newValue,
+			reason: productChanges.reason,
+			source: productChanges.source,
+			createdAt: productChanges.createdAt,
+		})
+		.from(productChanges)
+		.leftJoin(syncReports, eq(productChanges.syncReportId, syncReports.id))
+		.where(eq(productChanges.productId, productId))
+		.orderBy(desc(productChanges.createdAt));
+}
+
 // ── Public API ─────────────────────────────────────
 
 export const ProductService = {
 	list,
 	getBySlug,
 	getById,
+	getChanges,
 	create,
 	update,
 	delete: deleteById,

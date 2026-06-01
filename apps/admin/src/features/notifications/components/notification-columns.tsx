@@ -1,21 +1,9 @@
-import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataGridColumnHeader } from "@/shared/components/data-grid/data-grid-column-header";
+import { formatDateTime } from "@/shared/lib/format-date";
 import type { AppNotification, NotificationData } from "../model";
-
-const dateFormatter = new Intl.DateTimeFormat("es-PE", {
-	day: "2-digit",
-	month: "short",
-	year: "numeric",
-	hour: "2-digit",
-	minute: "2-digit",
-});
-
-function formatDate(iso: string): string {
-	const d = new Date(iso);
-	return Number.isNaN(d.getTime()) ? "—" : dateFormatter.format(d);
-}
+import { TriggerBadge } from "./trigger-badge";
 
 export function getNotificationColumns(): ColumnDef<
 	AppNotification & { _parsed: NotificationData }
@@ -41,7 +29,7 @@ export function getNotificationColumns(): ColumnDef<
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Fecha" />,
 			cell: ({ row }) => (
 				<span className="text-muted-foreground text-sm whitespace-nowrap tabular-nums">
-					{formatDate(row.original.createdAt)}
+					{formatDateTime(row.original.createdAt)}
 				</span>
 			),
 			size: 180,
@@ -67,18 +55,7 @@ export function getNotificationColumns(): ColumnDef<
 				skeleton: <Skeleton className="h-5 w-20 rounded-full" />,
 			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Tipo" />,
-			cell: ({ row }) => {
-				const trigger = row.original._parsed.trigger;
-				if (!trigger) return <span className="text-muted-foreground text-sm">—</span>;
-
-				const variant = trigger === "manual" ? ("warning" as const) : ("info" as const);
-				const label = trigger === "manual" ? "Manual" : "Automático";
-				return (
-					<Badge variant={variant} size="sm">
-						{label}
-					</Badge>
-				);
-			},
+			cell: ({ row }) => <TriggerBadge trigger={row.original._parsed.trigger} />,
 			size: 120,
 		},
 	];

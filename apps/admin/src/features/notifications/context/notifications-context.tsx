@@ -79,6 +79,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 		setLastCompleted(null);
 	}, []);
 
+	const markAsRead = markReadMutation.mutate;
+	const markAllAsRead = markAllReadMutation.mutate;
+
 	const value = useMemo<NotificationsContextValue>(
 		() => ({
 			notifications: data?.notifications ?? [],
@@ -87,11 +90,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 			progress,
 			lastCompleted,
 			isConnected,
-			markAsRead: markReadMutation.mutate,
-			markAllAsRead: markAllReadMutation.mutate,
+			markAsRead,
+			markAllAsRead,
 			clearCompleted,
 		}),
-		[data, progress, lastCompleted, isConnected, clearCompleted],
+		[data, progress, lastCompleted, isConnected, markAsRead, markAllAsRead, clearCompleted],
 	);
 
 	return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
