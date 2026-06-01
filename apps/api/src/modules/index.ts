@@ -3,6 +3,7 @@ import { WebSocketPlugin } from "@/plugins/websocket";
 import { AuthModule } from "./auth";
 import { brandsRoute } from "./brands";
 import { categoriesRoute } from "./categories";
+import { changesRoute } from "./changes";
 import { homeRoute } from "./home";
 import { notificationsRoute } from "./notifications";
 import { productImagesRoute } from "./product-images";
@@ -16,6 +17,7 @@ const ApiV1Modules = new Elysia({ prefix: "/api/v1" })
 	.use(AuthModule)
 	.use(brandsRoute)
 	.use(categoriesRoute)
+	.use(changesRoute)
 	.use(productsRoute)
 	.use(productImagesRoute)
 	.use(reportsRoute)

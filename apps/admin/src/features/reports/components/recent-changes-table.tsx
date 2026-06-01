@@ -10,27 +10,26 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@renovabit/ui/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
 import {
-	type ColumnFiltersState,
 	getCoreRowModel,
-	getFilteredRowModel,
-	getPaginationRowModel,
 	getSortedRowModel,
 	type PaginationState,
 	type SortingState,
 	useReactTable,
 } from "@tanstack/react-table";
-import { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
-import type { ProductChange } from "../service/reports.service";
-import { getHistoryColumns } from "./history-columns";
+import { useDebouncedValue } from "@/shared/lib/hooks/use-debounced-value";
+import { recentChangesQueryOptions } from "../hooks/reports-queries";
+import type { RecentChange } from "../service/reports.service";
+import { getRecentChangesColumns } from "./history-columns";
 
-interface HistoryTableProps {
-	changes: ProductChange[];
-	isPending: boolean;
+interface RecentChangesTableProps {
+	onProductClick?: (productId: string) => void;
 }
 
 const TYPE_OPTIONS = [
@@ -42,92 +41,79 @@ const TYPE_OPTIONS = [
 ];
 
 const coreRowModel = getCoreRowModel();
-const filteredRowModel = getFilteredRowModel();
 const sortedRowModel = getSortedRowModel();
-const paginationRowModel = getPaginationRowModel();
 
-const historyGlobalFilterFn = (
-	row: { original: ProductChange },
-	_: string,
-	filterValue: string,
-) => {
-	const search = String(filterValue).toLowerCase().trim();
-	if (!search) return true;
-	const c = row.original;
-
-	const localDate = new Date(c.createdAt).toLocaleString("sv-SE").toLowerCase();
-
-	return (
-		String(c.syncReportId ?? "")
-			.toLowerCase()
-			.includes(search) ||
-		String(c.reportTrigger ?? "")
-			.toLowerCase()
-			.includes(search) ||
-		localDate.includes(search)
-	);
-};
-
-export function HistoryTable({ changes, isPending }: HistoryTableProps) {
+export const RecentChangesTable = React.memo(function RecentChangesTable({
+	onProductClick,
+}: RecentChangesTableProps) {
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 15 });
 	const [sorting, setSorting] = useState<SortingState>([]);
-	const [globalFilter, setGlobalFilter] = useState("");
-	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+	const [typeFilter, setTypeFilter] = useState<string>("all");
+	const [search, setSearch] = useState("");
+	const debouncedSearch = useDebouncedValue(search, 300);
 
-	const columns = useMemo(() => getHistoryColumns(), []);
+	// ── Server-side pagination ──────────────────────────
 
-	// Sync type filter with columnFilters
-	const typeFilter = columnFilters.find((f) => f.id === "changeType")?.value as string | undefined;
+	const { data, isPending, isError, error, refetch } = useQuery(
+		recentChangesQueryOptions({
+			page: pagination.pageIndex + 1,
+			pageSize: pagination.pageSize,
+			type: typeFilter !== "all" ? typeFilter : undefined,
+			search: debouncedSearch || undefined,
+		}),
+	);
 
-	const handleTypeChange = (value: string | null) => {
-		const next = value ?? "all";
-		if (next === "all") {
-			setColumnFilters((prev) => prev.filter((f) => f.id !== "changeType"));
-		} else {
-			setColumnFilters((prev) => [
-				...prev.filter((f) => f.id !== "changeType"),
-				{ id: "changeType", value: next },
-			]);
-		}
-	};
+	const changes = data?.changes ?? [];
+	const totalCount = data?.total ?? 0;
 
-	// Reset pagination on filter change
+	// Resetear a página 1 cuando cambian filtros
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, [columnFilters, globalFilter]);
+	}, [debouncedSearch, typeFilter]);
+
+	// Resetear a página 1 cuando cambia el pageSize
+	useEffect(() => {
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, [pagination.pageSize]);
+
+	const columns = useMemo(() => getRecentChangesColumns(), []);
 
 	const table = useReactTable({
 		data: changes,
 		columns,
-		state: {
-			pagination,
-			sorting,
-			globalFilter,
-			columnFilters,
-		},
+		state: { pagination, sorting },
 		onPaginationChange: setPagination,
 		onSortingChange: setSorting,
-		onGlobalFilterChange: setGlobalFilter,
-		onColumnFiltersChange: setColumnFilters,
+		manualPagination: true,
+		rowCount: totalCount,
 		getCoreRowModel: coreRowModel,
-		getFilteredRowModel: filteredRowModel,
 		getSortedRowModel: sortedRowModel,
-		getPaginationRowModel: paginationRowModel,
-		globalFilterFn: historyGlobalFilterFn,
 		enableSorting: true,
 		enableSortingRemoval: true,
 		getRowId: (row) => row.id,
 	});
 
-	const totalCount = changes.length;
-	const filteredCount = table.getFilteredRowModel().rows.length;
+	const handleRowClick = useCallback(
+		(row: RecentChange) => {
+			onProductClick?.(row.productId);
+		},
+		[onProductClick],
+	);
+
+	const handleRefresh = useCallback(() => {
+		refetch();
+	}, [refetch]);
 
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex flex-wrap items-end gap-3">
 				<div className="flex flex-col gap-1.5">
 					<label className="text-muted-foreground text-xs font-medium">Tipo</label>
-					<Select items={TYPE_OPTIONS} value={typeFilter ?? "all"} onValueChange={handleTypeChange}>
+					<Select
+						items={TYPE_OPTIONS}
+						value={typeFilter}
+						onValueChange={(value) => setTypeFilter(value ?? "all")}
+					>
 						<SelectTrigger className="h-8 w-[140px]">
 							<SelectValue placeholder="Todos" />
 						</SelectTrigger>
@@ -147,32 +133,51 @@ export function HistoryTable({ changes, isPending }: HistoryTableProps) {
 						className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
 					/>
 					<Input
-						placeholder="Filtrar por reporte, trigger o fecha…"
-						value={globalFilter}
-						onChange={(e) => setGlobalFilter(e.target.value)}
+						placeholder="Buscar por producto o SKU…"
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
 						className="h-8 w-full min-w-0 bg-card pl-9"
 					/>
 				</div>
 
-				{typeFilter && typeFilter !== "all" && (
+				{typeFilter !== "all" && (
 					<Button
 						type="button"
 						variant="ghost"
 						size="sm"
 						className="h-8 text-xs"
-						onClick={() => handleTypeChange("all")}
+						onClick={() => setTypeFilter("all")}
 					>
 						Limpiar tipo
 					</Button>
 				)}
 			</div>
 
+			{isError ? (
+				<div className="flex flex-col items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+					<p className="text-sm">
+						No se pudieron cargar los cambios.
+						{error instanceof Error ? ` ${error.message}` : ""}
+					</p>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-8"
+						onClick={handleRefresh}
+						disabled={isPending}
+					>
+						Reintentar
+					</Button>
+				</div>
+			) : null}
+
 			<Card className="gap-0 overflow-hidden py-0 shadow-sm">
 				<DataGrid
 					table={table}
-					recordCount={filteredCount}
+					recordCount={totalCount}
 					isLoading={isPending}
-					emptyMessage="No se encontraron cambios."
+					emptyMessage="No se encontraron cambios recientes."
 					loadingMessage="Cargando cambios…"
 					tableLayout={{
 						cellBorder: false,
@@ -183,6 +188,7 @@ export function HistoryTable({ changes, isPending }: HistoryTableProps) {
 						headerSticky: false,
 						width: "fixed",
 					}}
+					onRowClick={handleRowClick}
 				>
 					<div className="w-full space-y-2.5">
 						<DataGridContainer border={false} className="max-w-full rounded-none border-0">
@@ -191,7 +197,7 @@ export function HistoryTable({ changes, isPending }: HistoryTableProps) {
 							</DataGridScrollArea>
 						</DataGridContainer>
 
-						{!isPending && totalCount > 0 && (
+						{totalCount > 0 && (
 							<div className="border-border border-t bg-muted/30">
 								<DataGridPagination selectionInfo={`${totalCount} cambios`} />
 							</div>
@@ -201,4 +207,4 @@ export function HistoryTable({ changes, isPending }: HistoryTableProps) {
 			</Card>
 		</div>
 	);
-}
+});
