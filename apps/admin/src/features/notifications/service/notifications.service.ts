@@ -6,11 +6,13 @@ async function list(params: {
 	page?: number;
 	limit?: number;
 	unreadOnly?: boolean;
+	search?: string;
 }): Promise<{ notifications: AppNotification[]; total: number; unreadCount: number }> {
 	const query: Record<string, string> = {};
 	if (params.page) query.page = String(params.page);
 	if (params.limit) query.limit = String(params.limit);
 	if (params.unreadOnly) query.unreadOnly = "true";
+	if (params.search) query.search = params.search;
 
 	return unwrapResponse(api.api.v1.notifications.get({ query }));
 }

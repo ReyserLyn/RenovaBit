@@ -12,8 +12,9 @@ export const notificationsRoute = new Elysia({ prefix: "/notifications" })
 			const page = Number.parseInt(query.page ?? "1", 10) || 1;
 			const limit = Number.parseInt(query.limit ?? "20", 10) || 20;
 			const unreadOnly = query.unreadOnly === "true";
+			const search = query.search || undefined;
 
-			return getNotifications(userId, page, limit, unreadOnly);
+			return getNotifications(userId, page, limit, unreadOnly, search);
 		},
 		{
 			isAdmin: true,

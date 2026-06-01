@@ -4,23 +4,16 @@ import { Button } from "@renovabit/ui/components/ui/button";
 import { Card } from "@renovabit/ui/components/ui/card";
 import { Input } from "@renovabit/ui/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
-import {
-	getCoreRowModel,
-	getFilteredRowModel,
-	getPaginationRowModel,
-	type PaginationState,
-	useReactTable,
-} from "@tanstack/react-table";
+import { getCoreRowModel, type PaginationState, useReactTable } from "@tanstack/react-table";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
 import { useDebouncedValue } from "@/shared/lib/hooks/use-debounced-value";
-import { notificationKeys } from "../hooks/notification-queries";
+import { notificationsPaginatedQueryOptions } from "../hooks/notification-queries";
 import type { AppNotification, NotificationData } from "../model";
 import { notificationDataSchema } from "../model";
-import { notificationsService } from "../service/notifications.service";
 import { getNotificationColumns } from "./notification-columns";
 
 interface NotificationTableProps {
@@ -29,8 +22,6 @@ interface NotificationTableProps {
 }
 
 const coreRowModel = getCoreRowModel();
-const filteredRowModel = getFilteredRowModel();
-const paginationRowModel = getPaginationRowModel();
 
 type EnrichedRow = AppNotification & { _parsed: NotificationData };
 
@@ -39,33 +30,43 @@ export const NotificationTable = React.memo(function NotificationTable({
 	selectedId,
 }: NotificationTableProps) {
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 15 });
-	const [globalFilter, setGlobalFilter] = useState("");
-	const debouncedFilter = useDebouncedValue(globalFilter, 300);
+	const [search, setSearch] = useState("");
+	const debouncedSearch = useDebouncedValue(search, 300);
 	const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
 
-	// Traer todas — paginación client-side como brands
-	// TanStack Table soporta cientos de miles de filas client-side sin problemas.
-	const { data, isPending, isError, error, refetch } = useQuery({
-		queryKey: notificationKeys.lists(),
-		queryFn: () => notificationsService.list({ limit: 500 }),
-		placeholderData: (prev) => prev,
-	});
+	// ── Server-side pagination ──────────────────────────
+
+	const { data, isPending, isError, error, refetch } = useQuery(
+		notificationsPaginatedQueryOptions({
+			page: pagination.pageIndex + 1,
+			pageSize: pagination.pageSize,
+			search: debouncedSearch || undefined,
+		}),
+	);
+
+	const notifications = data?.notifications ?? [];
+	const totalCount = data?.total ?? 0;
+	const unreadCount = data?.unreadCount ?? 0;
 
 	const rows = useMemo(() => {
-		const raw = data?.notifications ?? [];
-		return raw.map((n) => {
+		return notifications.map((n) => {
 			const result = notificationDataSchema.safeParse(n.data);
 			return {
 				...n,
 				_parsed: result.success ? (result.data as NotificationData) : ({} as NotificationData),
 			};
 		});
-	}, [data]);
+	}, [notifications]);
 
-	// Resetear a página 1 cuando cambia el filtro (usando debounced)
+	// Resetear a página 1 cuando cambia la búsqueda
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, [debouncedFilter]);
+	}, [debouncedSearch]);
+
+	// Resetear a página 1 cuando cambia el pageSize
+	useEffect(() => {
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, [pagination.pageSize]);
 
 	// Sincronizar selección visual con selectedId
 	useEffect(() => {
@@ -78,42 +79,20 @@ export const NotificationTable = React.memo(function NotificationTable({
 		}
 	}, [selectedId]);
 
-	const totalCount = data?.total ?? 0;
-
 	const columns = useMemo(() => getNotificationColumns(), []);
-
-	// ── globalFilterFn estable (useCallback + tipado explícito) ──
-	const globalFilterFn = useCallback(
-		(row: { original: EnrichedRow }, _columnId: string, filterValue: string) => {
-			if (!filterValue) return true;
-			const search = filterValue.toLowerCase();
-			const { id } = row.original;
-			const parsed = row.original._parsed;
-			return (
-				id.toLowerCase().includes(search) ||
-				(parsed.jobId?.toLowerCase().includes(search) ?? false) ||
-				(parsed.reportId?.toLowerCase().includes(search) ?? false)
-			);
-		},
-		[],
-	);
 
 	const table = useReactTable({
 		data: rows,
 		columns,
-		state: { pagination, globalFilter: debouncedFilter, rowSelection },
+		state: { pagination, rowSelection },
 		onPaginationChange: setPagination,
-		onGlobalFilterChange: setGlobalFilter,
 		onRowSelectionChange: setRowSelection,
 		enableRowSelection: true,
+		manualPagination: true,
+		rowCount: totalCount,
 		getCoreRowModel: coreRowModel,
-		getFilteredRowModel: filteredRowModel,
-		getPaginationRowModel: paginationRowModel,
-		globalFilterFn,
 		getRowId: (row) => row.id,
 	});
-
-	const filteredCount = table.getFilteredRowModel().rows.length;
 
 	const handleRowClick = useCallback(
 		(row: EnrichedRow) => {
@@ -147,15 +126,16 @@ export const NotificationTable = React.memo(function NotificationTable({
 				</div>
 			) : null}
 
+			{/* ── Search ─────────────────── */}
 			<div className="relative w-full min-w-0 sm:max-w-md">
 				<HugeiconsIcon
 					icon={Search01Icon}
 					className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
 				/>
 				<Input
-					placeholder="Filtrar por ID, Job o Reporte…"
-					value={globalFilter}
-					onChange={(e) => setGlobalFilter(e.target.value)}
+					placeholder="Buscar por ID, Job o Reporte…"
+					value={search}
+					onChange={(e) => setSearch(e.target.value)}
 					className="w-full min-w-0 bg-card pl-9"
 				/>
 			</div>
@@ -163,7 +143,7 @@ export const NotificationTable = React.memo(function NotificationTable({
 			<Card className="gap-0 overflow-hidden py-0 shadow-sm">
 				<DataGrid
 					table={table}
-					recordCount={filteredCount}
+					recordCount={totalCount}
 					isLoading={isPending}
 					emptyMessage="No hay notificaciones."
 					loadingMessage="Cargando notificaciones…"
@@ -185,10 +165,10 @@ export const NotificationTable = React.memo(function NotificationTable({
 							</DataGridScrollArea>
 						</DataGridContainer>
 
-						{!isPending && totalCount > 0 && (
+						{totalCount > 0 && (
 							<div className="border-border border-t bg-muted/30">
 								<DataGridPagination
-									selectionInfo={`${totalCount} notificaciones${data?.unreadCount ? ` · ${data.unreadCount} sin leer` : ""}`}
+									selectionInfo={`${totalCount} notificaciones${unreadCount > 0 ? ` · ${unreadCount} sin leer` : ""}`}
 								/>
 							</div>
 						)}

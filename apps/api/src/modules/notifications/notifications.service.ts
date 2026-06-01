@@ -1,16 +1,31 @@
 import { db } from "@renovabit/db";
 import { adminNotifications, users } from "@renovabit/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 
 export async function getAdminIds(): Promise<string[]> {
 	const rows = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
 	return rows.map((r) => r.id);
 }
 
-export async function getNotifications(userId: string, page = 1, limit = 20, unreadOnly = false) {
+export async function getNotifications(
+	userId: string,
+	page = 1,
+	limit = 20,
+	unreadOnly = false,
+	search?: string,
+) {
 	const where = and(
 		eq(adminNotifications.userId, userId),
 		...(unreadOnly ? [eq(adminNotifications.isRead, false)] : []),
+		...(search
+			? [
+					or(
+						sql`${adminNotifications.id}::text ILIKE ${`%${search}%`}`,
+						sql`${adminNotifications.data}->>'jobId' ILIKE ${`%${search}%`}`,
+						sql`${adminNotifications.data}->>'reportId' ILIKE ${`%${search}%`}`,
+					),
+				]
+			: []),
 	);
 
 	const [result] = await db
