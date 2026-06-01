@@ -1,5 +1,5 @@
 {
-	"id": "1e607205-c390-4d83-bc1f-5c07c5eb68b2",
+	"id": "164c463d-b879-4650-a7c8-e3ff1c7c5aba",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"version": "7",
 	"dialect": "postgresql",
@@ -1395,6 +1395,105 @@
 			"uniqueConstraints": {
 				"product_providers_external_unique": {
 					"name": "product_providers_external_unique",
+					"nullsNotDistinct": false,
+					"columns": [
+						"source",
+						"external_id"
+					]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.scraping_blacklist": {
+			"name": "scraping_blacklist",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "uuidv7()"
+				},
+				"source": {
+					"name": "source",
+					"type": "varchar(100)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"external_id": {
+					"name": "external_id",
+					"type": "varchar(255)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"product_name": {
+					"name": "product_name",
+					"type": "varchar(255)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"reason": {
+					"name": "reason",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"scraping_blacklist_source_idx": {
+					"name": "scraping_blacklist_source_idx",
+					"columns": [
+						{
+							"expression": "source",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"scraping_blacklist_created_by_users_id_fk": {
+					"name": "scraping_blacklist_created_by_users_id_fk",
+					"tableFrom": "scraping_blacklist",
+					"tableTo": "users",
+					"columnsFrom": ["created_by"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"scraping_blacklist_source_external_unique": {
+					"name": "scraping_blacklist_source_external_unique",
 					"nullsNotDistinct": false,
 					"columns": [
 						"source",

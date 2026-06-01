@@ -155,6 +155,18 @@ CREATE TABLE "product_providers" (
 	CONSTRAINT "product_providers_external_unique" UNIQUE("source","external_id")
 );
 --> statement-breakpoint
+CREATE TABLE "scraping_blacklist" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"source" varchar(100) NOT NULL,
+	"external_id" varchar(255) NOT NULL,
+	"product_name" varchar(255),
+	"reason" text,
+	"created_by" uuid,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "scraping_blacklist_source_external_unique" UNIQUE("source","external_id")
+);
+--> statement-breakpoint
 CREATE TABLE "admin_notifications" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"user_id" uuid NOT NULL,
@@ -204,6 +216,7 @@ ALTER TABLE "products" ADD CONSTRAINT "products_category_id_categories_id_fk" FO
 ALTER TABLE "products" ADD CONSTRAINT "products_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "products" ADD CONSTRAINT "products_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_providers" ADD CONSTRAINT "product_providers_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scraping_blacklist" ADD CONSTRAINT "scraping_blacklist_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "admin_notifications" ADD CONSTRAINT "admin_notifications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_changes" ADD CONSTRAINT "product_changes_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_changes" ADD CONSTRAINT "product_changes_sync_report_id_sync_reports_id_fk" FOREIGN KEY ("sync_report_id") REFERENCES "public"."sync_reports"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -230,6 +243,7 @@ CREATE INDEX "products_category_id_idx" ON "products" USING btree ("category_id"
 CREATE INDEX "products_is_active_idx" ON "products" USING btree ("is_active");--> statement-breakpoint
 CREATE INDEX "products_featured_idx" ON "products" USING btree ("is_featured");--> statement-breakpoint
 CREATE INDEX "product_providers_product_idx" ON "product_providers" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "scraping_blacklist_source_idx" ON "scraping_blacklist" USING btree ("source");--> statement-breakpoint
 CREATE INDEX "admin_notifications_user_idx" ON "admin_notifications" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "admin_notifications_unread_idx" ON "admin_notifications" USING btree ("user_id","is_read") WHERE "admin_notifications"."is_read" = false;--> statement-breakpoint
 CREATE INDEX "product_changes_product_idx" ON "product_changes" USING btree ("product_id");--> statement-breakpoint
