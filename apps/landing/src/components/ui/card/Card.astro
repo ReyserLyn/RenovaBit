@@ -1,0 +1,30 @@
+---
+import { cn } from "@renovabit/ui/lib/utils"
+import type { HTMLAttributes } from "astro/types"
+
+type Props = HTMLAttributes<"div"> & {
+	variant?: "default" | "ghost"
+	size?: "default" | "sm"
+}
+
+const {
+	class: className = "",
+	variant = "default",
+	size = "default",
+	...rest
+} = Astro.props as Props
+---
+
+<div
+	data-slot="card"
+	data-variant={variant}
+	data-size={size}
+	class={cn(
+		"ring-foreground/10 bg-card text-card-foreground gap-4 overflow-hidden rounded-xl py-4 text-sm ring-1 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 has-[>[data-slot=card-media]:first-child_img]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl group/card flex flex-col",
+		variant === "ghost" && "shadow-none ring-0",
+		className,
+	)}
+	{...rest}
+>
+	<slot />
+</div>

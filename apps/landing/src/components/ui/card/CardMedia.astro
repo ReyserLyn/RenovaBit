@@ -1,0 +1,18 @@
+---
+import { cn } from "@renovabit/ui/lib/utils"
+import type { HTMLAttributes } from "astro/types"
+
+interface Props extends HTMLAttributes<"div"> {
+	class?: string
+}
+
+const { class: className = "", ...rest } = Astro.props as Props
+---
+
+<div
+	data-slot="card-media"
+	class={cn("z-0 overflow-hidden [&_img]:size-full [&_img]:object-cover", className)}
+	{...rest}
+>
+	<slot />
+</div>

@@ -1,12 +1,14 @@
 // @ts-check
 
-import preact from "@astrojs/preact";
+import sitemap from "@astrojs/sitemap";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, fontProviders } from "astro/config";
+import icon from "astro-icon";
 
 export default defineConfig({
+	site: "https://renovabit.com",
 	server: { port: 3000 },
-	integrations: [preact()],
+	integrations: [icon(), sitemap({})],
 	vite: {
 		plugins: [tailwindcss()],
 	},

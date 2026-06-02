@@ -1,0 +1,56 @@
+---
+import { CONTACT, NAV_ITEMS } from "@/constants"
+
+import Logo from "../ui/Logo.astro"
+import Button from "../ui/Button.astro"
+import MobileMenu from "./MobileMenu.astro"
+import ThemeToggle from "../ui/ThemeToggle.astro"
+
+const currentPath = Astro.url.pathname
+---
+
+<header class="sticky top-4 z-40 mx-auto w-full max-w-7xl px-4">
+	<nav
+		aria-label="Navegación principal"
+		class="mx-4 my-2 flex items-center justify-between rounded-2xl border border-border bg-background/95 px-4 py-3 shadow-lg backdrop-blur supports-backdrop-filter:bg-background/60"
+	>
+		<!-- Logo -->
+		<Logo href="/" size="md" priority ariaLabel="Ir al inicio" />
+
+		<!-- Desktop nav -->
+		<div class="hidden items-center gap-4 md:flex">
+			{
+				NAV_ITEMS.map((item) => (
+					<Button
+						as="a"
+						variant="ghost-accent"
+						href={item.href}
+						aria-current={currentPath === item.href ? "page" : undefined}
+						class="text-foreground/70 aria-[current=page]:bg-accent aria-[current=page]:text-foreground"
+					>
+						{item.label}
+					</Button>
+				))
+			}
+		</div>
+
+		<!-- Right side -->
+		<div class="flex items-center md:gap-4">
+			<ThemeToggle />
+
+			<Button
+				as="a"
+				href={CONTACT.whatsappUrl}
+				target="_blank"
+				rel="noopener noreferrer"
+				aria-label="Contactar por WhatsApp (se abre en nueva pestaña)"
+				class="hidden md:inline-flex"
+				size="lg"
+			>
+				Contáctanos
+			</Button>
+
+			<MobileMenu whatsappUrl={CONTACT.whatsappUrl} />
+		</div>
+	</nav>
+</header>

@@ -2,13 +2,20 @@
 import "@renovabit/ui/styles/globals.css"
 import "@/styles/landing.css"
 import { Font } from "astro:assets"
+import { ClientRouter } from "astro:transitions"
+import { ThemeScript } from "astro-theme-toggle/components"
+import { SITE } from "@/constants"
 
 interface Props {
 	title: string
 	description?: string
+	ogImage?: string
 }
 
-const { title, description } = Astro.props
+const { title, description = SITE.description, ogImage = SITE.ogImage } = Astro.props
+
+const pageTitle = `${title} — ${SITE.name}`
+const canonicalUrl = new URL(Astro.url.pathname, SITE.url).toString()
 ---
 
 <!doctype html>
@@ -16,20 +23,46 @@ const { title, description } = Astro.props
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>{title}</title>
+		<title>{pageTitle}</title>
+		<meta name="description" content={description} />
+		<meta name="author" content={SITE.author} />
+
+		<!-- Canonical -->
+		<link rel="canonical" href={canonicalUrl} />
+
+		<!-- Open Graph -->
+		<meta property="og:title" content={pageTitle} />
+		<meta property="og:description" content={description} />
+		<meta property="og:url" content={canonicalUrl} />
+		<meta property="og:site_name" content={SITE.name} />
+		<meta property="og:locale" content={SITE.locale} />
+		<meta property="og:type" content="website" />
+		<meta property="og:image" content={new URL(ogImage, SITE.url).toString()} />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+
+		<!-- Twitter Card -->
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={pageTitle} />
+		<meta name="twitter:description" content={description} />
+		<meta name="twitter:image" content={new URL(ogImage, SITE.url).toString()} />
 
 		<link rel="icon" href="/favicon.ico" />
 
-		<Font cssVariable="--font-outfit" preload={[{ weight: "400" }, { weight: "700" }]} />
+		<Font
+			cssVariable="--font-outfit"
+			preload={[{ weight: "400" }, { weight: "500" }, { weight: "700" }]}
+		/>
 
-		<meta name="description" content={description || title} />
-		<meta name="generator" content={Astro.generator} />
-
-		<meta name="author" content="ReyserLyn" />
+		<ThemeScript />
+		<ClientRouter />
 	</head>
-	<body>
-		<div class="bg-background relative flex min-h-svh w-full flex-col">
+
+	<body class="bg-background text-foreground font-sans antialiased">
+		<slot name="header" />
+
+		<main class="flex min-h-svh w-full flex-col">
 			<slot />
-		</div>
+		</main>
 	</body>
 </html>

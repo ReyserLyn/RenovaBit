@@ -1,0 +1,52 @@
+---
+import LogoDark from "@/assets/branding/logo-horizontal-dark.svg"
+import LogoLight from "@/assets/branding/logo-horizontal-light.svg"
+import { cn } from "@renovabit/ui/lib/utils"
+
+interface Props {
+	/** Controla el ancho del logo */
+	size?: "sm" | "md" | "lg"
+	/** true → loading eager + fetchpriority high (para LCP) */
+	priority?: boolean
+	href?: string
+	ariaLabel?: string
+	class?: string
+}
+
+const {
+	size = "md",
+	priority = false,
+	href = "/",
+	ariaLabel = "Ir al inicio",
+	class: className = "",
+} = Astro.props
+
+const widths: Record<NonNullable<Props["size"]>, string> = {
+	sm: "w-[100px]",
+	md: "w-[140px]",
+	lg: "w-[180px]",
+}
+
+const imgAttrs = priority
+	? { loading: "eager" as const, fetchpriority: "high" as const }
+	: { loading: "lazy" as const }
+---
+
+<a href={href} class={cn("shrink-0", className)} aria-label={ariaLabel}>
+	<img
+		src={LogoDark.src}
+		alt="RenovaBit"
+		width={LogoDark.width}
+		height={LogoDark.height}
+		class={cn("hidden dark:block", widths[size])}
+		{...imgAttrs}
+	/>
+	<img
+		src={LogoLight.src}
+		alt="RenovaBit"
+		width={LogoLight.width}
+		height={LogoLight.height}
+		class={cn("dark:hidden", widths[size])}
+		{...imgAttrs}
+	/>
+</a>

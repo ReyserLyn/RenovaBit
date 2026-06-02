@@ -1,14 +1,13 @@
 {
 	"extends": "astro/tsconfigs/strict",
 	"compilerOptions": {
-		"jsx": "react-jsx",
-		"jsxImportSource": "preact",
 		"paths": {
 			"@/*": ["./src/*"],
-			"@renovabit/*": [
-				"../../packages/*"
+			"@renovabit/ui/*": [
+				"../../packages/ui/src/*"
 			]
-		}
+		},
+		"verbatimModuleSyntax": true
 	},
 	"include": [
 		".astro/types.d.ts",

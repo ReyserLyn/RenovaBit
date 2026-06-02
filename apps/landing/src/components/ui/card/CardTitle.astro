@@ -1,0 +1,18 @@
+---
+import { cn } from "@renovabit/ui/lib/utils"
+import type { HTMLAttributes } from "astro/types"
+
+interface Props extends HTMLAttributes<"div"> {
+	class?: string
+}
+
+const { class: className = "", ...rest } = Astro.props as Props
+---
+
+<div
+	data-slot="card-title"
+	class={cn("text-base leading-snug font-medium group-data-[size=sm]/card:text-sm", className)}
+	{...rest}
+>
+	<slot />
+</div>
