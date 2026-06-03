@@ -11,6 +11,7 @@
 		"preview": "astro preview"
 	},
 	"dependencies": {
+		"@astroanimate/core": "^0.1.2",
 		"@renovabit/ui": "*"
 	},
 	"devDependencies": {

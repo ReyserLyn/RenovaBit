@@ -1,0 +1,148 @@
+---
+import { Image } from "astro:assets"
+import { Icon } from "astro-icon/components"
+import heroImage from "@/assets/images/hero/laptop-disambling.avif"
+import { CONTACT } from "@/constants"
+import Button from "@/components/ui/Button.astro"
+import HeroBackground from "@/components/ui/HeroBackground.astro"
+import WhatsappIcon from "@/components/social-icon/WhatsappIcon.astro"
+import GridDotsBackground from "@astroanimate/core/GridDotsBackground"
+import TypewriterText from "@astroanimate/core/TypewriterText"
+import HighlightText from "@astroanimate/core/HighlightText"
+
+const typewriterPhrases = [
+	"un cuidado experto",
+	"un diagnóstico gratis",
+	"un servicio rápido",
+	"la mejor garantía",
+]
+---
+
+<GridDotsBackground
+	variant="dots"
+	animate={true}
+	mask={true}
+	bgColor="transparent"
+	dotColor="color-mix(in oklab, var(--foreground) 8%, transparent)"
+	height="100%"
+	mainClassName="flex-1 w-full flex items-center"
+>
+	<HeroBackground />
+
+	<div class="container relative z-10 flex flex-1 flex-col lg:flex-row lg:items-stretch max-w-7xl">
+		<div
+			class="flex flex-col items-center justify-center pb-6 text-center lg:w-1/2 lg:items-start lg:text-left"
+		>
+			<div class="max-w-xl">
+				<!-- Badge -->
+				<span
+					class="animate-fade-in-up mb-5 inline-flex w-fit items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 text-xs font-medium text-foreground/70 backdrop-blur-sm lg:text-sm"
+				>
+					<Icon name="hugeicons:star" class="size-4 text-primary" />
+					4.9
+					<span class="text-muted-foreground">·</span>
+					Más de 50 equipos reparados este mes
+				</span>
+
+				<!-- Headline -->
+				<h1
+					class="animate-fade-in-up animate-delay-100 text-3xl font-bold leading-[1.15] tracking-tight text-foreground sm:text-4xl lg:text-5xl xl:text-6xl"
+				>
+					Tu laptop merece<br />
+					<span class="text-primary">
+						<TypewriterText
+							texts={typewriterPhrases}
+							typeSpeed={70}
+							eraseSpeed={35}
+							pauseAfter={2000}
+							enhance
+							mainClassName="text-primary"
+						/>
+					</span>
+				</h1>
+
+				<!-- Subheadline -->
+				<p
+					class="animate-fade-in-up animate-delay-200 mt-4 max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base lg:mt-5 lg:text-base xl:text-lg"
+				>
+					<HighlightText
+						trigger="load"
+						color="color-mix(in oklab, var(--primary) 30%, transparent)"
+					>
+						Diagnóstico gratis</HighlightText
+					> a domicilio. Reparación exprés con
+					<HighlightText trigger="load" variant="underline" color="var(--primary)"
+						>garantía incluida</HighlightText
+					> en Arequipa.
+				</p>
+
+				<!-- Features -->
+				<ul
+					class="animate-fade-in-up animate-delay-200 mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground lg:mt-6 lg:text-base"
+				>
+					<li class="flex items-center gap-1.5 lg:gap-2">
+						<Icon name="hugeicons:wrench-01" class="size-4 text-primary" />
+						<span>Reparación exprés</span>
+					</li>
+					<li class="flex items-center gap-1.5 lg:gap-2">
+						<Icon name="hugeicons:location-01" class="size-4 text-primary" />
+						<span>Domicilio en Arequipa</span>
+					</li>
+					<li class="flex items-center gap-1.5 lg:gap-2">
+						<Icon name="hugeicons:checkmark-circle-01" class="size-4 text-primary" />
+						<span>Garantía 30 días</span>
+					</li>
+				</ul>
+
+				<!-- CTAs -->
+				<div
+					class="animate-fade-in-up animate-delay-300 mt-6 flex flex-col gap-2.5 sm:flex-row sm:gap-3 lg:mt-8"
+				>
+					<Button
+						as="a"
+						href={CONTACT.whatsappUrl}
+						size="lg"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						<Icon name="hugeicons:appointment-01" class="size-4" />
+						Agendar servicio
+					</Button>
+					<Button
+						as="a"
+						href={CONTACT.whatsappUrl}
+						variant="outline"
+						size="lg"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						<WhatsappIcon size={16} />
+						WhatsApp
+					</Button>
+				</div>
+			</div>
+		</div>
+
+		<!-- ====== IMAGEN ====== -->
+		<div
+			class="relative flex flex-1 items-end justify-center lg:w-1/2 lg:flex-none lg:items-center lg:justify-center lg:pr-8"
+		>
+			<div
+				class="animate-fade-in animate-delay-100 flex w-full max-w-[280px] items-center justify-center sm:max-w-sm lg:h-full lg:max-h-full lg:max-w-xl xl:max-w-2xl top-7.5 relative"
+			>
+				<Image
+					src={heroImage}
+					alt="Técnico desarmando una laptop para diagnóstico y reparación"
+					class="h-auto max-h-[40dvh] min-h-[200px] w-full select-none object-contain drop-shadow-[0_0_50px_color-mix(in_oklab,var(--primary)_15%,transparent)] lg:max-h-full lg:h-full lg:w-auto animate-bouncing animate-iteration-count-infinite animate-duration-2000"
+					loading="eager"
+					fetchpriority="high"
+					decoding="async"
+					width={1343}
+					height={1800}
+					widths={[240, 320, 480, 500, 640, 960]}
+					sizes="(max-width: 640px) 240px, (max-width: 1024px) 320px, (max-width: 1280px) 480px, 576px"
+				/>
+			</div>
+		</div>
+	</div>
+</GridDotsBackground>

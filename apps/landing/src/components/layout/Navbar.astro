@@ -9,10 +9,10 @@ import ThemeToggle from "../ui/ThemeToggle.astro"
 const currentPath = Astro.url.pathname
 ---
 
-<header class="sticky top-4 z-40 mx-auto w-full max-w-7xl px-4">
+<header class="fixed top-0 left-0 right-0 z-50 mx-auto w-full max-w-7xl px-4 pt-4">
 	<nav
 		aria-label="Navegación principal"
-		class="mx-4 my-2 flex items-center justify-between rounded-2xl border border-border bg-background/95 px-4 py-3 shadow-lg backdrop-blur supports-backdrop-filter:bg-background/60"
+		class="flex items-center justify-between rounded-2xl border border-border bg-background/85 px-4 py-3 shadow-lg backdrop-blur-xl supports-backdrop-filter:bg-background/60"
 	>
 		<!-- Logo -->
 		<Logo href="/" size="md" priority ariaLabel="Ir al inicio" />

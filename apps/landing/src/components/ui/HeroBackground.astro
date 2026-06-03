@@ -1,0 +1,34 @@
+---
+/**
+ * HeroBackground — Gradientes radiales enfocados en la imagen del hero.
+ *
+ * Mobile: la imagen está abajo al centro → glow en la mitad inferior.
+ * Desktop: la imagen está a la derecha (lg:w-1/2) → glow en ~72% horizontal.
+ */
+---
+
+<div class="pointer-events-none absolute inset-0" aria-hidden="true">
+	<!-- Primary glow -->
+	<div
+		class="absolute inset-0 bg-[radial-gradient(ellipse_55%_25%_at_50%_80%,color-mix(in_oklab,var(--primary)_14%,transparent)_0%,transparent_55%)] lg:bg-[radial-gradient(ellipse_35%_55%_at_72%_50%,color-mix(in_oklab,var(--primary)_16%,transparent)_0%,transparent_60%)]"
+	>
+	</div>
+
+	<!-- Accent — warmth hugging the silhouette -->
+	<div
+		class="absolute inset-0 bg-[radial-gradient(ellipse_40%_20%_at_50%_80%,color-mix(in_oklab,var(--accent)_30%,transparent)_0%,transparent_55%)] lg:bg-[radial-gradient(ellipse_25%_40%_at_70%_52%,color-mix(in_oklab,var(--accent)_30%,transparent)_0%,transparent_55%)]"
+	>
+	</div>
+
+	<!-- Secondary — subtle edge glow on desktop -->
+	<div
+		class="absolute inset-0 bg-[radial-gradient(ellipse_60%_15%_at_50%_85%,color-mix(in_oklab,var(--secondary)_18%,transparent)_0%,transparent_60%)] lg:bg-[radial-gradient(ellipse_30%_60%_at_90%_50%,color-mix(in_oklab,var(--secondary)_14%,transparent)_0%,transparent_65%)]"
+	>
+	</div>
+
+	<!-- Vignette — darkens edges, focus stays on the image -->
+	<div
+		class="absolute inset-0 bg-[radial-gradient(ellipse_100%_100%_at_50%_50%,transparent_35%,color-mix(in_oklab,var(--foreground)_6%,transparent)_100%)]"
+	>
+	</div>
+</div>
