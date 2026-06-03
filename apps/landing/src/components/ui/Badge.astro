@@ -1,0 +1,18 @@
+---
+import { cn } from "@renovabit/ui/lib/utils"
+
+import { badgeVariants } from "@renovabit/ui/lib/badge-variants"
+
+const {
+	as: Tag = "span",
+	class: className = "",
+	variant = "default",
+	size = "default",
+	radius = "default",
+	...rest
+} = Astro.props
+---
+
+<Tag data-slot="badge" class={cn(badgeVariants({ variant, size, radius }), className)} {...rest}>
+	<slot />
+</Tag>

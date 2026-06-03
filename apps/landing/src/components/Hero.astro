@@ -5,6 +5,7 @@ import heroImage from "@/assets/images/hero/laptop-disambling.avif"
 import { CONTACT } from "@/constants"
 import Button from "@/components/ui/Button.astro"
 import HeroBackground from "@/components/ui/HeroBackground.astro"
+import Badge from "@/components/ui/Badge.astro"
 import WhatsappIcon from "@/components/social-icon/WhatsappIcon.astro"
 import GridDotsBackground from "@astroanimate/core/GridDotsBackground"
 import TypewriterText from "@astroanimate/core/TypewriterText"
@@ -12,8 +13,8 @@ import HighlightText from "@astroanimate/core/HighlightText"
 
 const typewriterPhrases = [
 	"un cuidado experto",
-	"un diagnóstico gratis",
-	"un servicio rápido",
+	"un servicio de confianza",
+	"un servicio completo",
 	"la mejor garantía",
 ]
 ---
@@ -35,14 +36,14 @@ const typewriterPhrases = [
 		>
 			<div class="max-w-xl">
 				<!-- Badge -->
-				<span
-					class="animate-fade-in-up mb-5 inline-flex w-fit items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 text-xs font-medium text-foreground/70 backdrop-blur-sm lg:text-sm"
-				>
-					<Icon name="hugeicons:star" class="size-4 text-primary" />
-					4.9
-					<span class="text-muted-foreground">·</span>
-					Más de 50 equipos reparados este mes
-				</span>
+				<Badge variant="primary-light" radius="full" class="animate-fade-in-up" size="lg">
+					<Icon name="hugeicons:star" class="size-3.5 text-primary" />
+					Recogemos
+					<span class="text-muted-foreground mx-0.5">·</span>
+					Reparamos
+					<span class="text-muted-foreground mx-0.5">·</span>
+					Entregamos
+				</Badge>
 
 				<!-- Headline -->
 				<h1
@@ -65,15 +66,16 @@ const typewriterPhrases = [
 				<p
 					class="animate-fade-in-up animate-delay-200 mt-4 max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base lg:mt-5 lg:text-base xl:text-lg"
 				>
-					<HighlightText
-						trigger="load"
-						color="color-mix(in oklab, var(--primary) 30%, transparent)"
-					>
-						Diagnóstico gratis</HighlightText
-					> a domicilio. Reparación exprés con
+					Reparamos tu laptop, mejoramos tu equipo y
+					<HighlightText trigger="load" color="color-mix(in oklab, var(--primary) 30%, transparent)"
+						>lo dejamos como nueva</HighlightText
+					> con la
 					<HighlightText trigger="load" variant="underline" color="var(--primary)"
-						>garantía incluida</HighlightText
-					> en Arequipa.
+						>más alta calidad</HighlightText
+					> en
+					<HighlightText trigger="load" variant="underline" color="var(--primary)"
+						>🇵🇪 Arequipa</HighlightText
+					>.
 				</p>
 
 				<!-- Features -->
@@ -82,21 +84,21 @@ const typewriterPhrases = [
 				>
 					<li class="flex items-center gap-1.5 lg:gap-2">
 						<Icon name="hugeicons:wrench-01" class="size-4 text-primary" />
-						<span>Reparación exprés</span>
+						<span>Reparación y mejora</span>
 					</li>
 					<li class="flex items-center gap-1.5 lg:gap-2">
 						<Icon name="hugeicons:location-01" class="size-4 text-primary" />
-						<span>Domicilio en Arequipa</span>
+						<span>Recogemos a domicilio</span>
 					</li>
 					<li class="flex items-center gap-1.5 lg:gap-2">
 						<Icon name="hugeicons:checkmark-circle-01" class="size-4 text-primary" />
-						<span>Garantía 30 días</span>
+						<span>Garantía incluida</span>
 					</li>
 				</ul>
 
 				<!-- CTAs -->
 				<div
-					class="animate-fade-in-up animate-delay-300 mt-6 flex flex-col gap-2.5 sm:flex-row sm:gap-3 lg:mt-8"
+					class="animate-fade-in-up animate-delay-300 mt-6 flex flex-col gap-3 sm:flex-row sm:gap-4 lg:mt-8 w-full sm:w-auto"
 				>
 					<Button
 						as="a"
@@ -104,9 +106,10 @@ const typewriterPhrases = [
 						size="lg"
 						target="_blank"
 						rel="noopener noreferrer"
+						class="px-6 sm:px-8 h-11 text-base gap-2 animate-pulsing animate-duration-3500 animate-iteration-count-infinite"
 					>
-						<Icon name="hugeicons:appointment-01" class="size-4" />
-						Agendar servicio
+						<WhatsappIcon size={18} />
+						WhatsApp
 					</Button>
 					<Button
 						as="a"
@@ -115,9 +118,10 @@ const typewriterPhrases = [
 						size="lg"
 						target="_blank"
 						rel="noopener noreferrer"
+						class="px-6 sm:px-8 h-11 text-base gap-2"
 					>
-						<WhatsappIcon size={16} />
-						WhatsApp
+						<Icon name="hugeicons:chatting-01" class="size-4" />
+						Recibir diagnóstico gratis
 					</Button>
 				</div>
 			</div>
@@ -125,22 +129,40 @@ const typewriterPhrases = [
 
 		<!-- ====== IMAGEN ====== -->
 		<div
-			class="relative flex flex-1 items-end justify-center lg:w-1/2 lg:flex-none lg:items-center lg:justify-center lg:pr-8"
+			class="relative flex flex-1 items-end justify-center lg:w-1/2 lg:flex-none lg:items-center lg:justify-center lg:pr-8 overflow-visible"
 		>
+			<!-- Backlight — brilla a través de las transparencias del PNG -->
 			<div
-				class="animate-fade-in animate-delay-100 flex w-full max-w-[280px] items-center justify-center sm:max-w-sm lg:h-full lg:max-h-full lg:max-w-xl xl:max-w-2xl top-7.5 relative"
+				class="absolute inset-0 flex items-center justify-center pointer-events-none overflow-visible animate-pulsing animate-duration-2000 animate-iteration-count-infinite"
+				aria-hidden="true"
+			>
+				<!-- Glow principal — luz que se cuela por los huecos entre capas -->
+				<div
+					class="w-[85%] h-[90%] rounded-full bg-[radial-gradient(ellipse_50%_55%_at_50%_50%,color-mix(in_oklab,var(--primary)_35%,transparent)_0%,color-mix(in_oklab,var(--secondary)_15%,transparent)_45%,transparent_70%)] blur-3xl"
+				>
+				</div>
+				<!-- Hotspot — más brillante, ligeramente desplazado para profundidad -->
+				<div
+					class="absolute w-[55%] h-[65%] rounded-full bg-[radial-gradient(ellipse_50%_50%_at_50%_50%,color-mix(in_oklab,var(--primary)_25%,transparent)_0%,color-mix(in_oklab,var(--accent)_10%,transparent)_50%,transparent_65%)] blur-xl translate-x-[4%] translate-y-[2%]"
+				>
+				</div>
+			</div>
+
+			<!-- Imagen — escalada para que desborde e impacte -->
+			<div
+				class="animate-fade-in animate-delay-100 relative z-10 flex w-full max-w-[280px] items-center justify-center sm:max-w-sm lg:max-w-xl xl:max-w-2xl scale-100 lg:scale-125 origin-bottom lg:origin-center perspective-normal transform-3d rotate-x-20 -rotate-y-20"
 			>
 				<Image
 					src={heroImage}
 					alt="Técnico desarmando una laptop para diagnóstico y reparación"
-					class="h-auto max-h-[40dvh] min-h-[200px] w-full select-none object-contain drop-shadow-[0_0_50px_color-mix(in_oklab,var(--primary)_15%,transparent)] lg:max-h-full lg:h-full lg:w-auto animate-bouncing animate-iteration-count-infinite animate-duration-2000"
+					class="h-auto max-h-[40dvh] w-full select-none object-contain drop-shadow-[0_0_50px_color-mix(in_oklab,var(--accent)_85%,transparent)] lg:max-h-none lg:h-auto lg:w-auto animate-bouncing animate-iteration-count-infinite animate-duration-3000"
 					loading="eager"
 					fetchpriority="high"
 					decoding="async"
 					width={1343}
 					height={1800}
-					widths={[240, 320, 480, 500, 640, 960]}
-					sizes="(max-width: 640px) 240px, (max-width: 1024px) 320px, (max-width: 1280px) 480px, 576px"
+					widths={[240, 320, 480, 640, 960, 1280]}
+					sizes="(max-width: 640px) 280px, (max-width: 1024px) 384px, (max-width: 1280px) 720px, 840px"
 				/>
 			</div>
 		</div>
