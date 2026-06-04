@@ -81,6 +81,23 @@ services:
   #   networks:
   #     - renovabit
 
+  # renovabit-tienda:
+  #   container_name: renovabit-tienda
+  #   build:
+  #     context: .
+  #     dockerfile: apps/tienda/Dockerfile
+  #     args:
+  #       - VITE_API_URL=http://renovabit-api:3001
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3003:3003"
+  #   environment:
+  #     - VITE_API_URL=http://renovabit-api:3001
+  #   depends_on:
+  #     - renovabit-api
+  #   networks:
+  #     - renovabit
+
 networks:
   renovabit:
     name: renovabit
