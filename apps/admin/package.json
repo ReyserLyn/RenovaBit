@@ -2,9 +2,6 @@
 	"name": "admin",
 	"private": true,
 	"type": "module",
-	"imports": {
-		"#/*": "./src/*"
-	},
 	"scripts": {
 		"dev": "vite dev --port 3002",
 		"build": "vite build",
@@ -29,7 +26,6 @@
 		"@renovabit/ui": "*",
 		"@tailwindcss/vite": "catalog:",
 		"@tanstack/match-sorter-utils": "8.19.4",
-		"@tanstack/react-devtools": "0.10.5",
 		"@tanstack/react-form": "1.33.0",
 		"@tanstack/react-query": "5.100.14",
 		"@tanstack/react-router": "1.170.8",
@@ -52,7 +48,7 @@
 		"zustand": "5"
 	},
 	"devDependencies": {
-		"@tanstack/react-devtools": "latest",
+		"@tanstack/react-devtools": "0.10.5",
 		"@biomejs/biome": "catalog:",
 		"@renovabit/biome-config": "*",
 		"@renovabit/ts-config": "*",
