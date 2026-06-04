@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { seo } from "@/shared/lib/seo";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_main/")({
 	head: () => ({
 		meta: [
 			{ charSet: "utf-8" },
@@ -18,9 +18,9 @@ export const Route = createFileRoute("/")({
 
 function HomePage() {
 	return (
-		<main className="container mx-auto flex min-h-svh flex-col items-center justify-center p-4">
+		<div className="flex flex-1 flex-col items-center justify-center p-4">
 			<h1 className="text-4xl font-bold tracking-tight">Renovabit</h1>
 			<p className="text-muted-foreground mt-2 text-lg">Tienda oficial — próximamente</p>
-		</main>
+		</div>
 	);
 }
