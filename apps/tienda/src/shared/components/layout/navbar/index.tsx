@@ -1,4 +1,3 @@
-import { LogoHorizontal } from "@renovabit/ui/components/branding";
 import { NavigationMenu, NavigationMenuList } from "@renovabit/ui/components/ui/navigation-menu";
 import { SidebarTrigger } from "@renovabit/ui/components/ui/sidebar";
 import { Link } from "@tanstack/react-router";
@@ -13,8 +12,7 @@ import { MenuCategory } from "./menu-category";
 import { MenuInfo } from "./menu-info";
 
 export default function Navbar() {
-	const { theme, setTheme } = useTheme();
-	const logoScheme = theme === "dark" ? "dark" : "light";
+	const { setTheme } = useTheme();
 
 	return (
 		<nav className="flex w-full flex-col items-center gap-4 py-4">
@@ -22,7 +20,22 @@ export default function Navbar() {
 				<SidebarTrigger className="-ms-1 md:hidden" />
 
 				<Link to="/">
-					<LogoHorizontal variant={logoScheme} className="w-[170px] md:w-[200px]" />
+					<img
+						src="/logo-light.svg"
+						alt="Renovabit"
+						width="200"
+						height="49"
+						fetchPriority="high"
+						className="h-auto w-[170px] dark:hidden md:w-[200px]"
+					/>
+					<img
+						src="/logo-dark.svg"
+						alt="Renovabit"
+						width="200"
+						height="49"
+						fetchPriority="high"
+						className="hidden h-auto w-[170px] dark:block md:w-[200px]"
+					/>
 				</Link>
 
 				<InputSearch className="hidden w-full max-w-xl md:block" />
