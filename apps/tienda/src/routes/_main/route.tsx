@@ -3,6 +3,7 @@ import { useIsMobile } from "@renovabit/ui/hooks/use-mobile";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { brandQueries } from "@/features/brands/hooks/queries";
 import { categoryQueries } from "@/features/categories/hooks/queries";
+import Footer from "@/shared/components/layout/footer";
 import Navbar from "@/shared/components/layout/navbar";
 import { AppSidebar } from "@/shared/components/layout/sidebar/app-sidebar";
 
@@ -30,6 +31,8 @@ function RouteComponent() {
 				<main className="flex flex-1 flex-col">
 					<Outlet />
 				</main>
+
+				<Footer />
 			</div>
 		</SidebarProvider>
 	);

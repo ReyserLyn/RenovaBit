@@ -43,7 +43,7 @@ export default function Navbar() {
 				<div className="flex items-center gap-4">
 					<AnimatedThemeToggler
 						variant="circle"
-						className="items-center justify-center text-accent-foreground transition-all duration-300 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 h-8 w-8 cursor-pointer hover:bg-accent rounded-full p-1.5 hidden md:block"
+						className="items-center justify-center text-accent-foreground transition-all duration-300 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 h-8 w-8 cursor-pointer hover:bg-accent rounded-full p-1.5 hidden md:flex"
 						onThemeChange={(dark) => setTheme(dark ? "dark" : "light")}
 					/>
 
