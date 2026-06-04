@@ -4,12 +4,12 @@ import { Link } from "@tanstack/react-router";
 import { useTheme } from "better-themes";
 import { AnimatedThemeToggler } from "@/shared/components/layout/theme-toggle";
 import { ButtonActions } from "./button-actions";
-import { ButtonAuth } from "./button-auth";
 import ButtonCart from "./button-cart";
 import InputSearch from "./input-search";
 import { MenuBrand } from "./menu-brand";
 import { MenuCategory } from "./menu-category";
 import { MenuInfo } from "./menu-info";
+import { UserMenu } from "./user-menu";
 
 export default function Navbar() {
 	const { setTheme } = useTheme();
@@ -49,7 +49,7 @@ export default function Navbar() {
 
 					<ButtonCart />
 
-					<ButtonAuth />
+					<UserMenu />
 				</div>
 			</div>
 

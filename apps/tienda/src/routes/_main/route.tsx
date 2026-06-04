@@ -6,6 +6,7 @@ import { categoryQueries } from "@/features/categories/hooks/queries";
 import Footer from "@/shared/components/layout/footer";
 import Navbar from "@/shared/components/layout/navbar";
 import { AppSidebar } from "@/shared/components/layout/sidebar/app-sidebar";
+import { authSessionQueryOptions } from "@/shared/lib/auth/auth-session";
 
 export const Route = createFileRoute("/_main")({
 	loader: async ({ context: { queryClient } }) => {
@@ -25,12 +26,14 @@ function RouteComponent() {
 		<SidebarProvider>
 			{isMobile && <AppSidebar />}
 
-			<div className="container mx-auto flex min-h-svh flex-col overflow-x-hidden">
-				<Navbar />
+			<div className="flex flex-1 flex-col">
+				<div className="container mx-auto flex w-full flex-1 flex-col overflow-x-hidden">
+					<Navbar />
 
-				<main className="flex flex-1 flex-col">
-					<Outlet />
-				</main>
+					<main className="flex flex-1 flex-col">
+						<Outlet />
+					</main>
+				</div>
 
 				<Footer />
 			</div>

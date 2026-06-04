@@ -1,6 +1,6 @@
 import type { auth } from "@renovabit/backend-client";
 import { createAuthClient } from "better-auth/client";
-import { inferAdditionalFields } from "better-auth/client/plugins";
+import { inferAdditionalFields, usernameClient } from "better-auth/client/plugins";
 import { getApiBaseUrl } from "@/shared/lib/env";
 
 export const authClient = createAuthClient({
@@ -20,7 +20,7 @@ export const authClient = createAuthClient({
 			}
 		},
 	},
-	plugins: [inferAdditionalFields<typeof auth>()],
+	plugins: [usernameClient(), inferAdditionalFields<typeof auth>()],
 });
 
 export type Session = typeof authClient.$Infer.Session;

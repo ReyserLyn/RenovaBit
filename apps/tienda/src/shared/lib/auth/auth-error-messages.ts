@@ -11,6 +11,8 @@ const errorCodes = {
 	INVALID_PASSWORD: "La contraseña es incorrecta.",
 	INVALID_EMAIL: "El correo electrónico no es válido.",
 	INVALID_EMAIL_OR_PASSWORD: "Correo o contraseña incorrectos.",
+	INVALID_USERNAME_OR_PASSWORD: "Usuario o contraseña incorrectos.",
+	INVALID_USERNAME: "Nombre de usuario no válido.",
 	INVALID_USER: "Usuario no válido.",
 	USER_ALREADY_EXISTS: "Ya existe una cuenta con este correo.",
 	EMAIL_NOT_VERIFIED: "El correo electrónico no está verificado.",
