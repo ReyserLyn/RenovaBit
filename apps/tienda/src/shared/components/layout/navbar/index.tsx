@@ -29,6 +29,8 @@ export default function Navbar() {
 			</div>
 
 			<div className="flex w-full items-center justify-between gap-4">
+				<InputSearch className="block w-full max-w-xl md:hidden" />
+
 				<NavigationMenu className="hidden md:flex">
 					<NavigationMenuList className="gap-1">
 						<MenuCategory />
