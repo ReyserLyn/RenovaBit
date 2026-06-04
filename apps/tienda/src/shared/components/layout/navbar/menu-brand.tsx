@@ -17,7 +17,7 @@ export function MenuBrand() {
 
 			<NavigationMenuContent className="p-8">
 				<h6 className="px-2 font-semibold text-muted-foreground text-sm uppercase">Marcas</h6>
-				<ul className="mt-2.5 grid w-[200px] gap-3 px-2 md:w-[500px] md:grid-cols-4 lg:w-[600px]">
+				<ul className="mt-2.5 grid w-[200px] gap-3 px-2 md:w-[500px] md:grid-cols-5 lg:w-[600px]">
 					{brands.length > 0 ? (
 						brands.map((brand) => (
 							<ItemList href={`/marca/${brand.slug}`} key={brand.id} title={brand.name} />
