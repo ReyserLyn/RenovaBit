@@ -1,0 +1,79 @@
+import { Toaster } from "@renovabit/ui/components/ui/sonner";
+import { TanStackDevtools } from "@tanstack/react-devtools";
+import type { QueryClient } from "@tanstack/react-query";
+import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
+import { ThemeProvider } from "better-themes";
+import { NuqsAdapter } from "nuqs/adapters/tanstack-router";
+import TanStackFormDevtools from "@/shared/integrations/tanstack-form/devtools";
+import TanStackQueryDevtools from "@/shared/integrations/tanstack-query/devtools";
+import TanStackQueryProvider from "@/shared/integrations/tanstack-query/root-provider";
+import TanStackRouterDevtools from "@/shared/integrations/tanstack-router/devtools";
+import { seo } from "@/shared/lib/seo";
+import globalsCss from "@/shared/styles/globals.css?url";
+
+export type MyRouterContext = {
+	queryClient: QueryClient;
+};
+
+export const Route = createRootRouteWithContext<MyRouterContext>()({
+	head: () => ({
+		meta: [
+			{ charSet: "utf-8" },
+			{ name: "viewport", content: "width=device-width, initial-scale=1" },
+			...seo({
+				title: "Renovabit · Tienda oficial de repuestos y accesorios",
+				description:
+					"Encuentra repuestos, accesorios y equipos para tu negocio. Envíos a todo Perú.",
+			}),
+			{ name: "og:site_name", content: "Renovabit" },
+			{ name: "og:locale", content: "es_PE" },
+		],
+		links: [
+			{
+				rel: "preload",
+				as: "font",
+				type: "font/woff2",
+				crossOrigin: "anonymous",
+				href: "/fonts/outfit-latin-400-normal.woff2",
+			},
+			{
+				rel: "preload",
+				as: "font",
+				type: "font/woff2",
+				crossOrigin: "anonymous",
+				href: "/fonts/outfit-latin-700-normal.woff2",
+			},
+			{ rel: "stylesheet", href: globalsCss },
+			{
+				rel: "icon",
+				href: "/favicon.ico",
+				type: "image/x-icon",
+			},
+		],
+	}),
+
+	shellComponent: RootDocument,
+});
+
+function RootDocument({ children }: { children: React.ReactNode }) {
+	return (
+		<html lang="es" suppressHydrationWarning>
+			<head>
+				<HeadContent />
+			</head>
+			<body>
+				<ThemeProvider attribute="class" disableTransitionOnChange>
+					<TanStackQueryProvider>
+						<Toaster richColors />
+						<NuqsAdapter defaultOptions={{ clearOnDefault: true }}>{children}</NuqsAdapter>
+						<TanStackDevtools
+							config={{ position: "bottom-right" }}
+							plugins={[TanStackRouterDevtools, TanStackQueryDevtools, TanStackFormDevtools]}
+						/>
+					</TanStackQueryProvider>
+				</ThemeProvider>
+				<Scripts />
+			</body>
+		</html>
+	);
+}
