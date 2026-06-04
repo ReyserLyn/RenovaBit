@@ -16,8 +16,10 @@ export type TransitionVariant =
 interface AnimatedThemeTogglerProps extends React.ComponentPropsWithoutRef<"button"> {
 	duration?: number;
 	variant?: TransitionVariant;
-	/** When true, the transition expands from the viewport center instead of the button center. */
 	fromCenter?: boolean;
+	/** "default": icono + children envueltos en span. "custom": renderiza solo children (sin icono ni span) */
+	layout?: "default" | "custom";
+	onThemeChange?: (isDark: boolean) => void;
 }
 
 function polygonCollapsed(cx: number, cy: number, vertexCount: number): string {
@@ -119,6 +121,8 @@ export const AnimatedThemeToggler = ({
 	duration = 400,
 	variant,
 	fromCenter = false,
+	layout = "default",
+	onThemeChange,
 	...props
 }: AnimatedThemeTogglerProps) => {
 	const shape = variant ?? "circle";
@@ -127,7 +131,9 @@ export const AnimatedThemeToggler = ({
 
 	useEffect(() => {
 		const updateTheme = () => {
-			setIsDark(document.documentElement.classList.contains("dark"));
+			const next = document.documentElement.classList.contains("dark");
+			setIsDark(next);
+			onThemeChange?.(next);
 		};
 
 		updateTheme();
@@ -234,7 +240,9 @@ export const AnimatedThemeToggler = ({
 			className={cn(className)}
 			{...props}
 		>
-			{children ? (
+			{layout === "custom" && children ? (
+				children
+			) : children ? (
 				<>
 					{isDark ? <HugeiconsIcon icon={Sun01Icon} /> : <HugeiconsIcon icon={Moon02Icon} />}
 					<span>{children}</span>
