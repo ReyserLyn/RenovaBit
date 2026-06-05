@@ -1,3 +1,4 @@
+import { LogoHorizontal } from "@renovabit/ui/components/branding";
 import { PasswordInput } from "@renovabit/ui/components/form";
 import { Button } from "@renovabit/ui/components/ui/button";
 import {
@@ -215,6 +216,9 @@ export function RegisterStepper() {
 	return (
 		<Card className="w-full sm:p-8 p-6">
 			<CardHeader className="flex flex-col items-center gap-3 pb-2 text-center">
+				<Link to="/" className="inline-flex">
+					<LogoHorizontal className="h-14 w-auto" />
+				</Link>
 				<CardTitle className="text-2xl sm:text-3xl font-semibold">Crear cuenta</CardTitle>
 				<CardDescription>Completa los pasos para registrarte en Renovabit.</CardDescription>
 			</CardHeader>
@@ -241,7 +245,7 @@ export function RegisterStepper() {
 				)}
 
 				<Stepper value={step} onValueChange={setStep} orientation="horizontal">
-					<StepperNav className="mb-6">
+					<StepperNav className="mb-6 px-8">
 						{STEPS.map((s, idx) => (
 							<StepperItem
 								key={s.step}
@@ -256,7 +260,7 @@ export function RegisterStepper() {
 										{s.title}
 									</StepperTitle>
 								</StepperTrigger>
-								{idx < STEPS.length - 1 && <StepperSeparator className="mx-1" />}
+								{idx < STEPS.length - 1 && <StepperSeparator className="mx-2" />}
 							</StepperItem>
 						))}
 					</StepperNav>

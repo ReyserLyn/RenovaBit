@@ -38,7 +38,7 @@ function LoginPage() {
 	}, [oauthError, router]);
 
 	return (
-		<div className="flex min-h-svh flex-col lg:grid lg:grid-cols-2">
+		<div className="flex min-h-svh flex-col justify-center lg:grid lg:grid-cols-2">
 			<div className="flex items-center justify-center p-6 lg:p-10">
 				<div className="w-full max-w-md">
 					<LoginForm />

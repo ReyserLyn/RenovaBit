@@ -337,6 +337,9 @@ function StepperSeparator({ className }: React.ComponentProps<"div">) {
 			data-state={state}
 			className={cn(
 				"bg-muted rounded-sm group-data-[orientation=horizontal]/stepper-nav:h-0.5 group-data-[orientation=vertical]/stepper-nav:h-12 group-data-[orientation=vertical]/stepper-nav:w-0.5 m-0.5 group-data-[orientation=horizontal]/stepper-nav:flex-1",
+				"data-[state=completed]:bg-primary data-[state=completed]:h-[3px]",
+				"data-[state=active]:bg-primary data-[state=active]:h-[3px]",
+				"transition-all duration-300",
 				className,
 			)}
 		/>
