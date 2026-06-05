@@ -50,8 +50,6 @@ export const categoryKeys = {
 		[...categoryKeys.trees(), ...(filters ? [filters] : [])] as const,
 	details: () => [...categoryKeys.all, "detail"] as const,
 	detail: (id: string) => [...categoryKeys.details(), id] as const,
-	breadcrumbs: () => [...categoryKeys.all, "breadcrumb"] as const,
-	breadcrumb: (slug: string) => [...categoryKeys.breadcrumbs(), slug] as const,
 };
 
 // ── Query Options ───────────────────────────────────────
@@ -74,13 +72,5 @@ export function useCategory(id: string) {
 		queryKey: categoryKeys.detail(id),
 		queryFn: () => categoriesService.getById(id),
 		enabled: id.length > 0,
-	});
-}
-
-export function useCategoryBreadcrumb(slug: string) {
-	return useQuery({
-		queryKey: categoryKeys.breadcrumb(slug),
-		queryFn: () => categoriesService.getBreadcrumb(slug),
-		enabled: slug.length > 0,
 	});
 }

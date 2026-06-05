@@ -71,9 +71,12 @@ export function extractApiError(error: unknown): ApiClientError | null {
  * Envuelve una llamada a Eden Treaty para devolver solo `data`
  * o lanzar un `ApiClientError` (o Error genérico).
  * Compatible con TanStack Query — espera que los errores se lancen.
+ *
+ * Acepta cualquier objeto con `data` y `error` (el tipo de Treaty
+ * tiene props extra como `response`/`headers` que ignoramos).
  */
 export async function unwrapResponse<T>(
-	promise: Promise<{ data: T | null; error: unknown; status: number }>,
+	promise: Promise<{ data: T | null; error: unknown }>,
 ): Promise<T> {
 	const { data, error } = await promise;
 

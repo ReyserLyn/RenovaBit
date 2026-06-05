@@ -47,13 +47,6 @@ export interface CategoryTreeNode {
 	children: CategoryTreeNode[];
 }
 
-/** Item del breadcrumb devuelto por GET /breadcrumb/:slug */
-export interface BreadcrumbItem {
-	id: string;
-	name: string;
-	slug: string;
-}
-
 export interface CategoryBulkDeleteResult {
 	deletedIds: string[];
 	notFoundIds: string[];

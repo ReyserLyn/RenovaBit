@@ -21,19 +21,19 @@ export interface UpdateProductImageData {
 // ── API Functions ────────────────────────────────────
 
 async function listByProduct(productId: string): Promise<ProductImage[]> {
-	return unwrapResponse(api.api.v1["product-images"].get({ query: { productId } }));
+	return unwrapResponse(api.api.v1.admin["product-images"].get({ query: { productId } }));
 }
 
 async function create(data: CreateProductImageData): Promise<ProductImage> {
-	return unwrapResponse(api.api.v1["product-images"].post(data));
+	return unwrapResponse(api.api.v1.admin["product-images"].post(data));
 }
 
 async function update(id: string, data: UpdateProductImageData): Promise<ProductImage> {
-	return unwrapResponse(api.api.v1["product-images"]({ id }).patch(data));
+	return unwrapResponse(api.api.v1.admin["product-images"]({ id }).patch(data));
 }
 
 async function remove(id: string): Promise<void> {
-	await unwrapResponse(api.api.v1["product-images"]({ id }).delete());
+	await unwrapResponse(api.api.v1.admin["product-images"]({ id }).delete());
 }
 
 // ── Public API ──────────────────────────────────────

@@ -1,13 +1,18 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { categories } from "@renovabit/db/schema";
+import { categories, products } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, asc, eq, inArray, like, ne } from "drizzle-orm";
-import slugify from "slugify";
+import { and, asc, count, eq, inArray, like, ne } from "drizzle-orm";
+import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
-import type { CategoryModel } from "./model";
-
-// ── Types ──────────────────────────────────────────
+import type {
+	AdminCategoryTree,
+	BreadcrumbItem,
+	BulkDeleteResult,
+	CategoryModel,
+	PublicCategoryDetail,
+	PublicCategoryTree,
+} from "./model";
 
 type Category = InferSelectModel<typeof categories>;
 
@@ -18,35 +23,8 @@ type ListOptions = {
 	isVisibleInNav?: boolean;
 };
 
-export type CategoryTreeNode = {
-	id: string;
-	name: string;
-	slug: string;
-	imageUrl: string | null;
-	description: string | null;
-	sortOrder: number | null;
-	isFeatured: boolean;
-	isActive: boolean;
-	isVisibleInNav: boolean;
-	children: CategoryTreeNode[];
-};
-
-type BreadcrumbItem = {
-	id: string;
-	name: string;
-	slug: string;
-};
-
-type BulkDeleteResult = {
-	deletedIds: string[];
-	notFoundIds: string[];
-	deletedCount: number;
-};
-
 type CreateBody = CategoryModel["createBody"];
 type UpdateBody = CategoryModel["updateBody"];
-
-// ── Constants ──────────────────────────────────────
 
 const MAX_DEPTH = 5;
 const MAX_BULK_DELETE = 50;
@@ -67,30 +45,7 @@ function categoryDepth(path: string | null): number {
 	return 1 + parsePathAncestorIds(path).length;
 }
 
-function makeSlug(value: string): string {
-	return slugify(value, { lower: true, strict: true, trim: true });
-}
-
-function handleUniqueViolation(error: unknown, fallbackMessage: string): never {
-	if (
-		error &&
-		typeof error === "object" &&
-		"code" in error &&
-		(error as Record<string, unknown>).code === "23505"
-	) {
-		throw createApiError({
-			code: BackendErrorCodes.EXISTS_ERROR,
-			message: fallbackMessage,
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-	throw error;
-}
-
-// ── Tree builder ───────────────────────────────────
-
-function buildCategoryTree(rows: Category[]): CategoryTreeNode[] {
+function buildCategoryTree(rows: Category[]): AdminCategoryTree[] {
 	const byParent = new Map<string | null, Category[]>();
 	for (const row of rows) {
 		const key = row.parentId ?? null;
@@ -108,7 +63,7 @@ function buildCategoryTree(rows: Category[]): CategoryTreeNode[] {
 		});
 	}
 
-	const mapNode = (row: Category): CategoryTreeNode => ({
+	const mapNode = (row: Category): AdminCategoryTree => ({
 		id: row.id,
 		name: row.name,
 		slug: row.slug,
@@ -129,10 +84,8 @@ function buildCategoryTree(rows: Category[]): CategoryTreeNode[] {
 async function ensureUniqueName(name: string, excludeId?: string): Promise<void> {
 	const conditions = [eq(categories.name, name)];
 	if (excludeId) conditions.push(ne(categories.id, excludeId));
-
 	const where = conditions.length === 1 ? conditions[0] : and(...conditions);
 	const [existing] = await db.select({ id: categories.id }).from(categories).where(where).limit(1);
-
 	if (existing) {
 		throw createApiError({
 			code: BackendErrorCodes.EXISTS_ERROR,
@@ -146,10 +99,8 @@ async function ensureUniqueName(name: string, excludeId?: string): Promise<void>
 async function ensureUniqueSlug(slug: string, excludeId?: string): Promise<void> {
 	const conditions = [eq(categories.slug, slug)];
 	if (excludeId) conditions.push(ne(categories.id, excludeId));
-
 	const where = conditions.length === 1 ? conditions[0] : and(...conditions);
 	const [existing] = await db.select({ id: categories.id }).from(categories).where(where).limit(1);
-
 	if (existing) {
 		throw createApiError({
 			code: BackendErrorCodes.EXISTS_ERROR,
@@ -160,37 +111,27 @@ async function ensureUniqueSlug(slug: string, excludeId?: string): Promise<void>
 	}
 }
 
-// ── Queries ────────────────────────────────────────
+// ═══════════════════════════════════════════════════
+//  ADMIN QUERIES
+// ═══════════════════════════════════════════════════
 
-async function list(options: ListOptions = {}, isAdmin = false): Promise<Category[]> {
+async function listAdmin(options: ListOptions = {}): Promise<Category[]> {
 	const conditions = [];
 
-	if (!isAdmin) {
+	if (options.includeInactive === false) {
 		conditions.push(eq(categories.isActive, true));
-		conditions.push(eq(categories.isVisibleInNav, true));
-	} else {
-		if (options.includeInactive === false) {
-			conditions.push(eq(categories.isActive, true));
-		}
-		if (typeof options.isVisibleInNav === "boolean") {
-			conditions.push(eq(categories.isVisibleInNav, options.isVisibleInNav));
-		}
 	}
-
+	if (typeof options.isVisibleInNav === "boolean") {
+		conditions.push(eq(categories.isVisibleInNav, options.isVisibleInNav));
+	}
 	if (typeof options.isFeatured === "boolean") {
 		conditions.push(eq(categories.isFeatured, options.isFeatured));
 	}
-
 	if (options.parentId) {
 		conditions.push(eq(categories.parentId, options.parentId));
 	}
 
-	const where =
-		conditions.length === 0
-			? undefined
-			: conditions.length === 1
-				? conditions[0]
-				: and(...conditions);
+	const where = conditions.length === 0 ? undefined : and(...conditions);
 
 	return db
 		.select()
@@ -199,31 +140,155 @@ async function list(options: ListOptions = {}, isAdmin = false): Promise<Categor
 		.orderBy(asc(categories.sortOrder), asc(categories.name));
 }
 
-async function getBySlug(slug: string, includeInactive = false): Promise<Category | null> {
-	const where = includeInactive
-		? eq(categories.slug, slug)
-		: and(
-				eq(categories.slug, slug),
-				eq(categories.isActive, true),
-				eq(categories.isVisibleInNav, true),
-			);
-
-	const [row] = await db.select().from(categories).where(where).limit(1);
+async function getBySlugAdmin(slug: string): Promise<Category | null> {
+	const [row] = await db.select().from(categories).where(eq(categories.slug, slug)).limit(1);
 	return row ?? null;
 }
 
-async function getById(id: string, includeInactive = false): Promise<Category | null> {
-	const where = includeInactive
-		? eq(categories.id, id)
-		: and(
-				eq(categories.id, id),
-				eq(categories.isActive, true),
-				eq(categories.isVisibleInNav, true),
-			);
-
-	const [row] = await db.select().from(categories).where(where).limit(1);
+async function getByIdAdmin(id: string): Promise<Category | null> {
+	const [row] = await db.select().from(categories).where(eq(categories.id, id)).limit(1);
 	return row ?? null;
 }
+
+async function getTreeAdmin(includeInactive?: boolean): Promise<AdminCategoryTree[]> {
+	const rows = includeInactive
+		? await db.select().from(categories).orderBy(asc(categories.sortOrder), asc(categories.name))
+		: await db
+				.select()
+				.from(categories)
+				.where(and(eq(categories.isActive, true), eq(categories.isVisibleInNav, true)))
+				.orderBy(asc(categories.sortOrder), asc(categories.name));
+
+	return buildCategoryTree(rows);
+}
+
+// ═══════════════════════════════════════════════════
+//  PUBLIC QUERIES
+// ═══════════════════════════════════════════════════
+
+async function getProductCounts(): Promise<Map<string, number>> {
+	const rows = await db
+		.select({ categoryId: products.categoryId, cnt: count(products.id) })
+		.from(products)
+		.where(and(eq(products.isActive, true), eq(products.needsReview, false)))
+		.groupBy(products.categoryId);
+
+	const map = new Map<string, number>();
+	for (const row of rows) {
+		if (row.categoryId) map.set(row.categoryId, Number(row.cnt));
+	}
+	return map;
+}
+
+function buildPublicTree(
+	flatRows: Category[],
+	productCounts: Map<string, number>,
+): PublicCategoryTree[] {
+	const byParent = new Map<string | null, Category[]>();
+	for (const row of flatRows) {
+		const key = row.parentId ?? null;
+		const group = byParent.get(key) ?? [];
+		group.push(row);
+		byParent.set(key, group);
+	}
+
+	for (const [, group] of byParent) {
+		group.sort((a, b) => {
+			const aOrder = a.sortOrder ?? 0;
+			const bOrder = b.sortOrder ?? 0;
+			if (aOrder !== bOrder) return aOrder - bOrder;
+			return a.name.localeCompare(b.name);
+		});
+	}
+
+	const mergeCounts = (node: PublicCategoryTree): number => {
+		const childrenTotal = node.children.reduce((sum, child) => sum + mergeCounts(child), 0);
+		node.productCount = (productCounts.get(node.id) ?? 0) + childrenTotal;
+		return node.productCount;
+	};
+
+	const mapNode = (row: Category): PublicCategoryTree => ({
+		id: row.id,
+		name: row.name,
+		slug: row.slug,
+		imageUrl: row.imageUrl,
+		description: row.description,
+		productCount: 0,
+		children: (byParent.get(row.id) ?? []).map(mapNode),
+	});
+
+	const roots = (byParent.get(null) ?? []).map(mapNode);
+	for (const root of roots) mergeCounts(root);
+	return roots;
+}
+
+async function getTreePublic(): Promise<PublicCategoryTree[]> {
+	const [flatRows, productCounts] = await Promise.all([
+		db
+			.select()
+			.from(categories)
+			.where(eq(categories.isActive, true))
+			.orderBy(asc(categories.sortOrder), asc(categories.name)),
+		getProductCounts(),
+	]);
+
+	return buildPublicTree(flatRows, productCounts);
+}
+
+async function getBySlugPublic(slug: string): Promise<PublicCategoryDetail | null> {
+	const [category] = await db
+		.select()
+		.from(categories)
+		.where(and(eq(categories.slug, slug), eq(categories.isActive, true)))
+		.limit(1);
+
+	if (!category) return null;
+
+	const ancestorIds = parsePathAncestorIds(category.path);
+	let breadcrumb: BreadcrumbItem[];
+
+	if (ancestorIds.length === 0) {
+		breadcrumb = [{ id: category.id, name: category.name, slug: category.slug }];
+	} else {
+		const ancestors = await db
+			.select({ id: categories.id, name: categories.name, slug: categories.slug })
+			.from(categories)
+			.where(and(inArray(categories.id, ancestorIds), eq(categories.isActive, true)));
+
+		const map = new Map(ancestors.map((a) => [a.id, a]));
+		const ordered = ancestorIds
+			.map((id) => map.get(id))
+			.filter((item): item is BreadcrumbItem => !!item);
+
+		breadcrumb = [...ordered, { id: category.id, name: category.name, slug: category.slug }];
+	}
+
+	const [row] = await db
+		.select({ cnt: count(products.id) })
+		.from(products)
+		.where(
+			and(
+				eq(products.categoryId, category.id),
+				eq(products.isActive, true),
+				eq(products.needsReview, false),
+			),
+		);
+
+	return {
+		id: category.id,
+		name: category.name,
+		slug: category.slug,
+		description: category.description,
+		imageUrl: category.imageUrl,
+		isFeatured: category.isFeatured,
+		breadcrumb,
+		productCount: Number(row?.cnt ?? 0),
+	};
+}
+
+// ═══════════════════════════════════════════════════
+//  CREATE / UPDATE / DELETE (admin)
+// ═══════════════════════════════════════════════════
 
 async function getByIdStrict(id: string): Promise<Category> {
 	const [row] = await db.select().from(categories).where(eq(categories.id, id)).limit(1);
@@ -237,58 +302,6 @@ async function getByIdStrict(id: string): Promise<Category> {
 	}
 	return row;
 }
-
-async function getTree(includeInactive = false): Promise<CategoryTreeNode[]> {
-	const rows = includeInactive
-		? await db.select().from(categories).orderBy(asc(categories.sortOrder), asc(categories.name))
-		: await db
-				.select()
-				.from(categories)
-				.where(and(eq(categories.isActive, true), eq(categories.isVisibleInNav, true)))
-				.orderBy(asc(categories.sortOrder), asc(categories.name));
-
-	return buildCategoryTree(rows);
-}
-
-async function getBreadcrumb(slug: string, includeInactive = false): Promise<BreadcrumbItem[]> {
-	const category = await getBySlug(slug, includeInactive);
-	if (!category) {
-		throw createApiError({
-			code: BackendErrorCodes.NOT_FOUND_ERROR,
-			message: "Categoría no encontrada",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-
-	const ancestorIds = parsePathAncestorIds(category.path);
-
-	if (ancestorIds.length === 0) {
-		return [{ id: category.id, name: category.name, slug: category.slug }];
-	}
-
-	const ancestors = await db
-		.select({ id: categories.id, name: categories.name, slug: categories.slug })
-		.from(categories)
-		.where(
-			includeInactive
-				? inArray(categories.id, ancestorIds)
-				: and(
-						inArray(categories.id, ancestorIds),
-						eq(categories.isActive, true),
-						eq(categories.isVisibleInNav, true),
-					),
-		);
-
-	const map = new Map(ancestors.map((a) => [a.id, a]));
-	const orderedAncestors = ancestorIds
-		.map((id) => map.get(id))
-		.filter((item): item is BreadcrumbItem => !!item);
-
-	return [...orderedAncestors, { id: category.id, name: category.name, slug: category.slug }];
-}
-
-// ── Create ─────────────────────────────────────────
 
 async function create(data: CreateBody, userId: string): Promise<Category> {
 	const nextName = data.name.trim();
@@ -338,7 +351,6 @@ async function create(data: CreateBody, userId: string): Promise<Category> {
 		});
 	}
 
-	// Resolver imagen pendiente → permanente
 	if (item.imageUrl) {
 		const permanentUrl = await resolveEntityImage(item.imageUrl, "categories", item.id);
 		if (permanentUrl && permanentUrl !== item.imageUrl) {
@@ -349,8 +361,6 @@ async function create(data: CreateBody, userId: string): Promise<Category> {
 
 	return item;
 }
-
-// ── Update ─────────────────────────────────────────
 
 async function update(id: string, data: UpdateBody, userId: string): Promise<Category> {
 	const current = await getByIdStrict(id);
@@ -372,12 +382,8 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 		});
 	}
 
-	if (nextName !== current.name) {
-		await ensureUniqueName(nextName, id);
-	}
-	if (nextSlug !== current.slug) {
-		await ensureUniqueSlug(nextSlug, id);
-	}
+	if (nextName !== current.name) await ensureUniqueName(nextName, id);
+	if (nextSlug !== current.slug) await ensureUniqueSlug(nextSlug, id);
 
 	const parentChanged = "parentId" in data && data.parentId !== current.parentId;
 	let nextParent: Category | null = null;
@@ -391,10 +397,8 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 				doNotLog: true,
 			});
 		}
-
 		nextParent = data.parentId ? await getByIdStrict(data.parentId) : null;
 		const parentAncestors = parsePathAncestorIds(nextParent?.path ?? null);
-
 		if (nextParent && parentAncestors.includes(id)) {
 			throw createApiError({
 				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
@@ -433,19 +437,12 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 		}
 	}
 
-	// Si cambia la imagen, eliminar la anterior (fuera de transacción, R2 no transaccional)
 	const newImageUrl = data.imageUrl;
 	if (newImageUrl !== undefined && newImageUrl !== current.imageUrl) {
 		await deleteEntityImage(current.imageUrl);
 	}
 
-	const baseUpdate = {
-		...data,
-		name: nextName,
-		slug: nextSlug,
-		path: nextPath,
-		updatedBy: userId,
-	};
+	const baseUpdate = { ...data, name: nextName, slug: nextSlug, path: nextPath, updatedBy: userId };
 
 	return db
 		.transaction(async (tx) => {
@@ -454,7 +451,6 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 				.set(baseUpdate)
 				.where(eq(categories.id, id))
 				.returning();
-
 			if (!updated) {
 				throw createApiError({
 					code: BackendErrorCodes.NOT_FOUND_ERROR,
@@ -467,12 +463,10 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 			if (parentChanged) {
 				const oldPrefix = `${current.path ?? "/"}${current.id}/`;
 				const newPrefix = `${nextPath ?? "/"}${updated.id}/`;
-
 				const descendants = await tx
 					.select({ id: categories.id, path: categories.path })
 					.from(categories)
 					.where(like(categories.path, `${oldPrefix}%`));
-
 				for (const descendant of descendants) {
 					const replaced = (descendant.path ?? "/").replace(oldPrefix, newPrefix);
 					await tx
@@ -489,7 +483,6 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 					.set({ isActive: false })
 					.where(like(categories.path, `${subtreePrefix}%`));
 			}
-
 			if (data.isActive === true && updated.path) {
 				const ancestorIds = parsePathAncestorIds(updated.path);
 				if (ancestorIds.length > 0) {
@@ -503,7 +496,6 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 			return updated;
 		})
 		.then(async (updated) => {
-			// Resolver nueva imagen pendiente → permanente (fuera de transacción)
 			if (newImageUrl) {
 				const permanentUrl = await resolveEntityImage(newImageUrl, "categories", updated.id);
 				if (permanentUrl && permanentUrl !== newImageUrl) {
@@ -518,8 +510,6 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 		});
 }
 
-// ── Delete ─────────────────────────────────────────
-
 async function deleteById(id: string): Promise<Category> {
 	return db
 		.transaction(async (tx) => {
@@ -528,7 +518,6 @@ async function deleteById(id: string): Promise<Category> {
 				.from(categories)
 				.where(eq(categories.parentId, id))
 				.limit(1);
-
 			if (child) {
 				throw createApiError({
 					code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
@@ -538,7 +527,6 @@ async function deleteById(id: string): Promise<Category> {
 					doNotLog: true,
 				});
 			}
-
 			const [deleted] = await tx.delete(categories).where(eq(categories.id, id)).returning();
 			if (!deleted) {
 				throw createApiError({
@@ -548,7 +536,6 @@ async function deleteById(id: string): Promise<Category> {
 					doNotLog: true,
 				});
 			}
-
 			return deleted;
 		})
 		.then((deleted) => {
@@ -573,10 +560,8 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 				.select({ id: categories.id })
 				.from(categories)
 				.where(inArray(categories.id, ids));
-
 			const existingIds = existing.map((e) => e.id);
 			const notFoundIds = ids.filter((id) => !existingIds.includes(id));
-
 			if (existingIds.length === 0) {
 				return { deletedIds: [], notFoundIds, deletedCount: 0 };
 			}
@@ -586,7 +571,6 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 				.from(categories)
 				.where(inArray(categories.parentId, existingIds))
 				.limit(1);
-
 			if (blocked) {
 				throw createApiError({
 					code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
@@ -600,7 +584,6 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 				.delete(categories)
 				.where(inArray(categories.id, existingIds))
 				.returning({ id: categories.id });
-
 			return {
 				deletedIds: deleted.map((d) => d.id),
 				notFoundIds,
@@ -613,16 +596,18 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 		});
 }
 
-// ── Public API ─────────────────────────────────────
-
 export const CategoryService = {
-	list,
-	getBySlug,
-	getById,
-	getTree,
-	getBreadcrumb,
+	// Admin
+	listAdmin,
+	getBySlugAdmin,
+	getByIdAdmin,
+	getTreeAdmin,
 	create,
 	update,
 	delete: deleteById,
 	deleteMany,
+
+	// Public
+	getTreePublic,
+	getBySlugPublic,
 };

@@ -17,11 +17,11 @@ const _insert = createInsertSchema(categories, {
 	isVisibleInNav: t.Optional(t.Boolean()),
 });
 
-// ── Response ──
+// ── Admin Responses ────────────────────────────────
 
-const CategoryResponse = createSelectSchema(categories);
+const AdminCategoryResponse = createSelectSchema(categories);
 
-const CategoryTreeNodeSchema = t.Object({
+const AdminCategoryTreeNodeSchema = t.Object({
 	id: t.String({ format: "uuid" }),
 	name: t.String(),
 	slug: t.String(),
@@ -31,7 +31,6 @@ const CategoryTreeNodeSchema = t.Object({
 	isFeatured: t.Boolean(),
 	isActive: t.Boolean(),
 	isVisibleInNav: t.Boolean(),
-	// t.Unknown() preserva type-safety sin perder compatibilidad con recursive types
 	children: t.Array(t.Unknown()),
 });
 
@@ -46,6 +45,61 @@ const BulkDeleteResult = t.Object({
 	notFoundIds: t.Array(t.String({ format: "uuid" })),
 	deletedCount: t.Integer({ minimum: 0 }),
 });
+
+// ── Public Responses (sin fugas) ───────────────────
+
+const PublicCategoryTreeNodeSchema = t.Object({
+	id: t.String({ format: "uuid" }),
+	name: t.String(),
+	slug: t.String(),
+	imageUrl: t.Nullable(t.String()),
+	description: t.Nullable(t.String()),
+	productCount: t.Integer({ minimum: 0 }),
+	children: t.Array(t.Unknown()),
+});
+
+export const PublicCategoryDetail = t.Object({
+	id: t.String({ format: "uuid" }),
+	name: t.String(),
+	slug: t.String(),
+	description: t.Nullable(t.String()),
+	imageUrl: t.Nullable(t.String()),
+	isFeatured: t.Boolean(),
+	breadcrumb: t.Array(BreadcrumbItem),
+	productCount: t.Integer({ minimum: 0 }),
+});
+
+// ── Tipos derivados de schemas ──
+
+export type PublicCategoryTreeNode = typeof PublicCategoryTreeNodeSchema.static;
+export type PublicCategoryDetail = typeof PublicCategoryDetail.static;
+export type BreadcrumbItem = typeof BreadcrumbItem.static;
+export type BulkDeleteResult = typeof BulkDeleteResult.static;
+
+// ── Tipos recursivos (workaround de t.Unknown()) ──
+
+export interface AdminCategoryTree {
+	id: string;
+	name: string;
+	slug: string;
+	imageUrl: string | null;
+	description: string | null;
+	sortOrder: number | null;
+	isFeatured: boolean;
+	isActive: boolean;
+	isVisibleInNav: boolean;
+	children: AdminCategoryTree[];
+}
+
+export interface PublicCategoryTree {
+	id: string;
+	name: string;
+	slug: string;
+	imageUrl: string | null;
+	description: string | null;
+	productCount: number;
+	children: PublicCategoryTree[];
+}
 
 // ── Error ──────────────────────────────────────────
 
@@ -67,7 +121,7 @@ export const CategoryModel = {
 	idParams: t.Object({ id: t.String({ format: "uuid" }) }),
 	slugParams: t.Object({ slug: t.String({ minLength: 1 }) }),
 
-	// Query - Elysia auto-convierte Boolean → BooleanString en query
+	// Query
 	listQuery: t.Object({
 		includeInactive: t.Optional(t.Boolean()),
 		isFeatured: t.Optional(t.Boolean()),
@@ -77,21 +131,21 @@ export const CategoryModel = {
 	treeQuery: t.Object({
 		includeInactive: t.Optional(t.Boolean()),
 	}),
-	breadcrumbQuery: t.Object({
-		includeInactive: t.Optional(t.Boolean()),
-	}),
 
-	// Batch bodies
+	// Batch
 	bulkDeleteBody: t.Object({
 		ids: t.Array(t.String({ format: "uuid" }), { minItems: 1, maxItems: 50 }),
 	}),
 
-	// Responses
-	categoryResponse: CategoryResponse,
-	categoryListResponse: t.Array(CategoryResponse),
-	categoryTreeResponse: t.Array(CategoryTreeNodeSchema),
-	breadcrumbResponse: t.Array(BreadcrumbItem),
+	// Admin Responses
+	categoryResponse: AdminCategoryResponse,
+	categoryListResponse: t.Array(AdminCategoryResponse),
+	categoryTreeResponse: t.Array(AdminCategoryTreeNodeSchema),
 	bulkDeleteResponse: BulkDeleteResult,
+
+	// Public Responses
+	publicCategoryTreeResponse: t.Array(PublicCategoryTreeNodeSchema),
+	publicCategoryDetail: PublicCategoryDetail,
 } as const;
 
 export type CategoryModel = {

@@ -1,48 +1,25 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { brands } from "@renovabit/db/schema";
-import { desc, eq, inArray, or } from "drizzle-orm";
-import slugify from "slugify";
+import { brands, products } from "@renovabit/db/schema";
+import { and, asc, count, desc, eq, inArray, or } from "drizzle-orm";
+import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
-import type { BrandModel } from "./model";
+import type { BrandModel, PublicBrandDetail, PublicBrandListItem } from "./model";
 
 type CreateBody = BrandModel["createBody"];
 type UpdateBody = BrandModel["updateBody"];
 
-// ── Constants ──────────────────────────────────────
-
 const MAX_BULK_DELETE = 50;
+const PUBLIC_PRODUCT_CONDITIONS = [
+	eq(products.isActive, true),
+	eq(products.needsReview, false),
+] as const;
 
-// ── Helpers ────────────────────────────────────────
+// ═══════════════════════════════════════════════════
+//  ADMIN QUERIES
+// ═══════════════════════════════════════════════════
 
-function makeSlug(value: string): string {
-	return slugify(value, { lower: true, strict: true, trim: true });
-}
-
-/**
- * Convierte errores de constraint violation de PostgreSQL (23505)
- * en errores de negocio tipados. Evita 500 por race conditions.
- */
-function handleUniqueViolation(error: unknown, fallbackMessage: string): never {
-	if (
-		error &&
-		typeof error === "object" &&
-		"code" in error &&
-		(error as Record<string, unknown>).code === "23505"
-	) {
-		throw createApiError({
-			code: BackendErrorCodes.EXISTS_ERROR,
-			message: fallbackMessage,
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-	throw error;
-}
-
-// ── Queries ────────────────────────────────────────
-
-async function list(filters?: { isActive?: boolean }) {
+async function listAdmin(filters?: { isActive?: boolean }) {
 	return db
 		.select()
 		.from(brands)
@@ -50,17 +27,71 @@ async function list(filters?: { isActive?: boolean }) {
 		.orderBy(desc(brands.createdAt));
 }
 
-async function getBySlug(slug: string) {
+async function getBySlugAdmin(slug: string) {
 	const [row] = await db.select().from(brands).where(eq(brands.slug, slug)).limit(1);
 	return row ?? null;
 }
 
-async function getById(id: string) {
+async function getByIdAdmin(id: string) {
 	const [row] = await db.select().from(brands).where(eq(brands.id, id)).limit(1);
 	return row ?? null;
 }
 
-// ── Create ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════
+//  PUBLIC QUERIES
+// ═══════════════════════════════════════════════════
+
+async function listPublic(): Promise<PublicBrandListItem[]> {
+	const rows = await db
+		.select({
+			id: brands.id,
+			name: brands.name,
+			slug: brands.slug,
+			imageUrl: brands.imageUrl,
+			productCount: count(products.id).mapWith(Number),
+		})
+		.from(brands)
+		.leftJoin(products, and(eq(products.brandId, brands.id), ...PUBLIC_PRODUCT_CONDITIONS))
+		.where(eq(brands.isActive, true))
+		.groupBy(brands.id)
+		.orderBy(asc(brands.name));
+
+	return rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		slug: row.slug,
+		imageUrl: row.imageUrl,
+		productCount: row.productCount,
+	}));
+}
+
+async function getBySlugPublic(slug: string): Promise<PublicBrandDetail | null> {
+	const [brand] = await db
+		.select()
+		.from(brands)
+		.where(and(eq(brands.slug, slug), eq(brands.isActive, true)))
+		.limit(1);
+
+	if (!brand) return null;
+
+	const [row] = await db
+		.select({ cnt: count(products.id) })
+		.from(products)
+		.where(and(eq(products.brandId, brand.id), ...PUBLIC_PRODUCT_CONDITIONS));
+
+	return {
+		id: brand.id,
+		name: brand.name,
+		slug: brand.slug,
+		description: brand.description,
+		imageUrl: brand.imageUrl,
+		productCount: Number(row?.cnt ?? 0),
+	};
+}
+
+// ═══════════════════════════════════════════════════
+//  CREATE / UPDATE / DELETE (admin)
+// ═══════════════════════════════════════════════════
 
 async function create(data: CreateBody, userId: string) {
 	const nextName = data.name.trim();
@@ -92,7 +123,9 @@ async function create(data: CreateBody, userId: string) {
 			slug,
 			createdBy: userId,
 			updatedBy: userId,
-		} as typeof data & { slug: string })
+		} as typeof data & {
+			slug: string;
+		})
 		.returning()
 		.catch((err) => handleUniqueViolation(err, "Ya existe una marca con este nombre o slug"));
 
@@ -118,7 +151,7 @@ async function create(data: CreateBody, userId: string) {
 // ── Update ─────────────────────────────────────────
 
 async function update(id: string, data: UpdateBody, userId: string) {
-	const existingRow = await getById(id);
+	const existingRow = await getByIdAdmin(id);
 	if (!existingRow) {
 		throw createApiError({
 			code: BackendErrorCodes.NOT_FOUND_ERROR,
@@ -198,7 +231,7 @@ async function update(id: string, data: UpdateBody, userId: string) {
 // ── Delete ─────────────────────────────────────────
 
 async function deleteBrand(id: string) {
-	const existing = await getById(id);
+	const existing = await getByIdAdmin(id);
 	if (!existing) {
 		throw createApiError({
 			code: BackendErrorCodes.NOT_FOUND_ERROR,
@@ -264,14 +297,17 @@ async function deleteMany(ids: string[]) {
 		});
 }
 
-// ── Public API ─────────────────────────────────────
-
 export const BrandService = {
-	list,
-	getBySlug,
-	getById,
+	// Admin
+	listAdmin,
+	getBySlugAdmin,
+	getByIdAdmin,
 	create,
 	update,
 	delete: deleteBrand,
 	deleteMany,
+
+	// Public
+	listPublic,
+	getBySlugPublic,
 };

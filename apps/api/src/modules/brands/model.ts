@@ -11,15 +11,39 @@ const _insert = createInsertSchema(brands, {
 	imageUrl: t.Optional(t.String({ maxLength: 2048 })),
 });
 
-// ── Response ──
+// ── Admin Responses ───────────────────────────────
 
-const BrandResponse = createSelectSchema(brands);
+const AdminBrandResponse = createSelectSchema(brands);
 
 const BulkDeleteResult = t.Object({
 	deletedIds: t.Array(t.String({ format: "uuid" })),
 	notFoundIds: t.Array(t.String({ format: "uuid" })),
 	deletedCount: t.Integer({ minimum: 0 }),
 });
+
+// ── Public Responses ───────────────────
+
+export const PublicBrandListItem = t.Object({
+	id: t.String({ format: "uuid" }),
+	name: t.String(),
+	slug: t.String(),
+	imageUrl: t.Nullable(t.String()),
+	productCount: t.Integer({ minimum: 0 }),
+});
+
+export const PublicBrandDetail = t.Object({
+	id: t.String({ format: "uuid" }),
+	name: t.String(),
+	slug: t.String(),
+	description: t.Nullable(t.String()),
+	imageUrl: t.Nullable(t.String()),
+	productCount: t.Integer({ minimum: 0 }),
+});
+
+// ── Tipos derivados de schemas (SSOT — sin duplicar en service) ──
+
+export type PublicBrandListItem = typeof PublicBrandListItem.static;
+export type PublicBrandDetail = typeof PublicBrandDetail.static;
 
 // ── Error ──────────────────────────────────────────
 
@@ -38,7 +62,7 @@ export const BrandModel = {
 	updateBody: t.Partial(t.Omit(_insert, ["id", "createdAt", "updatedAt"])),
 
 	// Params
-	params: t.Object({ slug: t.String({ minLength: 1 }) }),
+	slugParams: t.Object({ slug: t.String({ minLength: 1 }) }),
 	idParams: t.Object({ id: t.String({ format: "uuid" }) }),
 
 	// Batch
@@ -46,10 +70,15 @@ export const BrandModel = {
 		ids: t.Array(t.String({ format: "uuid" }), { minItems: 1, maxItems: 50 }),
 	}),
 
-	// Responses
-	brandResponse: BrandResponse,
-	brandListResponse: t.Array(BrandResponse),
+	// Admin Responses
+	brandResponse: AdminBrandResponse,
+	brandListResponse: t.Array(AdminBrandResponse),
 	bulkDeleteResponse: BulkDeleteResult,
+
+	// Public Responses
+	publicBrandListItem: PublicBrandListItem,
+	publicBrandListResponse: t.Array(PublicBrandListItem),
+	publicBrandDetail: PublicBrandDetail,
 } as const;
 
 export type BrandModel = {

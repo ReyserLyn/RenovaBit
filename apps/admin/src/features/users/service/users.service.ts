@@ -3,7 +3,7 @@ import { unwrapResponse } from "@/shared/lib/api/api-errors";
 import type { UserSummary } from "../model";
 
 async function list(): Promise<UserSummary[]> {
-	return unwrapResponse(api.api.v1.users.get());
+	return unwrapResponse(api.api.v1.admin.users.get());
 }
 
 export const usersService = {

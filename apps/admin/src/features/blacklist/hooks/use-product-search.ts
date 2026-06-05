@@ -14,7 +14,7 @@ interface ProductSearchResult {
 async function searchProducts(query: string): Promise<ProductSearchResult[]> {
 	if (!query || query.trim().length < 2) return [];
 	const results = await unwrapResponse(
-		api.api.v1.products.get({ query: { search: query.trim() } }),
+		api.api.v1.admin.products.get({ query: { search: query.trim() } }),
 	);
 	return results.map((p) => ({
 		id: p.id,

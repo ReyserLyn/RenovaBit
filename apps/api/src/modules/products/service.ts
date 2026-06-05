@@ -1,24 +1,22 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import {
-	brands,
-	categories,
-	productChanges,
-	productImages,
-	products,
-	syncReports,
-} from "@renovabit/db/schema";
+import type { ProductSpecification } from "@renovabit/db/schema";
+import { brands, categories, productChanges, products, syncReports } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, desc, eq, getTableColumns, ilike, inArray, ne, or, sql } from "drizzle-orm";
-import slugify from "slugify";
+import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
-import type { ProductModel } from "./model";
+import type {
+	BulkDeleteResult,
+	ProductModel,
+	PublicProductDetail,
+	PublicProductListItem,
+} from "./model";
 
 // ── Types ──────────────────────────────────────────
 
 type Product = InferSelectModel<typeof products>;
 
-/** Producto con URLs de imágenes incluidas (para listado en tabla) */
 export type ProductWithImage = Product & {
 	imageUrls: string[];
 	imageCount: number;
@@ -34,12 +32,6 @@ type ListOptions = {
 	search?: string;
 };
 
-type BulkDeleteResult = {
-	deletedIds: string[];
-	notFoundIds: string[];
-	deletedCount: number;
-};
-
 type CreateBody = ProductModel["createBody"];
 type UpdateBody = ProductModel["updateBody"];
 
@@ -47,28 +39,7 @@ type UpdateBody = ProductModel["updateBody"];
 
 const MAX_BULK_DELETE = 50;
 
-// ── Helpers ────────────────────────────────────────
-
-function makeSlug(value: string): string {
-	return slugify(value, { lower: true, strict: true, trim: true });
-}
-
-function handleUniqueViolation(error: unknown, fallbackMessage: string): never {
-	if (
-		error &&
-		typeof error === "object" &&
-		"code" in error &&
-		(error as Record<string, unknown>).code === "23505"
-	) {
-		throw createApiError({
-			code: BackendErrorCodes.EXISTS_ERROR,
-			message: fallbackMessage,
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-	throw error;
-}
+const PUBLIC_CONDITIONS = [eq(products.isActive, true), eq(products.needsReview, false)] as const;
 
 // ── FK validation ──────────────────────────────────
 
@@ -162,13 +133,13 @@ async function ensureUniqueSku(sku: string, excludeId?: string): Promise<void> {
 	}
 }
 
-// ── Queries ────────────────────────────────────────
+// ── Where clause builder ───────────────────────────
 
-async function list(options: ListOptions = {}, isAdmin = false): Promise<ProductWithImage[]> {
+function buildWhere(options: ListOptions, isPublic: boolean) {
 	const conditions = [];
 
-	if (!isAdmin) {
-		conditions.push(eq(products.isActive, true));
+	if (isPublic) {
+		conditions.push(...PUBLIC_CONDITIONS);
 	}
 
 	if (options.brandId) conditions.push(eq(products.brandId, options.brandId));
@@ -180,13 +151,14 @@ async function list(options: ListOptions = {}, isAdmin = false): Promise<Product
 		conditions.push(or(ilike(products.name, term), ilike(products.sku, term)) ?? undefined);
 	}
 
-	const where =
-		conditions.length === 0
-			? undefined
-			: conditions.length === 1
-				? conditions[0]
-				: and(...conditions);
+	return conditions.length === 0 ? undefined : and(...conditions);
+}
 
+// ═══════════════════════════════════════════════════
+//  ADMIN QUERIES
+// ═══════════════════════════════════════════════════
+
+async function list(options: ListOptions = {}): Promise<ProductWithImage[]> {
 	return db
 		.select({
 			...getTableColumns(products),
@@ -224,25 +196,17 @@ async function list(options: ListOptions = {}, isAdmin = false): Promise<Product
 			)`,
 		})
 		.from(products)
-		.where(where)
+		.where(buildWhere(options, false))
 		.orderBy(desc(products.createdAt));
 }
 
-async function getBySlug(slug: string, isAdmin = false): Promise<Product | null> {
-	const where = isAdmin
-		? eq(products.slug, slug)
-		: and(eq(products.slug, slug), eq(products.isActive, true));
-
-	const [row] = await db.select().from(products).where(where).limit(1);
+async function getBySlug(slug: string): Promise<Product | null> {
+	const [row] = await db.select().from(products).where(eq(products.slug, slug)).limit(1);
 	return row ?? null;
 }
 
-async function getById(id: string, isAdmin = false): Promise<Product | null> {
-	const where = isAdmin
-		? eq(products.id, id)
-		: and(eq(products.id, id), eq(products.isActive, true));
-
-	const [row] = await db.select().from(products).where(where).limit(1);
+async function getById(id: string): Promise<Product | null> {
+	const [row] = await db.select().from(products).where(eq(products.id, id)).limit(1);
 	return row ?? null;
 }
 
@@ -259,7 +223,127 @@ async function getByIdStrict(id: string): Promise<Product> {
 	return row;
 }
 
-// ── Create ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════
+//  PUBLIC QUERIES
+// ═══════════════════════════════════════════════════
+
+async function listPublic(options: ListOptions = {}): Promise<PublicProductListItem[]> {
+	const rows = await db
+		.select({
+			id: products.id,
+			name: products.name,
+			slug: products.slug,
+			price: sql<string>`${products.price}::text`,
+			stock: products.stock,
+			sku: products.sku,
+			isFeatured: products.isFeatured,
+			primaryImageUrl: sql<string | null>`(
+				SELECT pi.url FROM product_images pi
+				WHERE pi.product_id = ${products.id}
+				ORDER BY pi.is_primary DESC, pi.sort_order ASC NULLS LAST
+				LIMIT 1
+			)`,
+			primaryImageAlt: sql<string | null>`(
+				SELECT pi.alt FROM product_images pi
+				WHERE pi.product_id = ${products.id}
+				ORDER BY pi.is_primary DESC, pi.sort_order ASC NULLS LAST
+				LIMIT 1
+			)`,
+			brandId: brands.id,
+			brandName: brands.name,
+			brandSlug: brands.slug,
+			categoryId: categories.id,
+			categoryName: categories.name,
+			categorySlug: categories.slug,
+		})
+		.from(products)
+		.leftJoin(brands, eq(products.brandId, brands.id))
+		.leftJoin(categories, eq(products.categoryId, categories.id))
+		.where(buildWhere(options, true))
+		.orderBy(desc(products.createdAt));
+
+	return rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		slug: row.slug,
+		price: row.price,
+		stock: row.stock,
+		sku: row.sku,
+		isFeatured: row.isFeatured,
+		primaryImage: row.primaryImageUrl
+			? { url: row.primaryImageUrl, alt: row.primaryImageAlt }
+			: null,
+		brand: row.brandId ? { id: row.brandId, name: row.brandName!, slug: row.brandSlug! } : null,
+		category: row.categoryId
+			? { id: row.categoryId, name: row.categoryName!, slug: row.categorySlug! }
+			: null,
+	}));
+}
+
+async function getBySlugPublic(slug: string): Promise<PublicProductDetail | null> {
+	const [row] = await db
+		.select({
+			id: products.id,
+			name: products.name,
+			slug: products.slug,
+			description: products.description,
+			price: sql<string>`${products.price}::text`,
+			stock: products.stock,
+			sku: products.sku,
+			specifications: products.specifications,
+			createdAt: products.createdAt,
+			brandId: brands.id,
+			brandName: brands.name,
+			brandSlug: brands.slug,
+			brandImageUrl: brands.imageUrl,
+			categoryId: categories.id,
+			categoryName: categories.name,
+			categorySlug: categories.slug,
+			images: sql<{ id: string; url: string; alt: string | null; isPrimary: boolean }[]>`COALESCE(
+				(SELECT jsonb_agg(
+					jsonb_build_object(
+						'id', pi.id,
+						'url', pi.url,
+						'alt', pi.alt,
+						'isPrimary', pi.is_primary
+					) ORDER BY pi.sort_order ASC NULLS LAST, pi.created_at ASC
+				)
+				FROM product_images pi
+				WHERE pi.product_id = ${products.id}),
+				'[]'::jsonb
+			)`,
+		})
+		.from(products)
+		.leftJoin(brands, eq(products.brandId, brands.id))
+		.leftJoin(categories, eq(products.categoryId, categories.id))
+		.where(and(eq(products.slug, slug), ...PUBLIC_CONDITIONS))
+		.limit(1);
+
+	if (!row) return null;
+
+	return {
+		id: row.id,
+		name: row.name,
+		slug: row.slug,
+		description: row.description,
+		price: row.price,
+		stock: row.stock,
+		sku: row.sku,
+		specifications: (row.specifications ?? []) as ProductSpecification[],
+		images: row.images,
+		brand: row.brandId
+			? { id: row.brandId, name: row.brandName!, slug: row.brandSlug!, imageUrl: row.brandImageUrl }
+			: null,
+		category: row.categoryId
+			? { id: row.categoryId, name: row.categoryName!, slug: row.categorySlug! }
+			: null,
+		createdAt: row.createdAt.toISOString(),
+	};
+}
+
+// ═══════════════════════════════════════════════════
+//  CREATE / UPDATE / DELETE (admin)
+// ═══════════════════════════════════════════════════
 
 async function create(data: CreateBody, userId: string): Promise<Product> {
 	const nextName = data.name.trim();
@@ -448,6 +532,7 @@ async function getChanges(productId: string) {
 // ── Public API ─────────────────────────────────────
 
 export const ProductService = {
+	// Admin
 	list,
 	getBySlug,
 	getById,
@@ -456,4 +541,8 @@ export const ProductService = {
 	update,
 	delete: deleteById,
 	deleteMany,
+
+	// Public
+	listPublic,
+	getBySlugPublic,
 };

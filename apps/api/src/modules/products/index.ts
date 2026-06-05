@@ -1,216 +1,58 @@
-import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
-import { Elysia, t } from "elysia";
-import { auth } from "@/utils/auth/auth";
+import { Elysia } from "elysia";
+import { notFound } from "@/utils/api-helpers";
 import { ErrorResponse, ProductModel } from "./model";
 import { ProductService } from "./service";
 
-// ── Helpers ────────────────────────────────────────
-
-async function resolveOptionalSession(request: Request) {
-	try {
-		return await auth.api.getSession({ headers: request.headers });
-	} catch {
-		return null;
-	}
-}
-
-// ── Routes ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════
+//  PÚBLICO — sin auth, sin resolveOptionalSession
+//  Prefijo: /api/v1/products
+// ═══════════════════════════════════════════════════
 
 export const productsRoute = new Elysia({ prefix: "/products" })
-	// ═════════════════════════════════════════════════
-	//  PUBLIC
-	// ═════════════════════════════════════════════════
-
-	// ── List ────────────────────────────────────────
+	// ── List ──────────────────────────────────────
 	.get(
 		"/",
-		async ({ request, query }) => {
-			const session = await resolveOptionalSession(request);
-			const isAdmin = session?.user?.role === "admin";
-
-			return ProductService.list(
-				{
-					brandId: query.brandId,
-					categoryId: query.categoryId,
-					isFeatured: query.isFeatured,
-					search: query.search,
-				},
-				isAdmin,
-			);
+		async ({ query }) => {
+			return ProductService.listPublic({
+				brandId: query.brandId,
+				categoryId: query.categoryId,
+				isFeatured: query.isFeatured,
+				search: query.search,
+			});
 		},
 		{
 			query: ProductModel.listQuery,
 			response: {
-				200: ProductModel.productListResponse,
+				200: ProductModel.publicProductListResponse,
 			},
-			detail: { summary: "Listar productos", tags: ["Products"] },
+			detail: {
+				summary: "Listar productos",
+				description:
+					"Productos activos y revisados. Filtrable por marca, categoría, destacados y búsqueda.",
+				tags: ["Products"],
+			},
 		},
 	)
 
-	// ── Get by slug ─────────────────────────────────
+	// ── Detail by slug ────────────────────────────
 	.get(
-		"/slug/:slug",
-		async ({ params: { slug }, request }) => {
-			const session = await resolveOptionalSession(request);
-			const isAdmin = session?.user?.role === "admin";
-
-			const product = await ProductService.getBySlug(slug, isAdmin);
-			if (!product) {
-				throw createApiError({
-					code: BackendErrorCodes.NOT_FOUND_ERROR,
-					message: "Producto no encontrado",
-					logLevel: "info",
-					doNotLog: true,
-				});
-			}
+		"/:slug",
+		async ({ params: { slug } }) => {
+			const product = await ProductService.getBySlugPublic(slug);
+			if (!product) throw notFound("Producto no encontrado");
 			return product;
 		},
 		{
 			params: ProductModel.slugParams,
 			response: {
-				200: ProductModel.productResponse,
+				200: ProductModel.publicProductDetail,
 				404: ErrorResponse,
 			},
-			detail: { summary: "Obtener producto por slug", tags: ["Products"] },
-		},
-	)
-
-	// ── Get by id ───────────────────────────────────
-	.get(
-		"/:id",
-		async ({ params: { id }, request }) => {
-			const session = await resolveOptionalSession(request);
-			const isAdmin = session?.user?.role === "admin";
-
-			const product = await ProductService.getById(id, isAdmin);
-			if (!product) {
-				throw createApiError({
-					code: BackendErrorCodes.NOT_FOUND_ERROR,
-					message: "Producto no encontrado",
-					logLevel: "info",
-					doNotLog: true,
-				});
-			}
-			return product;
-		},
-		{
-			params: ProductModel.idParams,
-			response: {
-				200: ProductModel.productResponse,
-				404: ErrorResponse,
+			detail: {
+				summary: "Detalle de producto por slug",
+				description:
+					"Devuelve toda la información pública: imágenes, especificaciones, marca y categoría.",
+				tags: ["Products"],
 			},
-			detail: { summary: "Obtener producto por ID", tags: ["Products"] },
-		},
-	)
-
-	// ═════════════════════════════════════════════════
-	//  ADMIN
-	// ═════════════════════════════════════════════════
-
-	// ── Create ──────────────────────────────────────
-	.post(
-		"/",
-		async ({ body, request }) => {
-			const session = await resolveOptionalSession(request);
-			return ProductService.create(body, session?.user?.id ?? "");
-		},
-		{
-			isAdmin: true,
-			body: ProductModel.createBody,
-			response: {
-				201: ProductModel.productResponse,
-				400: ErrorResponse,
-				401: ErrorResponse,
-				403: ErrorResponse,
-				409: ErrorResponse,
-			},
-			detail: { summary: "Crear producto", tags: ["Products"] },
-		},
-	)
-
-	// ── Update ──────────────────────────────────────
-	.patch(
-		"/:id",
-		async ({ params: { id }, body, request }) => {
-			const session = await resolveOptionalSession(request);
-			return ProductService.update(id, body, session?.user?.id ?? "");
-		},
-		{
-			isAdmin: true,
-			params: ProductModel.idParams,
-			body: ProductModel.updateBody,
-			response: {
-				200: ProductModel.productResponse,
-				400: ErrorResponse,
-				401: ErrorResponse,
-				403: ErrorResponse,
-				404: ErrorResponse,
-				409: ErrorResponse,
-			},
-			detail: { summary: "Actualizar producto", tags: ["Products"] },
-		},
-	)
-
-	// ── Delete ──────────────────────────────────────
-	.delete(
-		"/:id",
-		async ({ params: { id }, set }) => {
-			await ProductService.delete(id);
-			set.status = 204;
-		},
-		{
-			isAdmin: true,
-			params: ProductModel.idParams,
-			response: {
-				204: t.Undefined(),
-				401: ErrorResponse,
-				403: ErrorResponse,
-				404: ErrorResponse,
-			},
-			detail: { summary: "Eliminar producto", tags: ["Products"] },
-		},
-	)
-
-	// ── Product Changes (historial) ──────────────────
-	.get(
-		"/:id/changes",
-		async ({ params: { id } }) => {
-			const changes = await ProductService.getChanges(id);
-			return {
-				changes: changes.map((c) => ({
-					...c,
-					reportStartedAt: c.reportStartedAt?.toISOString() ?? null,
-					createdAt: c.createdAt.toISOString(),
-				})),
-				total: changes.length,
-			};
-		},
-		{
-			isAdmin: true,
-			params: ProductModel.idParams,
-			detail: { summary: "Historial de cambios del producto", tags: ["Products"] },
-		},
-	)
-
-	// ── Bulk Delete ─────────────────────────────────
-	.post(
-		"/bulk",
-		async ({ body, set }) => {
-			const result = await ProductService.deleteMany(body.ids);
-			if (result.notFoundIds.length > 0) set.status = 207;
-			return result;
-		},
-		{
-			isAdmin: true,
-			body: ProductModel.bulkDeleteBody,
-			response: {
-				200: ProductModel.bulkDeleteResponse,
-				207: ProductModel.bulkDeleteResponse,
-				400: ErrorResponse,
-				401: ErrorResponse,
-				403: ErrorResponse,
-				404: ErrorResponse,
-			},
-			detail: { summary: "Eliminar productos en lote", tags: ["Products"] },
 		},
 	);

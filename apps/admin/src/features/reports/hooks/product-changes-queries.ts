@@ -12,7 +12,7 @@ export const productChangesQueryOptions = (productId: string) =>
 		queryKey: productChangeKeys.byProduct(productId),
 		queryFn: async () => {
 			const data = await unwrapResponse<{ changes: ProductChange[]; total: number }>(
-				api.api.v1.products({ id: productId }).changes.get(),
+				api.api.v1.admin.products({ id: productId }).changes.get(),
 			);
 			return data.changes;
 		},

@@ -20,7 +20,7 @@ export const notificationsRoute = new Elysia({ prefix: "/notifications" })
 			isAdmin: true,
 			query: NotificationModel.listQuery,
 			response: { 200: NotificationModel.listResponse },
-			detail: { summary: "Listar notificaciones", tags: ["Admin"] },
+			detail: { summary: "Listar notificaciones", tags: ["Notifications"] },
 		},
 	)
 	.patch(
@@ -31,7 +31,7 @@ export const notificationsRoute = new Elysia({ prefix: "/notifications" })
 		},
 		{
 			isAdmin: true,
-			detail: { summary: "Marcar notificación como leída", tags: ["Admin"] },
+			detail: { summary: "Marcar notificación como leída", tags: ["Notifications"] },
 		},
 	)
 	.post(
@@ -42,6 +42,6 @@ export const notificationsRoute = new Elysia({ prefix: "/notifications" })
 		},
 		{
 			isAdmin: true,
-			detail: { summary: "Marcar todas como leídas", tags: ["Admin"] },
+			detail: { summary: "Marcar todas como leídas", tags: ["Notifications"] },
 		},
 	);

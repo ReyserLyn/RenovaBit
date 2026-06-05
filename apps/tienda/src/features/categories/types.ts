@@ -1,43 +1,26 @@
-export interface Category {
-	id: string;
-	name: string;
-	slug: string;
-	description: string | null;
-	imageUrl: string | null;
-
-	parentId: string | null;
-	path: string | null;
-	sortOrder: number | null;
-
-	isFeatured: boolean;
-	isActive: boolean;
-	isVisibleInNav: boolean;
-
-	createdBy: string | null;
-	updatedBy: string | null;
-
-	/** SEO */
-	seoTitle: string | null;
-	seoDescription: string | null;
-	seoKeywords: string | null;
-
-	/** Timestamps */
-	createdAt: Date;
-	updatedAt: Date;
-}
-
-/** Nodo del árbol jerárquico de categorías (recursivo) */
+/** Nodo del árbol jerárquico de categorías (recursivo, público).
+ * children es unknown[] porque el schema usa t.Unknown() — limitación
+ * de tipos recursivos en Elysia. En runtime siempre es CategoryTreeNode[]. */
 export interface CategoryTreeNode {
 	id: string;
 	name: string;
 	slug: string;
 	imageUrl: string | null;
 	description: string | null;
-	sortOrder: number | null;
+	productCount: number;
+	children: unknown[];
+}
+
+/** Detalle de categoría (incluye breadcrumb) */
+export interface CategoryDetail {
+	id: string;
+	name: string;
+	slug: string;
+	description: string | null;
+	imageUrl: string | null;
 	isFeatured: boolean;
-	isActive: boolean;
-	isVisibleInNav: boolean;
-	children: CategoryTreeNode[];
+	breadcrumb: BreadcrumbItem[];
+	productCount: number;
 }
 
 /** Item del breadcrumb de categoría */
@@ -45,21 +28,4 @@ export interface BreadcrumbItem {
 	id: string;
 	name: string;
 	slug: string;
-}
-
-// ── Parámetros de consulta ───────────────────────────────────
-
-export interface CategoryListParams {
-	includeInactive?: boolean;
-	isFeatured?: boolean;
-	parentId?: string;
-	isVisibleInNav?: boolean;
-}
-
-export interface CategoryTreeParams {
-	includeInactive?: boolean;
-}
-
-export interface CategoryBreadcrumbParams {
-	includeInactive?: boolean;
 }

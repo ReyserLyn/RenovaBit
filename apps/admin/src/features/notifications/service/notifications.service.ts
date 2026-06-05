@@ -14,15 +14,15 @@ async function list(params: {
 	if (params.unreadOnly) query.unreadOnly = "true";
 	if (params.search) query.search = params.search;
 
-	return unwrapResponse(api.api.v1.notifications.get({ query }));
+	return unwrapResponse(api.api.v1.admin.notifications.get({ query }));
 }
 
 async function markAsRead(id: string): Promise<void> {
-	await unwrapResponse(api.api.v1.notifications({ id }).read.patch());
+	await unwrapResponse(api.api.v1.admin.notifications({ id }).read.patch());
 }
 
 async function markAllAsRead(): Promise<void> {
-	await unwrapResponse(api.api.v1.notifications["read-all"].post());
+	await unwrapResponse(api.api.v1.admin.notifications["read-all"].post());
 }
 
 export const notificationsService = {

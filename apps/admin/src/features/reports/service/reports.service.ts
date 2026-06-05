@@ -3,7 +3,7 @@ import { unwrapResponse } from "@/shared/lib/api/api-errors";
 import type { RecentChange, ReportChange } from "../model";
 
 async function getChanges(reportId: string): Promise<{ changes: ReportChange[]; total: number }> {
-	return unwrapResponse(api.api.v1.reports({ reportId }).changes.get());
+	return unwrapResponse(api.api.v1.admin.reports({ reportId }).changes.get());
 }
 
 async function listRecent(params?: {
@@ -18,7 +18,7 @@ async function listRecent(params?: {
 	if (params?.type) query.type = params.type;
 	if (params?.search) query.search = params.search;
 
-	return unwrapResponse(api.api.v1.changes.get({ query }));
+	return unwrapResponse(api.api.v1.admin.changes.get({ query }));
 }
 
 export const reportsService = {

@@ -11,5 +11,4 @@ export {
 	categoryKeys,
 	useCategories,
 	useCategory,
-	useCategoryBreadcrumb,
 } from "./categories-queries";
