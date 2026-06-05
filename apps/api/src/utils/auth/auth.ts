@@ -85,10 +85,15 @@ export const auth = betterAuth({
 		additionalFields: {
 			username: {
 				type: "string",
-				required: true,
+				required: false,
 				input: true,
 			},
 			displayUsername: {
+				type: "string",
+				required: false,
+				input: true,
+			},
+			lastname: {
 				type: "string",
 				required: false,
 				input: true,
@@ -114,6 +119,12 @@ export const auth = betterAuth({
 		google: {
 			clientId: process.env.GOOGLE_CLIENT_ID ?? "",
 			clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+			mapProfileToUser: (profile) => {
+				const lastname =
+					profile.family_name ??
+					(profile.name?.trim().split(/\s+/).slice(1).join(" ") || undefined);
+				return { lastname };
+			},
 		},
 	},
 	plugins: [

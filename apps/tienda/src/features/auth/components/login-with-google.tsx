@@ -9,7 +9,10 @@ export function LoginWithGoogle() {
 		await authClient.signIn.social({
 			provider: "google",
 			callbackURL: `${origin}/`,
-			errorCallbackURL: `${origin}/iniciar-sesion`,
+			errorCallbackURL:
+				typeof window !== "undefined"
+					? `${origin}${window.location.pathname}`
+					: `${origin}/iniciar-sesion`,
 		});
 	};
 

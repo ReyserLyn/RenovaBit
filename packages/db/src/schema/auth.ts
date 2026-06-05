@@ -24,6 +24,7 @@ export const users = pgTable(
 
 		username: varchar("username", { length: 100 }),
 		displayUsername: varchar("display_username", { length: 100 }),
+		lastname: varchar("lastname", { length: 100 }),
 		phone: varchar("phone", { length: 20 }),
 		role: userRoleEnum("role").default("customer").notNull(),
 
