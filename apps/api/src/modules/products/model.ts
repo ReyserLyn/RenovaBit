@@ -139,7 +139,9 @@ export const ProductModel = {
 	// Query
 	listQuery: t.Object({
 		brandId: t.Optional(t.String({ format: "uuid" })),
+		brandSlug: t.Optional(t.String({ minLength: 1 })),
 		categoryId: t.Optional(t.String({ format: "uuid" })),
+		categorySlug: t.Optional(t.String({ minLength: 1 })),
 		isFeatured: t.Optional(t.Boolean()),
 		search: t.Optional(t.String()),
 	}),

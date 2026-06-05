@@ -291,8 +291,11 @@ async function deleteMany(ids: string[]) {
 			};
 		})
 		.then((result) => {
-			// Limpiar carpetas R2 (no bloqueante)
-			result.deletedIds.forEach((id) => deleteEntityFolder("brands", id));
+			for (const id of result.deletedIds) {
+				deleteEntityFolder("brands", id).catch((err) =>
+					console.error(`[R2 cleanup] Failed to delete folder for brand ${id}:`, err),
+				);
+			}
 			return result;
 		});
 }

@@ -15,7 +15,7 @@ export function NotFound() {
 	const router = useRouter();
 
 	return (
-		<div className="container flex min-h-svh flex-col items-center justify-center p-4">
+		<div className="container flex h-full flex-col items-center justify-center p-4">
 			<div className="w-full max-w-md">
 				<Card className="border-border/70 bg-card/95 shadow-xl transition-shadow duration-200">
 					<CardHeader className="flex flex-col items-center gap-4 pb-2 text-center">

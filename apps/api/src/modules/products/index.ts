@@ -15,7 +15,9 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 		async ({ query }) => {
 			return ProductService.listPublic({
 				brandId: query.brandId,
+				brandSlug: query.brandSlug,
 				categoryId: query.categoryId,
+				categorySlug: query.categorySlug,
 				isFeatured: query.isFeatured,
 				search: query.search,
 			});

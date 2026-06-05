@@ -1,8 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api, unwrapResponse } from "@/shared/lib/api";
 
-import type { Brand } from "../types";
-
 // ── Query Keys Factory ───────────────────────────────────────
 
 export const brandKeys = {

@@ -1,22 +1,13 @@
-export interface Brand {
+/** Marca en listado público (navbar, filtros) */
+export interface BrandListItem {
 	id: string;
 	name: string;
 	slug: string;
-	description: string | null;
 	imageUrl: string | null;
+	productCount: number;
+}
 
-	isActive: boolean;
-	isFeatured: boolean;
-
-	createdBy: string | null;
-	updatedBy: string | null;
-
-	/** SEO */
-	seoTitle: string | null;
-	seoDescription: string | null;
-	seoKeywords: string | null;
-
-	/** Timestamps */
-	createdAt: Date;
-	updatedAt: Date;
+/** Detalle de marca (página individual) */
+export interface BrandDetail extends BrandListItem {
+	description: string | null;
 }

@@ -5,7 +5,6 @@ import {
 } from "@renovabit/ui/components/ui/navigation-menu";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { brandQueries } from "@/features/brands/hooks/queries";
-import type { Brand } from "@/features/brands/types";
 import { ItemList } from "./item-list";
 
 export function MenuBrand() {

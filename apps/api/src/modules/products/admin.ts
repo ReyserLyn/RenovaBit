@@ -177,6 +177,14 @@ export const adminProductsRoute = new Elysia({ prefix: "/products" })
 		{
 			isAdmin: true,
 			params: ProductModel.idParams,
+			response: {
+				200: t.Object({
+					changes: t.Array(t.Any()),
+					total: t.Integer({ minimum: 0 }),
+				}),
+				401: ErrorResponse,
+				403: ErrorResponse,
+			},
 			detail: { summary: "Historial de cambios del producto", tags: ["Products"] },
 		},
 	);

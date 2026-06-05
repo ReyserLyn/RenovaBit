@@ -81,30 +81,23 @@ function buildCategoryTree(rows: Category[]): AdminCategoryTree[] {
 
 // ── Unique checks ──────────────────────────────────
 
-async function ensureUniqueName(name: string, excludeId?: string): Promise<void> {
-	const conditions = [eq(categories.name, name)];
+async function ensureUnique(
+	field: typeof categories.name | typeof categories.slug,
+	value: string,
+	label: string,
+	excludeId?: string,
+): Promise<void> {
+	const conditions = [eq(field, value)];
 	if (excludeId) conditions.push(ne(categories.id, excludeId));
-	const where = conditions.length === 1 ? conditions[0] : and(...conditions);
-	const [existing] = await db.select({ id: categories.id }).from(categories).where(where).limit(1);
+	const [existing] = await db
+		.select({ id: categories.id })
+		.from(categories)
+		.where(and(...conditions))
+		.limit(1);
 	if (existing) {
 		throw createApiError({
 			code: BackendErrorCodes.EXISTS_ERROR,
-			message: "Ya existe una categoría con este nombre",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-}
-
-async function ensureUniqueSlug(slug: string, excludeId?: string): Promise<void> {
-	const conditions = [eq(categories.slug, slug)];
-	if (excludeId) conditions.push(ne(categories.id, excludeId));
-	const where = conditions.length === 1 ? conditions[0] : and(...conditions);
-	const [existing] = await db.select({ id: categories.id }).from(categories).where(where).limit(1);
-	if (existing) {
-		throw createApiError({
-			code: BackendErrorCodes.EXISTS_ERROR,
-			message: "Ya existe una categoría con este slug",
+			message: `Ya existe una categoría con este ${label}`,
 			logLevel: "info",
 			doNotLog: true,
 		});
@@ -263,12 +256,21 @@ async function getBySlugPublic(slug: string): Promise<PublicCategoryDetail | nul
 		breadcrumb = [...ordered, { id: category.id, name: category.name, slug: category.slug }];
 	}
 
+	// ── Contar productos incluyendo subcategorías (consistente con listPublic) ──
+	const pathPrefix = `${category.path ?? "/"}${category.id}/`;
+	const subcategories = await db
+		.select({ id: categories.id })
+		.from(categories)
+		.where(and(like(categories.path, `${pathPrefix}%`), eq(categories.isActive, true)));
+
+	const categoryIds = [category.id, ...subcategories.map((s) => s.id)];
+
 	const [row] = await db
 		.select({ cnt: count(products.id) })
 		.from(products)
 		.where(
 			and(
-				eq(products.categoryId, category.id),
+				inArray(products.categoryId, categoryIds),
 				eq(products.isActive, true),
 				eq(products.needsReview, false),
 			),
@@ -316,8 +318,8 @@ async function create(data: CreateBody, userId: string): Promise<Category> {
 		});
 	}
 
-	await ensureUniqueName(nextName);
-	await ensureUniqueSlug(nextSlug);
+	await ensureUnique(categories.name, nextName, "nombre");
+	await ensureUnique(categories.slug, nextSlug, "slug");
 
 	const parent = data.parentId ? await getByIdStrict(data.parentId) : null;
 	const nextPath = buildPath(parent);
@@ -331,16 +333,18 @@ async function create(data: CreateBody, userId: string): Promise<Category> {
 		});
 	}
 
+	const values = {
+		...data,
+		name: nextName,
+		slug: nextSlug,
+		path: nextPath,
+		createdBy: userId,
+		updatedBy: userId,
+	};
+
 	const [item] = await db
 		.insert(categories)
-		.values({
-			...data,
-			name: nextName,
-			slug: nextSlug,
-			path: nextPath,
-			createdBy: userId,
-			updatedBy: userId,
-		} as typeof data & { slug: string; path: string })
+		.values(values)
 		.returning()
 		.catch((err) => handleUniqueViolation(err, "Ya existe una categoría con este nombre o slug"));
 
@@ -382,8 +386,8 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 		});
 	}
 
-	if (nextName !== current.name) await ensureUniqueName(nextName, id);
-	if (nextSlug !== current.slug) await ensureUniqueSlug(nextSlug, id);
+	if (nextName !== current.name) await ensureUnique(categories.name, nextName, "nombre", id);
+	if (nextSlug !== current.slug) await ensureUnique(categories.slug, nextSlug, "slug", id);
 
 	const parentChanged = "parentId" in data && data.parentId !== current.parentId;
 	let nextParent: Category | null = null;
@@ -539,7 +543,9 @@ async function deleteById(id: string): Promise<Category> {
 			return deleted;
 		})
 		.then((deleted) => {
-			deleteEntityFolder("categories", deleted.id);
+			deleteEntityFolder("categories", deleted.id).catch((err) =>
+				console.error(`[R2 cleanup] Failed to delete folder for category ${deleted.id}:`, err),
+			);
 			return deleted;
 		});
 }
@@ -591,7 +597,11 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 			};
 		})
 		.then((result) => {
-			result.deletedIds.forEach((id) => deleteEntityFolder("categories", id));
+			for (const id of result.deletedIds) {
+				deleteEntityFolder("categories", id).catch((err) =>
+					console.error(`[R2 cleanup] Failed to delete folder for category ${id}:`, err),
+				);
+			}
 			return result;
 		});
 }

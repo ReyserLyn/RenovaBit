@@ -3,7 +3,7 @@ import { db } from "@renovabit/db";
 import type { ProductSpecification } from "@renovabit/db/schema";
 import { brands, categories, productChanges, products, syncReports } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, desc, eq, getTableColumns, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, ilike, inArray, like, ne, or, sql } from "drizzle-orm";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
 import type {
@@ -27,7 +27,9 @@ export type ProductWithImage = Product & {
 
 type ListOptions = {
 	brandId?: string;
+	brandSlug?: string;
 	categoryId?: string;
+	categorySlug?: string;
 	isFeatured?: boolean;
 	search?: string;
 };
@@ -79,63 +81,71 @@ async function ensureCategoryExists(categoryId: string | null | undefined): Prom
 
 // ── Unique checks ──────────────────────────────────
 
-async function ensureUniqueName(name: string, excludeId?: string): Promise<void> {
-	const conditions = [eq(products.name, name)];
+async function ensureUnique(
+	field: typeof products.name | typeof products.slug | typeof products.sku,
+	value: string,
+	label: string,
+	excludeId?: string,
+): Promise<void> {
+	const conditions = [eq(field, value)];
 	if (excludeId) conditions.push(ne(products.id, excludeId));
 	const [existing] = await db
 		.select({ id: products.id })
 		.from(products)
-		.where(conditions.length === 1 ? conditions[0] : and(...conditions))
+		.where(and(...conditions))
 		.limit(1);
 	if (existing) {
 		throw createApiError({
 			code: BackendErrorCodes.EXISTS_ERROR,
-			message: "Ya existe un producto con este nombre",
+			message: `Ya existe un producto con este ${label}`,
 			logLevel: "info",
 			doNotLog: true,
 		});
 	}
 }
 
-async function ensureUniqueSlug(slug: string, excludeId?: string): Promise<void> {
-	const conditions = [eq(products.slug, slug)];
-	if (excludeId) conditions.push(ne(products.id, excludeId));
-	const [existing] = await db
-		.select({ id: products.id })
-		.from(products)
-		.where(conditions.length === 1 ? conditions[0] : and(...conditions))
+// ── Slug resolution helpers ────────────────────────
+
+/**
+ * Dado un slug de categoría, devuelve los IDs de la categoría y
+ * todos sus descendientes (via path matching).
+ * Si la categoría no tiene hijos, devuelve solo su propio ID.
+ */
+async function getDescendantCategoryIds(slug: string): Promise<string[]> {
+	const [category] = await db
+		.select({ id: categories.id, path: categories.path })
+		.from(categories)
+		.where(eq(categories.slug, slug))
 		.limit(1);
-	if (existing) {
-		throw createApiError({
-			code: BackendErrorCodes.EXISTS_ERROR,
-			message: "Ya existe un producto con este slug",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
+
+	if (!category) return [];
+
+	// BuildPath: parent.path + parent.id + "/"
+	// Hijos de esta categoría tienen path = (category.path ?? "/") + category.id + "/" + ...
+	const pathPrefix = `${category.path ?? "/"}${category.id}/`;
+
+	const descendants = await db
+		.select({ id: categories.id })
+		.from(categories)
+		.where(and(like(categories.path, `${pathPrefix}%`), eq(categories.isActive, true)));
+
+	return [category.id, ...descendants.map((d) => d.id)];
 }
 
-async function ensureUniqueSku(sku: string, excludeId?: string): Promise<void> {
-	const conditions = [eq(products.sku, sku)];
-	if (excludeId) conditions.push(ne(products.id, excludeId));
-	const [existing] = await db
-		.select({ id: products.id })
-		.from(products)
-		.where(conditions.length === 1 ? conditions[0] : and(...conditions))
+/** Resuelve slug de marca → ID (las marcas no tienen jerarquía). */
+async function getBrandIdBySlug(slug: string): Promise<string | null> {
+	const [brand] = await db
+		.select({ id: brands.id })
+		.from(brands)
+		.where(eq(brands.slug, slug))
 		.limit(1);
-	if (existing) {
-		throw createApiError({
-			code: BackendErrorCodes.EXISTS_ERROR,
-			message: "Ya existe un producto con este SKU",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
+
+	return brand?.id ?? null;
 }
 
 // ── Where clause builder ───────────────────────────
 
-function buildWhere(options: ListOptions, isPublic: boolean) {
+function buildWhere(options: ListOptions, isPublic: boolean, categoryIds?: string[]) {
 	const conditions = [];
 
 	if (isPublic) {
@@ -143,7 +153,11 @@ function buildWhere(options: ListOptions, isPublic: boolean) {
 	}
 
 	if (options.brandId) conditions.push(eq(products.brandId, options.brandId));
-	if (options.categoryId) conditions.push(eq(products.categoryId, options.categoryId));
+	if (categoryIds?.length) {
+		conditions.push(inArray(products.categoryId, categoryIds));
+	} else if (options.categoryId) {
+		conditions.push(eq(products.categoryId, options.categoryId));
+	}
 	if (options.isFeatured !== undefined)
 		conditions.push(eq(products.isFeatured, options.isFeatured));
 	if (options.search) {
@@ -228,6 +242,21 @@ async function getByIdStrict(id: string): Promise<Product> {
 // ═══════════════════════════════════════════════════
 
 async function listPublic(options: ListOptions = {}): Promise<PublicProductListItem[]> {
+	// ── Resolve slugs → IDs (agregación de descendientes para categorías) ──
+	let categoryIds: string[] | undefined;
+	if (options.categorySlug) {
+		categoryIds = await getDescendantCategoryIds(options.categorySlug);
+		if (categoryIds.length === 0) return [];
+	}
+
+	let resolvedBrandId = options.brandId;
+	if (options.brandSlug) {
+		resolvedBrandId = (await getBrandIdBySlug(options.brandSlug)) ?? undefined;
+		if (!resolvedBrandId) return [];
+	}
+
+	const resolvedOptions: ListOptions = { ...options, brandId: resolvedBrandId };
+
 	const rows = await db
 		.select({
 			id: products.id,
@@ -259,7 +288,7 @@ async function listPublic(options: ListOptions = {}): Promise<PublicProductListI
 		.from(products)
 		.leftJoin(brands, eq(products.brandId, brands.id))
 		.leftJoin(categories, eq(products.categoryId, categories.id))
-		.where(buildWhere(options, true))
+		.where(buildWhere(resolvedOptions, true, categoryIds))
 		.orderBy(desc(products.createdAt));
 
 	return rows.map((row) => ({
@@ -358,21 +387,29 @@ async function create(data: CreateBody, userId: string): Promise<Product> {
 		});
 	}
 
-	await ensureUniqueName(nextName);
-	await ensureUniqueSlug(nextSlug);
-	await ensureUniqueSku(data.sku);
+	await ensureUnique(products.name, nextName, "nombre");
+	await ensureUnique(products.slug, nextSlug, "slug");
+	await ensureUnique(products.sku, data.sku, "SKU");
 	await ensureBrandExists(data.brandId);
 	await ensureCategoryExists(data.categoryId);
 
 	const [item] = await db
 		.insert(products)
 		.values({
-			...data,
 			name: nextName,
 			slug: nextSlug,
+			description: data.description,
+			price: data.price,
+			sku: data.sku,
+			stock: data.stock,
+			brandId: data.brandId,
+			categoryId: data.categoryId,
+			specifications: data.specifications,
+			isActive: data.isActive,
+			isFeatured: data.isFeatured,
 			createdBy: userId,
 			updatedBy: userId,
-		} as typeof data & { slug: string })
+		})
 		.returning()
 		.catch((err) =>
 			handleUniqueViolation(err, "Ya existe un producto con este nombre, slug o SKU"),
@@ -410,9 +447,9 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Pro
 		});
 	}
 
-	if (nextName !== current.name) await ensureUniqueName(nextName, id);
-	if (nextSlug !== current.slug) await ensureUniqueSlug(nextSlug, id);
-	if (data.sku && data.sku !== current.sku) await ensureUniqueSku(data.sku, id);
+	if (nextName !== current.name) await ensureUnique(products.name, nextName, "nombre", id);
+	if (nextSlug !== current.slug) await ensureUnique(products.slug, nextSlug, "slug", id);
+	if (data.sku && data.sku !== current.sku) await ensureUnique(products.sku, data.sku, "SKU", id);
 
 	if (data.brandId !== undefined) await ensureBrandExists(data.brandId);
 	if (data.categoryId !== undefined) await ensureCategoryExists(data.categoryId);
@@ -453,8 +490,10 @@ async function deleteById(id: string): Promise<Product> {
 		});
 	}
 
-	// Limpiar carpeta R2 (no bloqueante, imágenes de producto)
-	deleteEntityFolder("products", id);
+	// Limpiar carpeta R2 (no bloqueante, errores se loguean)
+	deleteEntityFolder("products", id).catch((err) =>
+		console.error(`[R2 cleanup] Failed to delete folder for product ${id}:`, err),
+	);
 
 	return deleted;
 }
@@ -501,7 +540,11 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 			};
 		})
 		.then((result) => {
-			result.deletedIds.forEach((id) => deleteEntityFolder("products", id));
+			for (const id of result.deletedIds) {
+				deleteEntityFolder("products", id).catch((err) =>
+					console.error(`[R2 cleanup] Failed to delete folder for product ${id}:`, err),
+				);
+			}
 			return result;
 		});
 }
