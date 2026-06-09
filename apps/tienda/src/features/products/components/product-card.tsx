@@ -1,16 +1,11 @@
-import {
-	FavouriteIcon,
-	ImageNotFound01Icon,
-	ShoppingCartIcon,
-	ViewIcon,
-} from "@hugeicons/core-free-icons";
+import { ImageNotFound01Icon, ShoppingCartIcon, ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Button } from "@renovabit/ui/components/ui/button";
 import { cn } from "@renovabit/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
+import { FavoriteButton } from "@/shared/components/favorites/favorite-button";
 import { formatPrice } from "@/shared/lib/format";
-import { useFavoritesStore } from "@/shared/lib/stores/favorites";
 import type { ProductListItem } from "../types";
 
 interface ProductCardProps {
@@ -18,16 +13,6 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-	const favorites = useFavoritesStore((s) => s.favorites);
-	const toggle = useFavoritesStore((s) => s.toggle);
-	const liked = favorites.includes(product.slug);
-
-	const handleFavoriteClick = (e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		toggle(product.slug);
-	};
-
 	return (
 		<div className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs transition-all duration-200 hover:shadow-md">
 			{/* ── Imagen ─────────────────────────── */}
@@ -59,24 +44,7 @@ export function ProductCard({ product }: ProductCardProps) {
 			</Link>
 
 			{/* ── Botón favorito ─────────────────── */}
-			<button
-				type="button"
-				onClick={handleFavoriteClick}
-				aria-label={liked ? "Quitar de favoritos" : "Agregar a favoritos"}
-				className={cn(
-					"absolute right-2 top-2 z-10 flex size-8 cursor-pointer items-center justify-center rounded-full backdrop-blur-xs transition-all duration-200",
-					"hover:scale-110 active:scale-90",
-					liked
-						? "bg-destructive/15 text-destructive hover:bg-destructive/25"
-						: "bg-background/70 text-muted-foreground hover:bg-background/90 hover:text-foreground",
-				)}
-			>
-				<HugeiconsIcon
-					icon={FavouriteIcon}
-					size={18}
-					className={cn("transition-all duration-200", liked && "fill-destructive")}
-				/>
-			</button>
+			<FavoriteButton slug={product.slug} className="absolute right-2 top-2 z-10 size-8" />
 
 			{/* ── Info ───────────────────────────── */}
 			<div className="flex flex-1 flex-col gap-1.5 p-4">

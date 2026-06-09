@@ -78,7 +78,7 @@ export function FilterSidebar({ className }: FilterSidebarProps) {
 						</Label>
 						<div className="relative">
 							<select
-								className="border-input bg-background text-foreground ring-offset-background focus-visible:ring-ring flex h-8 w-full appearance-none rounded-lg border px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-offset-1"
+								className="ring-offset-background focus-visible:ring-ring flex h-8 w-full appearance-none rounded-lg border border-input px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-offset-1"
 								disabled
 							>
 								{SORT_OPTIONS.map((opt) => (
@@ -132,7 +132,7 @@ export function FilterSidebar({ className }: FilterSidebarProps) {
 								>
 									<input
 										type="checkbox"
-										className="border-input accent-primary size-3.5 rounded"
+										className="border-input accent-primary size-3.5 rounded-md"
 										disabled
 									/>
 									<span className="flex-1 truncate">{brand.name}</span>
@@ -152,7 +152,7 @@ export function FilterSidebar({ className }: FilterSidebarProps) {
 						<label className="flex cursor-not-allowed items-center gap-2 rounded-md px-1.5 py-1 text-xs opacity-50">
 							<input
 								type="checkbox"
-								className="border-input accent-primary size-3.5 rounded"
+								className="border-input accent-primary size-3.5 rounded-md"
 								disabled
 							/>
 							Solo productos en stock

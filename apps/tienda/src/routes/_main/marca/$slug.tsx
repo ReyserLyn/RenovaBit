@@ -72,7 +72,7 @@ function BrandPage() {
 			{/* Content: Filters + Grid */}
 			<div className="flex flex-col gap-6 lg:flex-row">
 				{/* Filtros */}
-				<div className="animate-fade-in ">
+				<div className="animate-fade-in">
 					<FilterSidebar />
 				</div>
 

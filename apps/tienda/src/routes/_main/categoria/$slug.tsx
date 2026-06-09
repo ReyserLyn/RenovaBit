@@ -70,7 +70,7 @@ function CategoryPage() {
 			{/* Content: Filters + Grid */}
 			<div className="flex flex-col gap-6 lg:flex-row">
 				{/* Filtros */}
-				<div className="animate-fade-in ">
+				<div className="animate-fade-in">
 					<FilterSidebar />
 				</div>
 
@@ -125,7 +125,7 @@ function Breadcrumb({ items }: { items: Array<{ id: string; name: string; slug: 
 				<span key={item.id} className="flex items-center gap-1.5">
 					<HugeiconsIcon icon={ArrowRight01Icon} size={14} className="text-muted-foreground/50" />
 					{item.slug === items[items.length - 1]?.slug ? (
-						<span className="text-foreground font-medium">{item.name}</span>
+						<span className="font-medium">{item.name}</span>
 					) : (
 						<Link
 							to="/categoria/$slug"
