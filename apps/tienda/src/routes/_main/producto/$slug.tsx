@@ -205,16 +205,16 @@ function ProductPage() {
 					</div>
 
 					{/* ── Botones de acción ───── */}
-					<div className="flex flex-col gap-2 sm:flex-row">
-						<Button size="lg" className="flex-1" disabled={!inStock}>
-							<HugeiconsIcon icon={ShoppingCartIcon} size={18} />
+					<div className="flex flex-col gap-3 sm:flex-row">
+						<Button size="xl" className="sm:flex-1" disabled={!inStock}>
+							<HugeiconsIcon icon={ShoppingCartIcon} size={20} />
 							{inStock ? "Añadir al carrito" : "Agotado"}
 						</Button>
 
 						<Button
 							nativeButton={false}
-							size="lg"
-							className="flex-1 border-[#25D366] bg-[#25D366] text-white hover:bg-[#25D366]/90 hover:text-white"
+							size="xl"
+							className="sm:flex-1 border-[#25D366] bg-[#25D366] text-white hover:bg-[#25D366]/90 hover:text-white"
 							render={
 								<a
 									href={`https://wa.me/51987471074?text=${whatsappMessage}`}

@@ -53,7 +53,7 @@ export function FilterSidebar({ className }: FilterSidebarProps) {
 			<aside
 				className={cn(
 					"w-full shrink-0 space-y-5 lg:w-64 lg:block",
-					mobileOpen ? "block" : "hidden",
+					mobileOpen ? "mt-3 block" : "hidden",
 					className,
 				)}
 			>

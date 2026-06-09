@@ -25,11 +25,11 @@ function RouteComponent() {
 		<SidebarProvider>
 			{isMobile && <AppSidebar />}
 
-			<div className="flex flex-1 flex-col">
+			<div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
 				<div className="container mx-auto flex w-full flex-1 flex-col overflow-x-hidden min-h-svh">
 					<Navbar />
 
-					<main className="flex flex-1 flex-col">
+					<main className="flex min-w-0 flex-1 flex-col">
 						<Outlet />
 					</main>
 				</div>

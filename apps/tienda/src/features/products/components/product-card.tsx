@@ -82,10 +82,10 @@ export function ProductCard({ product }: ProductCardProps) {
 				</p>
 
 				{/* ── Botones ──────────────────────── */}
-				<div className="mt-2 flex flex-col gap-1.5 sm:flex-row">
+				<div className="mt-2 flex flex-col gap-1.5">
 					<Button
 						nativeButton={false}
-						className="flex-1"
+						size="xl"
 						render={
 							<Link to="/producto/$slug" params={{ slug: product.slug }}>
 								<HugeiconsIcon icon={ViewIcon} size={16} />
@@ -94,7 +94,7 @@ export function ProductCard({ product }: ProductCardProps) {
 						}
 					/>
 
-					<Button variant="outline" className="flex-1" disabled>
+					<Button variant="outline" size="xl" disabled>
 						<HugeiconsIcon icon={ShoppingCartIcon} size={16} />
 						Añadir
 					</Button>
