@@ -2,7 +2,7 @@ import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { categories, products } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, asc, count, eq, inArray, like, ne } from "drizzle-orm";
+import { and, asc, count, eq, gt, inArray, like, ne } from "drizzle-orm";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
 import type {
@@ -163,7 +163,7 @@ async function getProductCounts(): Promise<Map<string, number>> {
 	const rows = await db
 		.select({ categoryId: products.categoryId, cnt: count(products.id) })
 		.from(products)
-		.where(and(eq(products.isActive, true), eq(products.needsReview, false)))
+		.where(and(eq(products.isActive, true), eq(products.needsReview, false), gt(products.stock, 0)))
 		.groupBy(products.categoryId);
 
 	const map = new Map<string, number>();
@@ -273,6 +273,7 @@ async function getBySlugPublic(slug: string): Promise<PublicCategoryDetail | nul
 				inArray(products.categoryId, categoryIds),
 				eq(products.isActive, true),
 				eq(products.needsReview, false),
+				gt(products.stock, 0),
 			),
 		);
 

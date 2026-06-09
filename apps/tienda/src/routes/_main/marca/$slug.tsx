@@ -3,6 +3,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { brandQueries } from "@/features/brands/hooks/queries";
 import { ProductCard } from "@/features/products/components/product-card";
 import { productQueries } from "@/features/products/hooks/queries";
+import { FilterSidebar } from "@/shared/components/filters/filter-sidebar";
 import { isApiClientError } from "@/shared/lib/api";
 import { getSiteUrl } from "@/shared/lib/env";
 import { seo } from "@/shared/lib/seo";
@@ -49,7 +50,7 @@ function BrandPage() {
 	return (
 		<div className="flex flex-1 flex-col gap-6 py-6">
 			{/* Header */}
-			<div className="flex items-center gap-4">
+			<div className="animate-fade-in-up flex items-center gap-4">
 				{brand.imageUrl && (
 					<img
 						src={brand.imageUrl}
@@ -68,18 +69,32 @@ function BrandPage() {
 				</div>
 			</div>
 
-			{/* Product Grid */}
-			{products.length > 0 ? (
-				<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-					{products.map((product) => (
-						<ProductCard key={product.id} product={product} />
-					))}
+			{/* Content: Filters + Grid */}
+			<div className="flex flex-col gap-6 lg:flex-row">
+				{/* Filtros */}
+				<div className="animate-fade-in ">
+					<FilterSidebar />
 				</div>
-			) : (
-				<div className="flex flex-1 items-center justify-center py-16">
-					<p className="text-muted-foreground text-lg">No hay productos de esta marca aún.</p>
-				</div>
-			)}
+
+				{/* Product Grid */}
+				{products.length > 0 ? (
+					<div className="grid min-w-0 flex-1 grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4">
+						{products.map((product, i) => (
+							<div
+								key={product.id}
+								className="animate-fade-in-up"
+								style={{ animationDelay: `${(i % 8) * 50}ms` }}
+							>
+								<ProductCard product={product} />
+							</div>
+						))}
+					</div>
+				) : (
+					<div className="animate-fade-in flex flex-1 items-center justify-center py-16">
+						<p className="text-muted-foreground text-lg">No hay productos de esta marca aún.</p>
+					</div>
+				)}
+			</div>
 
 			{/* Structured Data: Brand */}
 			<script

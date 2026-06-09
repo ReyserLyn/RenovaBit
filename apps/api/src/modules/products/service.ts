@@ -3,7 +3,7 @@ import { db } from "@renovabit/db";
 import type { ProductSpecification } from "@renovabit/db/schema";
 import { brands, categories, productChanges, products, syncReports } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, desc, eq, getTableColumns, ilike, inArray, like, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, gt, ilike, inArray, like, ne, or, sql } from "drizzle-orm";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
 import type {
@@ -41,7 +41,14 @@ type UpdateBody = ProductModel["updateBody"];
 
 const MAX_BULK_DELETE = 50;
 
-const PUBLIC_CONDITIONS = [eq(products.isActive, true), eq(products.needsReview, false)] as const;
+/** Condiciones para detalle de producto (seguir mostrando aunque esté agotado) */
+const PUBLIC_DETAIL_CONDITIONS = [
+	eq(products.isActive, true),
+	eq(products.needsReview, false),
+] as const;
+
+/** Condiciones para listados públicos (ocultar agotados) */
+const PUBLIC_LIST_CONDITIONS = [...PUBLIC_DETAIL_CONDITIONS, gt(products.stock, 0)] as const;
 
 // ── FK validation ──────────────────────────────────
 
@@ -149,7 +156,7 @@ function buildWhere(options: ListOptions, isPublic: boolean, categoryIds?: strin
 	const conditions = [];
 
 	if (isPublic) {
-		conditions.push(...PUBLIC_CONDITIONS);
+		conditions.push(...PUBLIC_LIST_CONDITIONS);
 	}
 
 	if (options.brandId) conditions.push(eq(products.brandId, options.brandId));
@@ -345,7 +352,7 @@ async function getBySlugPublic(slug: string): Promise<PublicProductDetail | null
 		.from(products)
 		.leftJoin(brands, eq(products.brandId, brands.id))
 		.leftJoin(categories, eq(products.categoryId, categories.id))
-		.where(and(eq(products.slug, slug), ...PUBLIC_CONDITIONS))
+		.where(and(eq(products.slug, slug), ...PUBLIC_DETAIL_CONDITIONS))
 		.limit(1);
 
 	if (!row) return null;
