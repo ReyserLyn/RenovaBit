@@ -219,7 +219,8 @@ export function getProductColumns({
 			size: 110,
 		},
 		{
-			accessorKey: "price",
+			id: "price",
+			accessorFn: (row) => Number.parseFloat(row.price),
 			meta: {
 				headerTitle: "Precio",
 				skeleton: <Skeleton className="h-4 w-20 tabular-nums" />,

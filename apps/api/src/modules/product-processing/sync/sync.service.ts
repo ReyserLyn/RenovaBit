@@ -34,6 +34,14 @@ function applyMarkup(rawPrice: string): string {
 	return (Number.parseFloat(rawPrice) * MARKUP).toFixed(2);
 }
 
+/** Detecta precios placeholder (9999, 99999…, "2") */
+function isPlaceholderPrice(rawPrice: string): boolean {
+	const cleaned = rawPrice.replace(/[^0-9]/g, "");
+	if (cleaned.length >= 4 && /^9+$/.test(cleaned)) return true;
+	if (cleaned === "2") return true;
+	return false;
+}
+
 async function ensureUniqueSlug(baseSlug: string, providerId: string): Promise<string> {
 	const [existing] = await db
 		.select({ id: products.id })
@@ -156,16 +164,37 @@ export async function runSync(
 			.info(`Sync: ${skippedCount} items omitidos por lista negra`);
 	}
 
-	logger.withMetadata({ reportId, count: filtered.length, trigger }).info("Sync iniciado");
+	// ── Filtrar precios placeholder (9999, 99999…) y stock 0: no se procesan pero
+	// se marcan como vistos para que no se consideren out-of-stock.
+	const skipIds: string[] = [];
+	const activeItems = filtered.filter((item) => {
+		if (isPlaceholderPrice(item.rawPrice)) {
+			skipIds.push(item.providerId);
+			return false;
+		}
+		if (item.rawStock === 0) {
+			skipIds.push(item.providerId);
+			return false;
+		}
+		return true;
+	});
+
+	if (skipIds.length > 0) {
+		logger
+			.withMetadata({ reportId, count: skipIds.length })
+			.info(`Sync: ${skipIds.length} items omitidos (placeholder o stock 0)`);
+	}
+
+	logger.withMetadata({ reportId, count: activeItems.length, trigger }).info("Sync iniciado");
 	const startedAt = report.startedAt.toISOString();
-	const scrapedIds = new Set(filtered.map((i) => i.providerId));
-	const progressStep = Math.max(1, Math.floor(filtered.length * 0.05));
+	const scrapedIds = new Set([...activeItems.map((i) => i.providerId), ...skipIds]);
+	const progressStep = Math.max(1, Math.floor(activeItems.length * 0.05));
 	let lastProgress = 0;
 
 	// Procesar items concurrentemente con p-limit para controlar carga de IA
 	const limit = pLimit(AI_CONCURRENCY);
 	const results = await Promise.allSettled(
-		filtered.map((item) =>
+		activeItems.map((item) =>
 			limit(async () => {
 				try {
 					await processItem(item, reportId, stats);
@@ -179,7 +208,7 @@ export async function runSync(
 				// Emitir progreso cada 5% de items
 				if (onProgress && stats.processed - lastProgress >= progressStep) {
 					lastProgress = stats.processed;
-					onProgress({ reportId, ...stats, total: filtered.length });
+					onProgress({ reportId, ...stats, total: activeItems.length });
 				}
 			}),
 		),
@@ -359,9 +388,11 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 		db.select({ name: categories.name }).from(categories).where(eq(categories.isActive, true)),
 	]);
 
+	const blockedCategories = new Set(["Componentes", "Equipos", "Perifericos"]);
+
 	const aiResult = await extractFromRawName(rawName.replace(/\s+/g, " "), {
 		brands: existingBrands.map((b) => b.name),
-		categories: existingCategories.map((c) => c.name),
+		categories: existingCategories.map((c) => c.name).filter((n) => !blockedCategories.has(n)),
 	});
 
 	const baseSlug = makeSlug(aiResult.name);
