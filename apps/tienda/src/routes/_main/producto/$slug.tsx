@@ -5,6 +5,7 @@ import { Label } from "@renovabit/ui/components/ui/label";
 import { cn } from "@renovabit/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { RelatedProducts } from "@/features/products/components/related-products";
 import { productQueries } from "@/features/products/hooks/queries";
 import { FavoriteButton } from "@/shared/components/favorites/favorite-button";
 import { WhatsAppIcon } from "@/shared/components/icons";
@@ -281,6 +282,13 @@ function ProductPage() {
 					</div>
 				</div>
 			</div>
+
+			{/* ── Productos Relacionados ───────────── */}
+			{product.category && (
+				<div className="animate-fade-in-up">
+					<RelatedProducts currentSlug={product.slug} categorySlug={product.category.slug} />
+				</div>
+			)}
 		</div>
 	);
 }

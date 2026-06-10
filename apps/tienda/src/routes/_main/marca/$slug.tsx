@@ -1,9 +1,10 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { brandQueries } from "@/features/brands/hooks/queries";
 import { ProductCard } from "@/features/products/components/product-card";
 import { productQueries } from "@/features/products/hooks/queries";
 import { FilterSidebar } from "@/shared/components/filters/filter-sidebar";
+import { InfiniteScrollSentinel } from "@/shared/components/infinite-scroll-sentinel";
 import { isApiClientError } from "@/shared/lib/api";
 import { getSiteUrl } from "@/shared/lib/env";
 import { seo } from "@/shared/lib/seo";
@@ -11,10 +12,9 @@ import { seo } from "@/shared/lib/seo";
 export const Route = createFileRoute("/_main/marca/$slug")({
 	loader: async ({ params, context: { queryClient } }) => {
 		try {
-			const [brand] = await Promise.all([
-				queryClient.ensureQueryData(brandQueries.bySlug(params.slug)),
-				queryClient.ensureQueryData(productQueries.byBrandSlug(params.slug)),
-			]);
+			const brand = await queryClient.ensureQueryData(brandQueries.bySlug(params.slug));
+			// Prefetch primera página (fire-and-forget)
+			void queryClient.prefetchInfiniteQuery(productQueries.infiniteByBrandSlug(params.slug));
 			return { brand };
 		} catch (error) {
 			if (isApiClientError(error) && error.code === "NOT_FOUND_ERROR") {
@@ -45,7 +45,11 @@ export const Route = createFileRoute("/_main/marca/$slug")({
 function BrandPage() {
 	const { slug } = Route.useParams();
 	const { data: brand } = useSuspenseQuery(brandQueries.bySlug(slug));
-	const { data: products } = useSuspenseQuery(productQueries.byBrandSlug(slug));
+	const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage } =
+		useSuspenseInfiniteQuery(productQueries.infiniteByBrandSlug(slug));
+
+	const products = data.pages.flatMap((page) => page.data);
+	const totalProducts = data.pages[0]?.total ?? 0;
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 py-6">
@@ -64,7 +68,7 @@ function BrandPage() {
 						<p className="text-muted-foreground max-w-2xl text-base">{brand.description}</p>
 					)}
 					<p className="text-muted-foreground text-sm">
-						{brand.productCount} {brand.productCount === 1 ? "producto" : "productos"}
+						{totalProducts} {totalProducts === 1 ? "producto" : "productos"}
 					</p>
 				</div>
 			</div>
@@ -76,24 +80,34 @@ function BrandPage() {
 					<FilterSidebar />
 				</div>
 
-				{/* Product Grid */}
-				{products.length > 0 ? (
-					<div className="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-						{products.map((product, i) => (
-							<div
-								key={product.id}
-								className="animate-fade-in-up"
-								style={{ animationDelay: `${(i % 8) * 50}ms` }}
-							>
-								<ProductCard product={product} />
-							</div>
-						))}
-					</div>
-				) : (
-					<div className="animate-fade-in flex flex-1 items-center justify-center py-16">
-						<p className="text-muted-foreground text-lg">No hay productos de esta marca aún.</p>
-					</div>
-				)}
+				{/* Product Grid + Infinite Scroll */}
+				<div className="min-w-0 flex-1 space-y-6">
+					{products.length > 0 ? (
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+							{products.map((product, i) => (
+								<div
+									key={product.id}
+									className="animate-fade-in-up"
+									style={{ animationDelay: `${(i % 12) * 40}ms` }}
+								>
+									<ProductCard product={product} />
+								</div>
+							))}
+						</div>
+					) : (
+						<div className="animate-fade-in flex items-center justify-center py-16">
+							<p className="text-muted-foreground text-lg">No hay productos de esta marca aún.</p>
+						</div>
+					)}
+
+					{/* Sentinel + Infinite Scroll */}
+					<InfiniteScrollSentinel
+						hasNextPage={hasNextPage}
+						isFetching={isFetching}
+						isFetchingNextPage={isFetchingNextPage}
+						fetchNextPage={fetchNextPage}
+					/>
+				</div>
 			</div>
 
 			{/* Structured Data: Brand */}

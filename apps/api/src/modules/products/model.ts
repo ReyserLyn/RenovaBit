@@ -110,8 +110,18 @@ export const PublicProductDetail = t.Object({
 	createdAt: t.String(),
 });
 
+// ── Paginated Response ──────────────────────────────
+
+const PaginatedProductListResponse = t.Object({
+	data: t.Array(PublicProductListItem),
+	total: t.Integer({ minimum: 0 }),
+	offset: t.Integer({ minimum: 0 }),
+	limit: t.Integer({ minimum: 1 }),
+});
+
 // ── Tipos derivados de schemas ──
 
+export type PaginatedProductListResponse = typeof PaginatedProductListResponse.static;
 export type PublicProductListItem = typeof PublicProductListItem.static;
 export type PublicProductDetail = typeof PublicProductDetail.static;
 export type BulkDeleteResult = typeof BulkDeleteResult.static;
@@ -144,6 +154,9 @@ export const ProductModel = {
 		categorySlug: t.Optional(t.String({ minLength: 1 })),
 		isFeatured: t.Optional(t.Boolean()),
 		search: t.Optional(t.String()),
+		offset: t.Optional(t.Integer({ minimum: 0, default: 0 })),
+		limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
+		excludeSlug: t.Optional(t.String({ minLength: 1 })),
 	}),
 
 	// Batch
@@ -158,12 +171,8 @@ export const ProductModel = {
 
 	// Public Responses
 	publicProductListItem: PublicProductListItem,
-	publicProductListResponse: t.Array(PublicProductListItem),
+	publicProductListResponse: PaginatedProductListResponse,
 	publicProductDetail: PublicProductDetail,
-
-	// Legacy compat (mantiene referencias viejas para admin)
-	productResponse: AdminProductResponse,
-	productListResponse: t.Array(AdminProductListResponse),
 } as const;
 
 export type ProductModel = {

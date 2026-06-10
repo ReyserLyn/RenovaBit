@@ -1,6 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api, unwrapResponse } from "@/shared/lib/api";
-import type { CategoryDetail, CategoryTreeNode } from "../types";
 
 // ── Query Keys Factory ───────────────────────────────────────
 
@@ -17,7 +16,7 @@ export const categoryQueries = {
 	tree: () =>
 		queryOptions({
 			queryKey: categoryKeys.tree(),
-			queryFn: () => unwrapResponse<CategoryTreeNode[]>(api.api.v1.categories.get()),
+			queryFn: () => unwrapResponse(api.api.v1.categories.get()),
 			staleTime: 1000 * 60 * 10, // 10 min
 		}),
 
@@ -25,7 +24,7 @@ export const categoryQueries = {
 	bySlug: (slug: string) =>
 		queryOptions({
 			queryKey: categoryKeys.detail(slug),
-			queryFn: () => unwrapResponse<CategoryDetail>(api.api.v1.categories({ slug }).get()),
+			queryFn: () => unwrapResponse(api.api.v1.categories({ slug }).get()),
 			staleTime: 1000 * 60 * 5, // 5 min
 		}),
 };

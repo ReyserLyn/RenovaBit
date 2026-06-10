@@ -4,7 +4,7 @@ import { ErrorResponse, ProductModel } from "./model";
 import { ProductService } from "./service";
 
 // ═══════════════════════════════════════════════════
-//  PÚBLICO — sin auth, sin resolveOptionalSession
+//  PÚBLICO — sin auth
 //  Prefijo: /api/v1/products
 // ═══════════════════════════════════════════════════
 
@@ -20,6 +20,9 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 				categorySlug: query.categorySlug,
 				isFeatured: query.isFeatured,
 				search: query.search,
+				offset: query.offset,
+				limit: query.limit,
+				excludeSlug: query.excludeSlug,
 			});
 		},
 		{

@@ -3,7 +3,20 @@ import { db } from "@renovabit/db";
 import type { ProductSpecification } from "@renovabit/db/schema";
 import { brands, categories, productChanges, products, syncReports } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, desc, eq, getTableColumns, gt, ilike, inArray, like, ne, or, sql } from "drizzle-orm";
+import {
+	and,
+	count,
+	desc,
+	eq,
+	getTableColumns,
+	gt,
+	ilike,
+	inArray,
+	like,
+	ne,
+	or,
+	sql,
+} from "drizzle-orm";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
 import type {
@@ -25,6 +38,11 @@ export type ProductWithImage = Product & {
 	providerIds: Array<{ source: string; externalId: string }>;
 };
 
+/**
+ * Opciones de listado compartidas entre admin y público.
+ * Los campos específicos (search, offset, limit, excludeSlug) son ignorados
+ * por el admin `list()`, que siempre devuelve resultados completos.
+ */
 type ListOptions = {
 	brandId?: string;
 	brandSlug?: string;
@@ -32,6 +50,9 @@ type ListOptions = {
 	categorySlug?: string;
 	isFeatured?: boolean;
 	search?: string;
+	offset?: number;
+	limit?: number;
+	excludeSlug?: string;
 };
 
 type CreateBody = ProductModel["createBody"];
@@ -167,6 +188,7 @@ function buildWhere(options: ListOptions, isPublic: boolean, categoryIds?: strin
 	}
 	if (options.isFeatured !== undefined)
 		conditions.push(eq(products.isFeatured, options.isFeatured));
+	if (options.excludeSlug) conditions.push(ne(products.slug, options.excludeSlug));
 	if (options.search) {
 		const term = `%${options.search}%`;
 		conditions.push(or(ilike(products.name, term), ilike(products.sku, term)) ?? undefined);
@@ -248,22 +270,46 @@ async function getByIdStrict(id: string): Promise<Product> {
 //  PUBLIC QUERIES
 // ═══════════════════════════════════════════════════
 
-async function listPublic(options: ListOptions = {}): Promise<PublicProductListItem[]> {
+async function listPublic(
+	options: ListOptions = {},
+): Promise<{ data: PublicProductListItem[]; total: number; offset: number; limit: number }> {
 	// ── Resolve slugs → IDs (agregación de descendientes para categorías) ──
 	let categoryIds: string[] | undefined;
 	if (options.categorySlug) {
 		categoryIds = await getDescendantCategoryIds(options.categorySlug);
-		if (categoryIds.length === 0) return [];
+		if (categoryIds.length === 0) {
+			return { data: [], total: 0, offset: options.offset ?? 0, limit: options.limit ?? 20 };
+		}
 	}
 
 	let resolvedBrandId = options.brandId;
 	if (options.brandSlug) {
 		resolvedBrandId = (await getBrandIdBySlug(options.brandSlug)) ?? undefined;
-		if (!resolvedBrandId) return [];
+		if (!resolvedBrandId) {
+			return { data: [], total: 0, offset: options.offset ?? 0, limit: options.limit ?? 20 };
+		}
 	}
 
 	const resolvedOptions: ListOptions = { ...options, brandId: resolvedBrandId };
+	const where = buildWhere(resolvedOptions, true, categoryIds);
 
+	// ── Count total ──
+	// ⚠️  El count solo consulta `products` SIN JOINs a brands/categories.
+	// buildWhere() solo genera condiciones sobre columnas de `products`, así que
+	// hoy es seguro. Si en el futuro se agregan filtros sobre brands.* o categories.*
+	// en buildWhere, este count quedaría desincronizado silenciosamente.
+	// Solución: agregar los mismos LEFT JOINs que la query de datos, o separar
+	// buildWhere en condiciones base + condiciones con dependencia de JOIN.
+	const [countRow] = await db
+		.select({ total: count(products.id) })
+		.from(products)
+		.where(where);
+
+	const total = Number(countRow?.total ?? 0);
+	const offset = resolvedOptions.offset ?? 0;
+	const limit = resolvedOptions.limit ?? 20;
+
+	// ── Query paginada ──
 	const rows = await db
 		.select({
 			id: products.id,
@@ -295,10 +341,12 @@ async function listPublic(options: ListOptions = {}): Promise<PublicProductListI
 		.from(products)
 		.leftJoin(brands, eq(products.brandId, brands.id))
 		.leftJoin(categories, eq(products.categoryId, categories.id))
-		.where(buildWhere(resolvedOptions, true, categoryIds))
-		.orderBy(desc(products.createdAt));
+		.where(where)
+		.orderBy(desc(products.createdAt))
+		.offset(offset)
+		.limit(limit);
 
-	return rows.map((row) => ({
+	const data = rows.map((row) => ({
 		id: row.id,
 		name: row.name,
 		slug: row.slug,
@@ -314,6 +362,8 @@ async function listPublic(options: ListOptions = {}): Promise<PublicProductListI
 			? { id: row.categoryId, name: row.categoryName!, slug: row.categorySlug! }
 			: null,
 	}));
+
+	return { data, total, offset, limit };
 }
 
 async function getBySlugPublic(slug: string): Promise<PublicProductDetail | null> {
