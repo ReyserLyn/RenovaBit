@@ -19,6 +19,26 @@ type ScrapingJobData = {
 const SYNC_COOLDOWN_KEY = "scraping:sync:cooldown";
 const SYNC_COOLDOWN_TTL = 2;
 
+const NETWORK_FAIL_COUNT_KEY = "scraping:sync:network:failures";
+const NETWORK_BREAKER_KEY = "scraping:sync:network:breaker";
+const NETWORK_BREAKER_THRESHOLD = 3;
+const NETWORK_BREAKER_TTL_SECONDS = 30 * 60;
+
+const RETRYABLE_KEYWORDS = [
+	"socket",
+	"econnreset",
+	"etimedout",
+	"econnrefused",
+	"closed unexpectedly",
+	"fetch failed",
+] as const;
+
+function isRetryableNetworkError(err: unknown): boolean {
+	const msg = err instanceof Error ? err.message : String(err);
+	const lower = msg.toLowerCase();
+	return RETRYABLE_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 // Cleanup orphaned reports from previous crash
 await cleanupOrphanedReports();
 
@@ -39,6 +59,16 @@ export const scrapingWorker = new Worker<ScrapingJobData>(
 
 		const { limit } = job.data;
 		const trigger = job.data.trigger || "automatic";
+
+		if (trigger === "automatic") {
+			const breakerActive = await redis.get(NETWORK_BREAKER_KEY).catch(() => null);
+			if (breakerActive) {
+				logger
+					.withMetadata({ jobId: job.id, trigger })
+					.warn("Circuit breaker activo — omitiendo sync automático");
+				return { skipped: true, reason: "circuit_breaker" };
+			}
+		}
 
 		logger.withMetadata({ jobId: job.id, limit, trigger }).info("Iniciando scraping job");
 
@@ -84,7 +114,42 @@ export const scrapingWorker = new Worker<ScrapingJobData>(
 				});
 			}
 
+			if (trigger === "automatic") {
+				await redis.del(NETWORK_FAIL_COUNT_KEY, NETWORK_BREAKER_KEY).catch((err) => {
+					logger
+						.withMetadata({ jobId: job.id })
+						.withError(err as Error)
+						.warn("No se pudo resetear estado de red en Redis");
+				});
+			}
+
 			return { reportId, stats };
+		} catch (err) {
+			if (trigger === "automatic" && isRetryableNetworkError(err)) {
+				const failures = await redis.incr(NETWORK_FAIL_COUNT_KEY).catch(() => 0);
+
+				if (failures === 1) {
+					await redis.expire(NETWORK_FAIL_COUNT_KEY, 86_400).catch(() => null);
+				}
+
+				if (failures >= NETWORK_BREAKER_THRESHOLD) {
+					await redis
+						.set(NETWORK_BREAKER_KEY, "1", "EX", NETWORK_BREAKER_TTL_SECONDS)
+						.catch(() => null);
+				}
+
+				logger
+					.withMetadata({
+						jobId: job.id,
+						failures,
+						breakerOpen: failures >= NETWORK_BREAKER_THRESHOLD,
+						breakerTtl: NETWORK_BREAKER_TTL_SECONDS,
+					})
+					.withError(err as Error)
+					.warn("Fallo de red en scraping automático");
+			}
+
+			throw err;
 		} finally {
 			await redis.set(SYNC_COOLDOWN_KEY, "1", "EX", SYNC_COOLDOWN_TTL).catch((err) => {
 				logger

@@ -8,7 +8,7 @@ const PHOTOS_BASE_URL = process.env.SCRAPING_REMATAZO_PHOTOS_URL || "https://rem
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
-const FETCH_TIMEOUT_MS = 15_000;
+const FETCH_TIMEOUT_MS = 20_000;
 
 export const SYNC_USER_AGENT = "RenovabitBot/1.0";
 
@@ -34,7 +34,11 @@ async function fetchProductList(limit: number): Promise<ScrapedItem[]> {
 	for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 		try {
 			const res = await fetch(BASE_URL, {
-				headers: { "User-Agent": SYNC_USER_AGENT },
+				headers: {
+					"User-Agent": SYNC_USER_AGENT,
+					Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+					Connection: "close",
+				},
 				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 			});
 
@@ -80,7 +84,8 @@ async function fetchProductList(limit: number): Promise<ScrapedItem[]> {
 		} catch (err) {
 			lastError = err;
 			if (attempt < MAX_RETRIES && isRetryableNetworkError(err)) {
-				const delay = RETRY_DELAY_MS * attempt;
+				const jitter = Math.floor(Math.random() * 1000);
+				const delay = RETRY_DELAY_MS * attempt + jitter;
 				logger
 					.withMetadata({ attempt, maxRetries: MAX_RETRIES, delay })
 					.withError(err)
@@ -104,15 +109,32 @@ async function fetchProductImage(providerId: string): Promise<string | null> {
 		if (!trimmedId) return null;
 
 		const url = `${PHOTOS_BASE_URL}/${trimmedId}.png`;
-		const res = await fetch(url, {
+		const headRes = await fetch(url, {
 			method: "HEAD",
 			headers: { "User-Agent": SYNC_USER_AGENT },
 			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 		});
 
-		if (!res.ok) return null;
+		if (headRes.ok) {
+			const contentType = headRes.headers.get("content-type") ?? "";
+			if (!contentType.startsWith("image/")) return null;
+			return url;
+		}
 
-		const contentType = res.headers.get("content-type") ?? "";
+		if (![403, 405, 501].includes(headRes.status)) return null;
+
+		const getRes = await fetch(url, {
+			method: "GET",
+			headers: {
+				"User-Agent": SYNC_USER_AGENT,
+				Range: "bytes=0-0",
+			},
+			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+		});
+
+		if (!getRes.ok && getRes.status !== 206) return null;
+
+		const contentType = getRes.headers.get("content-type") ?? "";
 		if (!contentType.startsWith("image/")) return null;
 
 		return url;
