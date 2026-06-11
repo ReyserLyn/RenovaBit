@@ -24,6 +24,11 @@ const NETWORK_BREAKER_KEY = "scraping:sync:network:breaker";
 const NETWORK_BREAKER_THRESHOLD = 3;
 const NETWORK_BREAKER_TTL_SECONDS = 30 * 60;
 
+const AUTO_JITTER_MAX_MS = Math.max(
+	0,
+	Number.parseInt(process.env.SCRAPING_AUTO_JITTER_MAX_MS ?? "180000", 10) || 180000,
+);
+
 const RETRYABLE_KEYWORDS = [
 	"socket",
 	"econnreset",
@@ -67,6 +72,16 @@ export const scrapingWorker = new Worker<ScrapingJobData>(
 					.withMetadata({ jobId: job.id, trigger })
 					.warn("Circuit breaker activo — omitiendo sync automático");
 				return { skipped: true, reason: "circuit_breaker" };
+			}
+		}
+
+		if (trigger === "automatic" && AUTO_JITTER_MAX_MS > 0) {
+			const jitterMs = Math.floor(Math.random() * (AUTO_JITTER_MAX_MS + 1));
+			if (jitterMs > 0) {
+				logger
+					.withMetadata({ jobId: job.id, jitterMs, maxJitterMs: AUTO_JITTER_MAX_MS })
+					.info("Aplicando jitter antes de scraping automático");
+				await new Promise((resolve) => setTimeout(resolve, jitterMs));
 			}
 		}
 
@@ -162,7 +177,7 @@ export const scrapingWorker = new Worker<ScrapingJobData>(
 	{
 		connection,
 		concurrency: 1,
-		lockDuration: 120_000,
+		lockDuration: 300_000,
 		stalledInterval: 60_000,
 	},
 );

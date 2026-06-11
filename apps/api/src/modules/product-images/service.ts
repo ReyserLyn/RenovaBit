@@ -19,6 +19,29 @@ type ProductImage = InferSelectModel<typeof productImages>;
 type CreateBody = ProductImageModel["createBody"];
 type UpdateBody = ProductImageModel["updateBody"];
 
+async function removeMissingImageReviewReason(productId: string): Promise<void> {
+	const [product] = await db
+		.select({ needsReview: products.needsReview, reviewReason: products.reviewReason })
+		.from(products)
+		.where(eq(products.id, productId))
+		.limit(1);
+
+	if (!product?.needsReview || !product.reviewReason) return;
+
+	const reasons = product.reviewReason.split(";").map((r) => r.trim());
+	const remaining = reasons.filter((r) => r !== "Sin imagen");
+
+	if (remaining.length === reasons.length) return;
+
+	await db
+		.update(products)
+		.set({
+			needsReview: remaining.length > 0,
+			reviewReason: remaining.length > 0 ? remaining.join("; ") : null,
+		})
+		.where(eq(products.id, productId));
+}
+
 // ── Helpers ────────────────────────────────────────
 
 /**
@@ -114,6 +137,7 @@ async function create(data: CreateBody): Promise<ProductImage> {
 					.where(eq(productImages.id, item.id));
 				item.url = permanentUrl;
 			}
+			await removeMissingImageReviewReason(item.productId);
 			return item;
 		});
 }
@@ -172,6 +196,7 @@ async function update(id: string, data: UpdateBody): Promise<ProductImage> {
 					.where(eq(productImages.id, item.id));
 				item.url = permanentUrl;
 			}
+			await removeMissingImageReviewReason(item.productId);
 			return item;
 		});
 }

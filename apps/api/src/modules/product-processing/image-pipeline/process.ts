@@ -4,10 +4,10 @@ import { db } from "@renovabit/db";
 import { productImages, products } from "@renovabit/db/schema";
 import { and, eq } from "drizzle-orm";
 import { runPipeline } from "@/modules/product-processing/image-pipeline";
-import { SYNC_USER_AGENT } from "@/modules/scrapping/service";
+import { BROWSER_HEADERS, IMAGE_ACCEPT } from "@/modules/scrapping/service";
 import { logger } from "@/utils/logger";
 import { R2_BUCKET_NAME, r2Client } from "@/utils/storage/client";
-import { deleteObjectsByPrefix, getPublicUrl } from "@/utils/storage/helpers";
+import { getPublicUrl } from "@/utils/storage/helpers";
 
 // ── Config ────────────────────────────────────────
 
@@ -55,10 +55,7 @@ export async function processProductImage(input: ProcessImageInput): Promise<Pro
 		inputContentType: contentType,
 	});
 
-	// 3. Limpiar R2 anterior
-	await deleteObjectsByPrefix(`products/${productId}/`);
-
-	// 4. Subir a R2
+	// 3. Subir a R2 (sobrescribe si ya existe)
 	const key = `products/${productId}/processed.webp`;
 	await r2Client.send(
 		new PutObjectCommand({
@@ -71,7 +68,12 @@ export async function processProductImage(input: ProcessImageInput): Promise<Pro
 
 	const publicUrl = getPublicUrl(key);
 
-	// 5. Guardar en DB: eliminar la imagen procesada anterior (misma URL)
+	// 4. Guardar en DB: processed.webp siempre primaria
+	await db
+		.update(productImages)
+		.set({ isPrimary: false })
+		.where(eq(productImages.productId, productId));
+
 	await db
 		.delete(productImages)
 		.where(and(eq(productImages.productId, productId), eq(productImages.url, publicUrl)));
@@ -84,7 +86,7 @@ export async function processProductImage(input: ProcessImageInput): Promise<Pro
 		isPrimary: true,
 	});
 
-	// 6. Quitar "Sin imagen" de review
+	// 5. Quitar "Sin imagen" de review
 	await removeImageReviewReason(productId);
 
 	logger.withMetadata({ productId, publicUrl }).info("[image] Procesamiento completado");
@@ -96,7 +98,10 @@ export async function processProductImage(input: ProcessImageInput): Promise<Pro
 
 async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer; contentType: string }> {
 	const res = await fetch(url, {
-		headers: { "User-Agent": SYNC_USER_AGENT },
+		headers: {
+			...BROWSER_HEADERS,
+			Accept: IMAGE_ACCEPT,
+		},
 		signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 	});
 

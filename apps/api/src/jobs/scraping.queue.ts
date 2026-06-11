@@ -3,8 +3,7 @@ import { createQueue } from "@/utils/queue";
 
 export const scrapingQueue = createQueue("scraping", {
 	defaultJobOptions: {
-		attempts: 2,
-		backoff: { type: "exponential", delay: 3000 },
+		attempts: 1,
 	},
 });
 
@@ -12,7 +11,7 @@ export function enqueueManualScraping(limit: number, userId?: string) {
 	return scrapingQueue.add(
 		"run",
 		{ limit, trigger: "manual", userId },
-		{ priority: 1, attempts: 3 },
+		{ priority: 1, attempts: 1 },
 	);
 }
 

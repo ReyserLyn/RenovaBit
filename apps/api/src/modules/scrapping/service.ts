@@ -9,8 +9,20 @@ const PHOTOS_BASE_URL = process.env.SCRAPING_REMATAZO_PHOTOS_URL || "https://rem
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
 const FETCH_TIMEOUT_MS = 20_000;
+const IMAGE_POLITENESS_DELAY_MIN = 100;
+const IMAGE_POLITENESS_DELAY_MAX = 300;
 
-export const SYNC_USER_AGENT = "RenovabitBot/1.0";
+export const BROWSER_HEADERS = {
+	"User-Agent":
+		"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+	"Accept-Language": "es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3",
+} as const;
+
+const HTML_ACCEPT =
+	"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8";
+export const IMAGE_ACCEPT = "image/avif,image/webp,image/apng,image/*,*/*;q=0.8";
+
+export const SYNC_USER_AGENT = BROWSER_HEADERS["User-Agent"];
 
 const RETRYABLE_KEYWORDS = [
 	"socket",
@@ -27,6 +39,8 @@ function isRetryableNetworkError(err: unknown): boolean {
 	return RETRYABLE_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 // ── Queries ────────────────────────────────────────
 
 async function fetchProductList(limit: number): Promise<ScrapedItem[]> {
@@ -35,9 +49,8 @@ async function fetchProductList(limit: number): Promise<ScrapedItem[]> {
 		try {
 			const res = await fetch(BASE_URL, {
 				headers: {
-					"User-Agent": SYNC_USER_AGENT,
-					Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-					Connection: "close",
+					...BROWSER_HEADERS,
+					Accept: HTML_ACCEPT,
 				},
 				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 			});
@@ -90,7 +103,7 @@ async function fetchProductList(limit: number): Promise<ScrapedItem[]> {
 					.withMetadata({ attempt, maxRetries: MAX_RETRIES, delay })
 					.withError(err)
 					.warn("fetchProductList failed, retrying");
-				await new Promise((r) => setTimeout(r, delay));
+				await sleep(delay);
 			} else {
 				throw err;
 			}
@@ -108,10 +121,22 @@ async function fetchProductImage(providerId: string): Promise<string | null> {
 		const trimmedId = providerId.trim();
 		if (!trimmedId) return null;
 
+		// Espaciado aleatorio entre requests para evitar rate-limit
+		const politenessMs =
+			IMAGE_POLITENESS_DELAY_MIN +
+			Math.floor(Math.random() * (IMAGE_POLITENESS_DELAY_MAX - IMAGE_POLITENESS_DELAY_MIN + 1));
+		await sleep(politenessMs);
+
 		const url = `${PHOTOS_BASE_URL}/${trimmedId}.png`;
+
+		const standardHeaders = {
+			...BROWSER_HEADERS,
+			Accept: IMAGE_ACCEPT,
+		};
+
 		const headRes = await fetch(url, {
 			method: "HEAD",
-			headers: { "User-Agent": SYNC_USER_AGENT },
+			headers: standardHeaders,
 			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 		});
 
@@ -126,7 +151,7 @@ async function fetchProductImage(providerId: string): Promise<string | null> {
 		const getRes = await fetch(url, {
 			method: "GET",
 			headers: {
-				"User-Agent": SYNC_USER_AGENT,
+				...standardHeaders,
 				Range: "bytes=0-0",
 			},
 			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),

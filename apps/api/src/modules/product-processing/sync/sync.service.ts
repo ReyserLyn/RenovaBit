@@ -3,6 +3,7 @@ import {
 	brands,
 	categories,
 	productChanges,
+	productImages,
 	productProviders,
 	products,
 	scrapingBlacklist,
@@ -21,6 +22,9 @@ import type { SyncStats } from "./sync.model";
 const PROVIDER_SOURCE = "rematazo";
 const MARKUP = 1.1;
 const AI_CONCURRENCY = 5;
+const IMAGE_CONCURRENCY = 3;
+
+const imageLimit = pLimit(IMAGE_CONCURRENCY);
 
 function makeSlug(value: string): string {
 	return slugify(value, { lower: true, strict: true, trim: true });
@@ -102,6 +106,15 @@ async function markMissingImage(productId: string): Promise<void> {
 		.where(eq(products.id, productId))
 		.limit(1);
 	if (!product) return;
+
+	const [existingImage] = await db
+		.select({ id: productImages.id })
+		.from(productImages)
+		.where(eq(productImages.productId, productId))
+		.limit(1);
+
+	if (existingImage) return;
+
 	const reasons = product.reviewReason?.split(";").map((r) => r.trim()) ?? [];
 	if (reasons.includes("Sin imagen")) return;
 	reasons.push("Sin imagen");
@@ -148,93 +161,108 @@ export async function runSync(
 	if (!report) throw new Error("No se pudo crear el reporte de sync");
 
 	const reportId = report.id;
-	// ── Filtrar IDs en lista negra ──────────────────
-	const blacklisted = await db
-		.select({ externalId: scrapingBlacklist.externalId })
-		.from(scrapingBlacklist)
-		.where(eq(scrapingBlacklist.source, PROVIDER_SOURCE));
-
-	const blockedIds = new Set(blacklisted.map((b) => b.externalId));
-	const filtered = items.filter((item) => !blockedIds.has(item.providerId));
-	const skippedCount = items.length - filtered.length;
-
-	if (skippedCount > 0) {
-		logger
-			.withMetadata({ reportId, skipped: skippedCount, total: items.length })
-			.info(`Sync: ${skippedCount} items omitidos por lista negra`);
-	}
-
-	// ── Filtrar precios placeholder (9999, 99999…) y stock 0: no se procesan pero
-	// se marcan como vistos para que no se consideren out-of-stock.
-	const skipIds: string[] = [];
-	const activeItems = filtered.filter((item) => {
-		if (isPlaceholderPrice(item.rawPrice)) {
-			skipIds.push(item.providerId);
-			return false;
-		}
-		if (item.rawStock === 0) {
-			skipIds.push(item.providerId);
-			return false;
-		}
-		return true;
-	});
-
-	if (skipIds.length > 0) {
-		logger
-			.withMetadata({ reportId, count: skipIds.length })
-			.info(`Sync: ${skipIds.length} items omitidos (placeholder o stock 0)`);
-	}
-
-	logger.withMetadata({ reportId, count: activeItems.length, trigger }).info("Sync iniciado");
 	const startedAt = report.startedAt.toISOString();
-	const scrapedIds = new Set([...activeItems.map((i) => i.providerId), ...skipIds]);
-	const progressStep = Math.max(1, Math.floor(activeItems.length * 0.05));
-	let lastProgress = 0;
 
-	// Procesar items concurrentemente con p-limit para controlar carga de IA
-	const limit = pLimit(AI_CONCURRENCY);
-	const results = await Promise.allSettled(
-		activeItems.map((item) =>
-			limit(async () => {
-				try {
-					await processItem(item, reportId, stats);
-				} catch (error) {
-					const msg = error instanceof Error ? error.message : String(error);
-					logger
-						.withMetadata({ reportId, providerId: item.providerId, error: msg })
-						.error("Error procesando item en sync");
-					throw error;
-				}
-				// Emitir progreso cada 5% de items
-				if (onProgress && stats.processed - lastProgress >= progressStep) {
-					lastProgress = stats.processed;
-					onProgress({ reportId, ...stats, total: activeItems.length });
-				}
-			}),
-		),
-	);
+	try {
+		// ── Filtrar IDs en lista negra ──────────────────
+		const blacklisted = await db
+			.select({ externalId: scrapingBlacklist.externalId })
+			.from(scrapingBlacklist)
+			.where(eq(scrapingBlacklist.source, PROVIDER_SOURCE));
 
-	for (const result of results) {
-		if (result.status === "rejected") {
-			stats.errors++;
-			const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
-			logger.withMetadata({ reportId, error: msg }).error("Error procesando item en sync");
+		const blockedIds = new Set(blacklisted.map((b) => b.externalId));
+		const filtered = items.filter((item) => !blockedIds.has(item.providerId));
+		const skippedCount = items.length - filtered.length;
+
+		if (skippedCount > 0) {
+			logger
+				.withMetadata({ reportId, skipped: skippedCount, total: items.length })
+				.info(`Sync: ${skippedCount} items omitidos por lista negra`);
 		}
+
+		// ── Filtrar precios placeholder (9999, 99999…) y stock 0: no se procesan pero
+		// se marcan como vistos para que no se consideren out-of-stock.
+		const skipIds: string[] = [];
+		const activeItems = filtered.filter((item) => {
+			if (isPlaceholderPrice(item.rawPrice)) {
+				skipIds.push(item.providerId);
+				return false;
+			}
+			if (item.rawStock === 0) {
+				skipIds.push(item.providerId);
+				return false;
+			}
+			return true;
+		});
+
+		if (skipIds.length > 0) {
+			logger
+				.withMetadata({ reportId, count: skipIds.length })
+				.info(`Sync: ${skipIds.length} items omitidos (placeholder o stock 0)`);
+		}
+
+		logger.withMetadata({ reportId, count: activeItems.length, trigger }).info("Sync iniciado");
+		const scrapedIds = new Set([...activeItems.map((i) => i.providerId), ...skipIds]);
+		const progressStep = Math.max(1, Math.floor(activeItems.length * 0.05));
+		let lastProgress = 0;
+
+		// Procesar items concurrentemente con p-limit para controlar carga de IA
+		const limit = pLimit(AI_CONCURRENCY);
+		const results = await Promise.allSettled(
+			activeItems.map((item) =>
+				limit(async () => {
+					try {
+						await processItem(item, reportId, stats);
+					} catch (error) {
+						const msg = error instanceof Error ? error.message : String(error);
+						logger
+							.withMetadata({ reportId, providerId: item.providerId, error: msg })
+							.error("Error procesando item en sync");
+						throw error;
+					}
+					// Emitir progreso cada 5% de items
+					if (onProgress && stats.processed - lastProgress >= progressStep) {
+						lastProgress = stats.processed;
+						onProgress({ reportId, ...stats, total: activeItems.length });
+					}
+				}),
+			),
+		);
+
+		for (const result of results) {
+			if (result.status === "rejected") {
+				stats.errors++;
+				const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+				logger.withMetadata({ reportId, error: msg }).error("Error procesando item en sync");
+			}
+		}
+
+		// Solo marcar out-of-stock en automatico (full scan)
+		if (trigger === "automatic" && scrapedIds.size > 0) {
+			stats.outOfStock = await markOutOfStock(scrapedIds, reportId);
+		}
+
+		await db
+			.update(syncReports)
+			.set({ status: "completed", stats, completedAt: new Date(), errorMessage: null })
+			.where(eq(syncReports.id, reportId));
+
+		logger.withMetadata({ reportId, ...stats }).info("Sync completado");
+
+		return { reportId, stats, startedAt };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		await db
+			.update(syncReports)
+			.set({
+				status: "failed",
+				stats,
+				completedAt: new Date(),
+				errorMessage: message.slice(0, 500),
+			})
+			.where(eq(syncReports.id, reportId));
+		throw error;
 	}
-
-	// Solo marcar out-of-stock en automatico (full scan)
-	if (trigger === "automatic" && scrapedIds.size > 0) {
-		stats.outOfStock = await markOutOfStock(scrapedIds, reportId);
-	}
-
-	await db
-		.update(syncReports)
-		.set({ status: "completed", stats, completedAt: new Date() })
-		.where(eq(syncReports.id, reportId));
-
-	logger.withMetadata({ reportId, ...stats }).info("Sync completado");
-
-	return { reportId, stats, startedAt };
 }
 
 // ── Process item ───────────────────────────────────
@@ -317,7 +345,7 @@ async function updateExistingProduct(
 
 	// ── Imagen ──────────────────────────────────────
 	let imageChanged = false;
-	const newImageUrl = await scrapingService.fetchProductImage(item.providerId);
+	const newImageUrl = await imageLimit(() => scrapingService.fetchProductImage(item.providerId));
 
 	if (newImageUrl) {
 		if (newImageUrl !== existing.rawImageUrl || !existing.rawImageHash) {
@@ -401,7 +429,7 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 	const categoryId = await findOrCreateCategory(aiResult.category);
 	const price = applyMarkup(rawPrice);
 	const sku = makeSku(providerId);
-	const imageUrl = await scrapingService.fetchProductImage(providerId);
+	const imageUrl = await imageLimit(() => scrapingService.fetchProductImage(providerId));
 
 	const reviewReasons: string[] = [];
 	if (!brandId) reviewReasons.push("Sin marca");
