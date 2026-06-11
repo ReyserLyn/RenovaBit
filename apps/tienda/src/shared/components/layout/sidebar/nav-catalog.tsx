@@ -21,6 +21,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { memo } from "react";
 import { brandQueries } from "@/features/brands/hooks/queries";
 import { categoryQueries } from "@/features/categories/hooks/queries";
+import { normalizeCategoryTree } from "@/features/categories/tree";
 
 function NavCatalogComponent() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -28,9 +29,7 @@ function NavCatalogComponent() {
 	const { data: brands = [] } = useSuspenseQuery(brandQueries.list());
 	const { setOpenMobile } = useSidebar();
 
-	const rootCategories = (tree as RawTreeNode[]).filter(
-		(node) => (node as RawTreeNode).children?.length > 0,
-	);
+	const rootCategories = normalizeCategoryTree(tree).filter((node) => node.children.length > 0);
 
 	return (
 		<SidebarGroup>
@@ -52,7 +51,7 @@ function NavCatalogComponent() {
 							/>
 							<CollapsibleContent>
 								<SidebarMenuSub>
-									{(cat.children as RawTreeNode[]).map((child) => (
+									{cat.children.map((child) => (
 										<SidebarMenuSubItem key={child.slug}>
 											<SidebarMenuSubButton
 												isActive={pathname.startsWith(`/categoria/${child.slug}`)}
@@ -62,6 +61,7 @@ function NavCatalogComponent() {
 														preload="intent"
 														to="/categoria/$slug"
 														params={{ slug: child.slug }}
+														search={{}}
 														onClick={() => setOpenMobile(false)}
 													>
 														<span>{child.name}</span>
@@ -101,6 +101,7 @@ function NavCatalogComponent() {
 													preload="intent"
 													to="/marca/$slug"
 													params={{ slug: brand.slug }}
+													search={{}}
 													onClick={() => setOpenMobile(false)}
 												>
 													<span>{brand.name}</span>
@@ -116,12 +117,6 @@ function NavCatalogComponent() {
 			</SidebarMenu>
 		</SidebarGroup>
 	);
-}
-
-interface RawTreeNode {
-	slug: string;
-	name: string;
-	children: unknown[];
 }
 
 export const NavCatalog = memo(NavCatalogComponent);

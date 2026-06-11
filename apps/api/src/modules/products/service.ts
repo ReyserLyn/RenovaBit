@@ -5,14 +5,17 @@ import { brands, categories, productChanges, products, syncReports } from "@reno
 import type { InferSelectModel } from "drizzle-orm";
 import {
 	and,
+	asc,
 	count,
 	desc,
 	eq,
 	getTableColumns,
 	gt,
+	gte,
 	ilike,
 	inArray,
 	like,
+	lte,
 	ne,
 	or,
 	sql,
@@ -45,11 +48,15 @@ export type ProductWithImage = Product & {
  */
 type ListOptions = {
 	brandId?: string;
-	brandSlug?: string;
+	brandIds?: string[];
+	brandSlugs?: string;
 	categoryId?: string;
 	categorySlug?: string;
 	isFeatured?: boolean;
 	search?: string;
+	sortBy?: string;
+	minPrice?: string;
+	maxPrice?: string;
 	offset?: number;
 	limit?: number;
 	excludeSlug?: string;
@@ -143,7 +150,7 @@ async function getDescendantCategoryIds(slug: string): Promise<string[]> {
 	const [category] = await db
 		.select({ id: categories.id, path: categories.path })
 		.from(categories)
-		.where(eq(categories.slug, slug))
+		.where(and(eq(categories.slug, slug), eq(categories.isActive, true)))
 		.limit(1);
 
 	if (!category) return [];
@@ -160,17 +167,6 @@ async function getDescendantCategoryIds(slug: string): Promise<string[]> {
 	return [category.id, ...descendants.map((d) => d.id)];
 }
 
-/** Resuelve slug de marca → ID (las marcas no tienen jerarquía). */
-async function getBrandIdBySlug(slug: string): Promise<string | null> {
-	const [brand] = await db
-		.select({ id: brands.id })
-		.from(brands)
-		.where(eq(brands.slug, slug))
-		.limit(1);
-
-	return brand?.id ?? null;
-}
-
 // ── Where clause builder ───────────────────────────
 
 function buildWhere(options: ListOptions, isPublic: boolean, categoryIds?: string[]) {
@@ -180,7 +176,11 @@ function buildWhere(options: ListOptions, isPublic: boolean, categoryIds?: strin
 		conditions.push(...PUBLIC_LIST_CONDITIONS);
 	}
 
-	if (options.brandId) conditions.push(eq(products.brandId, options.brandId));
+	if (options.brandIds?.length) {
+		conditions.push(inArray(products.brandId, options.brandIds));
+	} else if (options.brandId) {
+		conditions.push(eq(products.brandId, options.brandId));
+	}
 	if (categoryIds?.length) {
 		conditions.push(inArray(products.categoryId, categoryIds));
 	} else if (options.categoryId) {
@@ -193,8 +193,31 @@ function buildWhere(options: ListOptions, isPublic: boolean, categoryIds?: strin
 		const term = `%${options.search}%`;
 		conditions.push(or(ilike(products.name, term), ilike(products.sku, term)) ?? undefined);
 	}
+	if (options.minPrice) {
+		conditions.push(gte(products.price, options.minPrice));
+	}
+	if (options.maxPrice) {
+		conditions.push(lte(products.price, options.maxPrice));
+	}
 
 	return conditions.length === 0 ? undefined : and(...conditions);
+}
+
+// ── OrderBy builder ──────────────────────────────
+
+const SORT_MAP = {
+	price_asc: asc(products.price),
+	price_desc: desc(products.price),
+	name_asc: asc(products.name),
+	name_desc: desc(products.name),
+	newest: desc(products.createdAt),
+} as const;
+
+function buildOrderBy(sortBy?: string) {
+	if (sortBy && sortBy in SORT_MAP) {
+		return SORT_MAP[sortBy as keyof typeof SORT_MAP];
+	}
+	return desc(products.createdAt);
 }
 
 // ═══════════════════════════════════════════════════
@@ -282,11 +305,24 @@ async function listPublic(
 		}
 	}
 
+	// ── Resolve brand slug (single, for backward compat) ──
 	let resolvedBrandId = options.brandId;
-	if (options.brandSlug) {
-		resolvedBrandId = (await getBrandIdBySlug(options.brandSlug)) ?? undefined;
-		if (!resolvedBrandId) {
-			return { data: [], total: 0, offset: options.offset ?? 0, limit: options.limit ?? 20 };
+	if (options.brandSlugs) {
+		const slugs = options.brandSlugs
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean);
+		if (slugs.length > 0) {
+			const rows = await db
+				.select({ id: brands.id })
+				.from(brands)
+				.where(inArray(brands.slug, slugs));
+			if (rows.length === 0) {
+				return { data: [], total: 0, offset: options.offset ?? 0, limit: options.limit ?? 20 };
+			}
+			resolvedBrandId = undefined;
+			const brandIds = rows.map((r) => r.id);
+			options.brandIds = brandIds;
 		}
 	}
 
@@ -294,12 +330,6 @@ async function listPublic(
 	const where = buildWhere(resolvedOptions, true, categoryIds);
 
 	// ── Count total ──
-	// ⚠️  El count solo consulta `products` SIN JOINs a brands/categories.
-	// buildWhere() solo genera condiciones sobre columnas de `products`, así que
-	// hoy es seguro. Si en el futuro se agregan filtros sobre brands.* o categories.*
-	// en buildWhere, este count quedaría desincronizado silenciosamente.
-	// Solución: agregar los mismos LEFT JOINs que la query de datos, o separar
-	// buildWhere en condiciones base + condiciones con dependencia de JOIN.
 	const [countRow] = await db
 		.select({ total: count(products.id) })
 		.from(products)
@@ -342,7 +372,7 @@ async function listPublic(
 		.leftJoin(brands, eq(products.brandId, brands.id))
 		.leftJoin(categories, eq(products.categoryId, categories.id))
 		.where(where)
-		.orderBy(desc(products.createdAt))
+		.orderBy(buildOrderBy(resolvedOptions.sortBy))
 		.offset(offset)
 		.limit(limit);
 

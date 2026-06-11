@@ -15,11 +15,14 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 		async ({ query }) => {
 			return ProductService.listPublic({
 				brandId: query.brandId,
-				brandSlug: query.brandSlug,
+				brandSlugs: query.brands,
 				categoryId: query.categoryId,
 				categorySlug: query.categorySlug,
 				isFeatured: query.isFeatured,
 				search: query.search,
+				sortBy: query.sortBy,
+				minPrice: query.minPrice,
+				maxPrice: query.maxPrice,
 				offset: query.offset,
 				limit: query.limit,
 				excludeSlug: query.excludeSlug,
@@ -33,7 +36,7 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 			detail: {
 				summary: "Listar productos",
 				description:
-					"Productos activos y revisados. Filtrable por marca, categoría, destacados y búsqueda.",
+					"Productos activos y revisados. Filtrable por marca, categoría, precio, orden y búsqueda.",
 				tags: ["Products"],
 			},
 		},

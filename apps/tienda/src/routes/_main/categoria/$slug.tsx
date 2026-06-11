@@ -1,23 +1,81 @@
-import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "@renovabit/ui/components/ui/breadcrumb";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createSerializer } from "nuqs";
+import { Fragment, useMemo } from "react";
+import { brandQueries } from "@/features/brands/hooks/queries";
 import { categoryQueries } from "@/features/categories/hooks/queries";
 import { ProductCard } from "@/features/products/components/product-card";
-import { productQueries } from "@/features/products/hooks/queries";
+import { type ProductListFilters, productQueries } from "@/features/products/hooks/queries";
 import { FilterSidebar } from "@/shared/components/filters/filter-sidebar";
 import { InfiniteScrollSentinel } from "@/shared/components/infinite-scroll-sentinel";
 import { isApiClientError } from "@/shared/lib/api";
 import { getSiteUrl } from "@/shared/lib/env";
+import { mapSortToApi, productFilterParsers } from "@/shared/lib/filters/parsers";
+import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
 import { seo } from "@/shared/lib/seo";
 
+const serializeCatalogSearch = createSerializer(productFilterParsers, {
+	processUrlSearchParams: (params) => {
+		params.sort();
+		return params;
+	},
+});
+
+function buildFilters(categorySlug: string, s: CatalogSearch): ProductListFilters {
+	return {
+		categorySlug,
+		brands: s.marcas || undefined,
+		sortBy: mapSortToApi(s.orden),
+		minPrice: s.precio_min || undefined,
+		maxPrice: s.precio_max || undefined,
+	};
+}
+
+function buildCanonicalCategoryUrl(categorySlug: string, s: CatalogSearch): string {
+	const marcas =
+		s.marcas
+			?.split(",")
+			.map((value) => value.trim())
+			.filter(Boolean) ?? [];
+
+	const href = serializeCatalogSearch(`/categoria/${categorySlug}`, {
+		marcas: marcas.length > 0 ? marcas : null,
+		orden: mapSortToApi(s.orden) ?? null,
+		precio_min: s.precio_min || null,
+		precio_max: s.precio_max || null,
+	});
+
+	return `${getSiteUrl()}${href}`;
+}
+
 export const Route = createFileRoute("/_main/categoria/$slug")({
-	loader: async ({ params, context: { queryClient } }) => {
+	validateSearch: (s: Record<string, unknown>): CatalogSearch => normalizeCatalogSearch(s, true),
+
+	loaderDeps: ({ search }) => ({
+		marcas: search.marcas,
+		orden: search.orden,
+		precio_min: search.precio_min,
+		precio_max: search.precio_max,
+	}),
+	loader: async ({ params, deps, context: { queryClient } }) => {
 		try {
+			const filters = buildFilters(params.slug, deps);
 			const category = await queryClient.ensureQueryData(categoryQueries.bySlug(params.slug));
-			// Prefetch primera página (fire-and-forget)
-			void queryClient.prefetchInfiniteQuery(productQueries.infiniteByCategorySlug(params.slug));
-			return { category };
+			await queryClient.ensureInfiniteQueryData(productQueries.infiniteList(filters));
+			void queryClient.prefetchQuery(brandQueries.byCategorySlug(params.slug));
+
+			return {
+				category,
+				canonicalUrl: buildCanonicalCategoryUrl(params.slug, deps),
+			};
 		} catch (error) {
 			if (isApiClientError(error) && error.code === "NOT_FOUND_ERROR") {
 				throw notFound();
@@ -28,16 +86,15 @@ export const Route = createFileRoute("/_main/categoria/$slug")({
 
 	head: ({ loaderData }) => {
 		if (!loaderData?.category) return {};
-		const { category } = loaderData;
+
+		const title = `${loaderData.category.name} · Comprar online | Renovabit`;
+		const description =
+			loaderData.category.description ??
+			`Explora ${loaderData.category.name} en Renovabit con envíos a todo Perú.`;
+
 		return {
-			meta: [
-				...seo({
-					title: `${category.name} — Comprar online | Renovabit`,
-					description:
-						category.description ??
-						`Compra ${category.name} al mejor precio en Renovabit. Envíos a todo Perú. ${category.productCount} productos disponibles.`,
-				}),
-			],
+			meta: [...seo({ title, description })],
+			links: [{ rel: "canonical", href: loaderData.canonicalUrl }],
 		};
 	},
 
@@ -46,22 +103,32 @@ export const Route = createFileRoute("/_main/categoria/$slug")({
 
 function CategoryPage() {
 	const { slug } = Route.useParams();
+	const search = Route.useSearch();
 	const { data: category } = useSuspenseQuery(categoryQueries.bySlug(slug));
+	const { data: availableBrands = [] } = useSuspenseQuery(brandQueries.byCategorySlug(slug));
+
+	const productFilters = useMemo<ProductListFilters>(
+		() => buildFilters(slug, search),
+		[slug, search],
+	);
+
 	const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage } =
-		useSuspenseInfiniteQuery(productQueries.infiniteByCategorySlug(slug));
+		useSuspenseInfiniteQuery(productQueries.infiniteList(productFilters));
 
 	const products = data.pages.flatMap((page) => page.data);
 	const totalProducts = data.pages[0]?.total ?? 0;
 
+	const hasActiveFilters = !!(
+		productFilters.brands ||
+		productFilters.sortBy ||
+		productFilters.minPrice ||
+		productFilters.maxPrice
+	);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 py-6">
-			{/* Breadcrumb */}
-			<div className="animate-fade-in">
-				<Breadcrumb items={category.breadcrumb} />
-			</div>
-
-			{/* Header */}
-			<div className="animate-fade-in-up space-y-2">
+			<CategoryBreadcrumb items={category.breadcrumb} />
+			<div className="space-y-2">
 				<h1 className="text-3xl font-bold tracking-tight">{category.name}</h1>
 				{category.description && (
 					<p className="text-muted-foreground max-w-2xl text-base">{category.description}</p>
@@ -70,37 +137,26 @@ function CategoryPage() {
 					{totalProducts} {totalProducts === 1 ? "producto" : "productos"}
 				</p>
 			</div>
-
-			{/* Content: Filters + Grid */}
 			<div className="flex flex-col gap-6 lg:flex-row">
-				{/* Filtros */}
-				<div className="animate-fade-in">
-					<FilterSidebar />
-				</div>
-
-				{/* Product Grid + Infinite Scroll */}
+				<FilterSidebar brands={availableBrands} />
 				<div className="min-w-0 flex-1 space-y-6">
 					{products.length > 0 ? (
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-							{products.map((product, i) => (
-								<div
-									key={product.id}
-									className="animate-fade-in-up"
-									style={{ animationDelay: `${(i % 12) * 40}ms` }}
-								>
+							{products.map((product) => (
+								<div key={product.id}>
 									<ProductCard product={product} />
 								</div>
 							))}
 						</div>
 					) : (
-						<div className="animate-fade-in flex items-center justify-center py-16">
+						<div className="flex items-center justify-center py-16">
 							<p className="text-muted-foreground text-lg">
-								No hay productos en esta categoría aún.
+								{hasActiveFilters
+									? "No se encontraron productos con estos filtros."
+									: "No hay productos en esta categoría aún."}
 							</p>
 						</div>
 					)}
-
-					{/* Sentinel + Infinite Scroll */}
 					<InfiniteScrollSentinel
 						hasNextPage={hasNextPage}
 						isFetching={isFetching}
@@ -109,8 +165,6 @@ function CategoryPage() {
 					/>
 				</div>
 			</div>
-
-			{/* Structured Data: BreadcrumbList */}
 			<script
 				type="application/ld+json"
 				dangerouslySetInnerHTML={{
@@ -130,29 +184,34 @@ function CategoryPage() {
 	);
 }
 
-/** Breadcrumb interno visible (UI) */
-function Breadcrumb({ items }: { items: Array<{ id: string; name: string; slug: string }> }) {
+function CategoryBreadcrumb({
+	items,
+}: {
+	items: Array<{ id: string; name: string; slug: string }>;
+}) {
 	return (
-		<nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm">
-			<Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">
-				Inicio
-			</Link>
-			{items.map((item) => (
-				<span key={item.id} className="flex items-center gap-1.5">
-					<HugeiconsIcon icon={ArrowRight01Icon} size={14} className="text-muted-foreground/50" />
-					{item.slug === items[items.length - 1]?.slug ? (
-						<span className="font-medium">{item.name}</span>
-					) : (
-						<Link
-							to="/categoria/$slug"
-							params={{ slug: item.slug }}
-							className="text-muted-foreground hover:text-foreground transition-colors"
-						>
-							{item.name}
-						</Link>
-					)}
-				</span>
-			))}
-		</nav>
+		<Breadcrumb>
+			<BreadcrumbList>
+				<BreadcrumbItem>
+					<BreadcrumbLink render={<Link to="/" />}>Inicio</BreadcrumbLink>
+				</BreadcrumbItem>
+				{items.map((item) => (
+					<Fragment key={item.id}>
+						<BreadcrumbSeparator />
+						<BreadcrumbItem>
+							{item.slug === items[items.length - 1]?.slug ? (
+								<BreadcrumbPage>{item.name}</BreadcrumbPage>
+							) : (
+								<BreadcrumbLink
+									render={<Link to="/categoria/$slug" params={{ slug: item.slug }} search={{}} />}
+								>
+									{item.name}
+								</BreadcrumbLink>
+							)}
+						</BreadcrumbItem>
+					</Fragment>
+				))}
+			</BreadcrumbList>
+		</Breadcrumb>
 	);
 }

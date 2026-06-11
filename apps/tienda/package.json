@@ -32,6 +32,7 @@
 		"hotkeys-js": "^4.0.4",
 		"nitro": "^3.0.260603-beta",
 		"nuqs": "^2.8.9",
+		"query-string": "^9.4.0",
 		"react": "catalog:",
 		"react-dom": "catalog:",
 		"slugify": "catalog:",

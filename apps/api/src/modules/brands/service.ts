@@ -1,7 +1,7 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { brands, products } from "@renovabit/db/schema";
-import { and, asc, count, desc, eq, inArray, or } from "drizzle-orm";
+import { brands, categories, products } from "@renovabit/db/schema";
+import { and, asc, count, desc, eq, gt, inArray, like, or, sql } from "drizzle-orm";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
 import type { BrandModel, PublicBrandDetail, PublicBrandListItem } from "./model";
@@ -13,6 +13,7 @@ const MAX_BULK_DELETE = 50;
 const PUBLIC_PRODUCT_CONDITIONS = [
 	eq(products.isActive, true),
 	eq(products.needsReview, false),
+	gt(products.stock, 0),
 ] as const;
 
 // ═══════════════════════════════════════════════════
@@ -41,7 +42,30 @@ async function getByIdAdmin(id: string) {
 //  PUBLIC QUERIES
 // ═══════════════════════════════════════════════════
 
-async function listPublic(): Promise<PublicBrandListItem[]> {
+async function listPublic(categorySlug?: string): Promise<PublicBrandListItem[]> {
+	const productConditions = [...PUBLIC_PRODUCT_CONDITIONS];
+	const useCategoryFilter = !!categorySlug;
+
+	if (categorySlug) {
+		const [category] = await db
+			.select({ id: categories.id, path: categories.path })
+			.from(categories)
+			.where(and(eq(categories.slug, categorySlug), eq(categories.isActive, true)))
+			.limit(1);
+
+		if (!category) return [];
+
+		const pathPrefix = `${category.path ?? "/"}${category.id}/`;
+
+		const descendants = await db
+			.select({ id: categories.id })
+			.from(categories)
+			.where(and(like(categories.path, `${pathPrefix}%`), eq(categories.isActive, true)));
+
+		const categoryIds = [category.id, ...descendants.map((d) => d.id)];
+		productConditions.push(inArray(products.categoryId, categoryIds));
+	}
+
 	const rows = await db
 		.select({
 			id: brands.id,
@@ -51,9 +75,10 @@ async function listPublic(): Promise<PublicBrandListItem[]> {
 			productCount: count(products.id).mapWith(Number),
 		})
 		.from(brands)
-		.leftJoin(products, and(eq(products.brandId, brands.id), ...PUBLIC_PRODUCT_CONDITIONS))
+		.leftJoin(products, and(eq(products.brandId, brands.id), ...productConditions))
 		.where(eq(brands.isActive, true))
 		.groupBy(brands.id)
+		.having(useCategoryFilter ? sql`count(${products.id}) > 0` : undefined)
 		.orderBy(asc(brands.name));
 
 	return rows.map((row) => ({

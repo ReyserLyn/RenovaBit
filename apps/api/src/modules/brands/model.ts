@@ -70,6 +70,11 @@ export const BrandModel = {
 		ids: t.Array(t.String({ format: "uuid" }), { minItems: 1, maxItems: 50 }),
 	}),
 
+	// Query
+	listQuery: t.Object({
+		categorySlug: t.Optional(t.String({ minLength: 1 })),
+	}),
+
 	// Admin Responses
 	brandResponse: AdminBrandResponse,
 	brandListResponse: t.Array(AdminBrandResponse),

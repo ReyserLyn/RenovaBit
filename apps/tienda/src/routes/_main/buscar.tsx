@@ -7,7 +7,7 @@ type BuscarSearch = {
 
 export const Route = createFileRoute("/_main/buscar")({
 	validateSearch: (search: Record<string, unknown>): BuscarSearch => ({
-		q: (search.q as string) || "",
+		q: typeof search.q === "string" ? search.q : "",
 	}),
 
 	head: () => ({

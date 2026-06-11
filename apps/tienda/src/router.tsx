@@ -3,7 +3,7 @@ import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 import { DefaultCatchBoundary } from "@/shared/components/error/DefaultCatchBoundary";
 import { NotFound } from "@/shared/components/error/NotFound";
-
+import { parseSearch, stringifySearch } from "@/shared/lib/router/search-serialization";
 import { routeTree } from "./routeTree.gen";
 import { getContext } from "./shared/integrations/tanstack-query/root-provider";
 
@@ -17,6 +17,8 @@ export function getRouter() {
 	const router = createTanStackRouter({
 		routeTree,
 		context: { queryClient },
+		parseSearch,
+		stringifySearch,
 
 		// Restaurar scroll al navegar
 		scrollRestoration: true,

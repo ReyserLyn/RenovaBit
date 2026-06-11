@@ -18,10 +18,12 @@ export const productKeys = {
 export interface ProductListFilters {
 	categoryId?: string;
 	categorySlug?: string;
-	brandId?: string;
-	brandSlug?: string;
+	brands?: string;
 	isFeatured?: boolean;
 	search?: string;
+	sortBy?: string;
+	minPrice?: string;
+	maxPrice?: string;
 	excludeSlug?: string;
 	limit?: number;
 }
@@ -33,8 +35,6 @@ const DEFAULT_PAGE_SIZE = 20;
 // ── Query Options ─────────────────────────────────────────────
 
 export const productQueries = {
-	/** Productos filtrados (categoría, marca, destacados, búsqueda).
-	 *  Devuelve solo el array data (sin meta de paginación). */
 	list: (filters: ProductListFilters = {}, limit = 100) =>
 		queryOptions({
 			queryKey: productKeys.list({ ...filters, limit }),
@@ -42,12 +42,14 @@ export const productQueries = {
 				const result = await unwrapResponse(
 					api.api.v1.products.get({
 						query: {
-							brandId: filters.brandId,
-							brandSlug: filters.brandSlug,
+							brands: filters.brands,
 							categoryId: filters.categoryId,
 							categorySlug: filters.categorySlug,
 							isFeatured: filters.isFeatured,
 							search: filters.search,
+							sortBy: filters.sortBy,
+							minPrice: filters.minPrice,
+							maxPrice: filters.maxPrice,
 							excludeSlug: filters.excludeSlug,
 							limit,
 						},
@@ -55,11 +57,9 @@ export const productQueries = {
 				);
 				return result.data;
 			},
-			staleTime: 1000 * 60 * 5, // 5 min
+			staleTime: 1000 * 60 * 5,
 		}),
 
-	/** Infinite query para scroll infinito (offset-based).
-	 *  Cada página devuelve el objeto paginado completo. */
 	infiniteList: (filters: ProductListFilters = {}, limit = DEFAULT_PAGE_SIZE) =>
 		infiniteQueryOptions({
 			queryKey: productKeys.infinite({ ...filters, limit }),
@@ -67,12 +67,14 @@ export const productQueries = {
 				unwrapResponse(
 					api.api.v1.products.get({
 						query: {
-							brandId: filters.brandId,
-							brandSlug: filters.brandSlug,
+							brands: filters.brands,
 							categoryId: filters.categoryId,
 							categorySlug: filters.categorySlug,
 							isFeatured: filters.isFeatured,
 							search: filters.search,
+							sortBy: filters.sortBy,
+							minPrice: filters.minPrice,
+							maxPrice: filters.maxPrice,
 							excludeSlug: filters.excludeSlug,
 							offset: pageParam as number,
 							limit,
@@ -84,22 +86,14 @@ export const productQueries = {
 				const nextOffset = lastPage.offset + lastPage.limit;
 				return nextOffset < lastPage.total ? nextOffset : undefined;
 			},
+			placeholderData: (previousData) => previousData,
 			staleTime: 1000 * 60 * 5,
 		}),
 
-	/** Infinite query para categoría */
-	infiniteByCategorySlug: (slug: string, limit = DEFAULT_PAGE_SIZE) =>
-		productQueries.infiniteList({ categorySlug: slug }, limit),
-
-	/** Infinite query para marca */
-	infiniteByBrandSlug: (slug: string, limit = DEFAULT_PAGE_SIZE) =>
-		productQueries.infiniteList({ brandSlug: slug }, limit),
-
-	/** Detalle de producto por slug */
 	bySlug: (slug: string) =>
 		queryOptions({
 			queryKey: productKeys.detail(slug),
 			queryFn: () => unwrapResponse(api.api.v1.products({ slug }).get()),
-			staleTime: 1000 * 60 * 5, // 5 min
+			staleTime: 1000 * 60 * 5,
 		}),
 };

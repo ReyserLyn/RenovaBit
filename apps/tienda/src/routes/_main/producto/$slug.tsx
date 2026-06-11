@@ -85,6 +85,7 @@ function ProductPage() {
 						<Link
 							to="/categoria/$slug"
 							params={{ slug: product.category.slug }}
+							search={{}}
 							className="hover:text-foreground transition-colors"
 						>
 							{product.category.name}
@@ -147,6 +148,7 @@ function ProductPage() {
 								<Link
 									to="/marca/$slug"
 									params={{ slug: product.brand.slug }}
+									search={{}}
 									className="hover:text-foreground transition-colors font-medium"
 								>
 									{product.brand.name}
@@ -161,6 +163,7 @@ function ProductPage() {
 								<Link
 									to="/categoria/$slug"
 									params={{ slug: product.category.slug }}
+									search={{}}
 									className="hover:text-foreground transition-colors"
 								>
 									{product.category.name}

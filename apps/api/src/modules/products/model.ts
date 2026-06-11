@@ -149,11 +149,29 @@ export const ProductModel = {
 	// Query
 	listQuery: t.Object({
 		brandId: t.Optional(t.String({ format: "uuid" })),
-		brandSlug: t.Optional(t.String({ minLength: 1 })),
+		brands: t.Optional(t.String({ minLength: 1 })),
 		categoryId: t.Optional(t.String({ format: "uuid" })),
 		categorySlug: t.Optional(t.String({ minLength: 1 })),
 		isFeatured: t.Optional(t.Boolean()),
 		search: t.Optional(t.String()),
+		sortBy: t.Optional(
+			t.String({
+				minLength: 1,
+				pattern: "^(price_asc|price_desc|name_asc|name_desc|newest)$",
+			}),
+		),
+		minPrice: t.Optional(
+			t.String({
+				minLength: 1,
+				pattern: "^\\d+(\\.\\d{1,2})?$",
+			}),
+		),
+		maxPrice: t.Optional(
+			t.String({
+				minLength: 1,
+				pattern: "^\\d+(\\.\\d{1,2})?$",
+			}),
+		),
 		offset: t.Optional(t.Integer({ minimum: 0, default: 0 })),
 		limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
 		excludeSlug: t.Optional(t.String({ minLength: 1 })),

@@ -10,7 +10,7 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
 
 export const Route = createFileRoute("/iniciar-sesion")({
 	validateSearch: (search: Record<string, unknown>): { error?: string } => {
-		const error = search.error as string | undefined;
+		const error = typeof search.error === "string" ? search.error : undefined;
 		return error ? { error } : {};
 	},
 

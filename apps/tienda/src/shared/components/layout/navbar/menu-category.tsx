@@ -5,6 +5,7 @@ import {
 } from "@renovabit/ui/components/ui/navigation-menu";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { categoryQueries } from "@/features/categories/hooks/queries";
+import { normalizeCategoryTree } from "@/features/categories/tree";
 import { ItemList } from "./item-list";
 
 interface NavGroup {
@@ -15,7 +16,7 @@ interface NavGroup {
 export function MenuCategory() {
 	const { data: tree } = useSuspenseQuery(categoryQueries.tree());
 
-	const navigationData: NavGroup[] = (tree as RawTreeNode[]).map(toNavGroup);
+	const navigationData: NavGroup[] = normalizeCategoryTree(tree).map(toNavGroup);
 
 	return (
 		<NavigationMenuItem>
@@ -55,19 +56,12 @@ function EmptyProducts() {
 
 // ── Helpers ────────────────────────────────────────────────────
 
-interface RawTreeNode {
-	id: string;
+function toNavGroup(node: {
 	name: string;
-	slug: string;
-	children: unknown[];
-}
-
-function toNavGroup(node: RawTreeNode): NavGroup {
+	children: Array<{ slug: string; name: string }>;
+}): NavGroup {
 	return {
 		name: node.name,
-		children: (node.children as RawTreeNode[]).map((child) => ({
-			slug: child.slug,
-			name: child.name,
-		})),
+		children: node.children.map((child) => ({ slug: child.slug, name: child.name })),
 	};
 }

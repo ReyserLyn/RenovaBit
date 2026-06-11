@@ -1,21 +1,62 @@
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createSerializer } from "nuqs";
+import { useMemo } from "react";
 import { brandQueries } from "@/features/brands/hooks/queries";
 import { ProductCard } from "@/features/products/components/product-card";
-import { productQueries } from "@/features/products/hooks/queries";
+import { type ProductListFilters, productQueries } from "@/features/products/hooks/queries";
 import { FilterSidebar } from "@/shared/components/filters/filter-sidebar";
 import { InfiniteScrollSentinel } from "@/shared/components/infinite-scroll-sentinel";
 import { isApiClientError } from "@/shared/lib/api";
 import { getSiteUrl } from "@/shared/lib/env";
+import { mapSortToApi, productFilterParsers } from "@/shared/lib/filters/parsers";
+import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
 import { seo } from "@/shared/lib/seo";
 
+const serializeCatalogSearch = createSerializer(productFilterParsers, {
+	processUrlSearchParams: (params) => {
+		params.sort();
+		return params;
+	},
+});
+
+function buildFilters(brandSlug: string, s: CatalogSearch): ProductListFilters {
+	return {
+		brands: brandSlug,
+		sortBy: mapSortToApi(s.orden),
+		minPrice: s.precio_min || undefined,
+		maxPrice: s.precio_max || undefined,
+	};
+}
+
+function buildCanonicalBrandUrl(brandSlug: string, s: CatalogSearch): string {
+	const href = serializeCatalogSearch(`/marca/${brandSlug}`, {
+		orden: mapSortToApi(s.orden) ?? null,
+		precio_min: s.precio_min || null,
+		precio_max: s.precio_max || null,
+		marcas: null,
+	});
+
+	return `${getSiteUrl()}${href}`;
+}
+
 export const Route = createFileRoute("/_main/marca/$slug")({
-	loader: async ({ params, context: { queryClient } }) => {
+	validateSearch: (s: Record<string, unknown>): CatalogSearch => normalizeCatalogSearch(s, false),
+
+	loaderDeps: ({ search }) => ({
+		orden: search.orden,
+		precio_min: search.precio_min,
+		precio_max: search.precio_max,
+	}),
+	loader: async ({ params, deps, context: { queryClient } }) => {
 		try {
+			const filters = buildFilters(params.slug, deps);
 			const brand = await queryClient.ensureQueryData(brandQueries.bySlug(params.slug));
-			// Prefetch primera página (fire-and-forget)
-			void queryClient.prefetchInfiniteQuery(productQueries.infiniteByBrandSlug(params.slug));
-			return { brand };
+			await queryClient.ensureInfiniteQueryData(productQueries.infiniteList(filters));
+			return {
+				brand,
+				canonicalUrl: buildCanonicalBrandUrl(params.slug, deps),
+			};
 		} catch (error) {
 			if (isApiClientError(error) && error.code === "NOT_FOUND_ERROR") {
 				throw notFound();
@@ -26,16 +67,15 @@ export const Route = createFileRoute("/_main/marca/$slug")({
 
 	head: ({ loaderData }) => {
 		if (!loaderData?.brand) return {};
-		const { brand } = loaderData;
+
+		const title = `${loaderData.brand.name} · Comprar online | Renovabit`;
+		const description =
+			loaderData.brand.description ??
+			`Explora productos de ${loaderData.brand.name} en Renovabit con envíos a todo Perú.`;
+
 		return {
-			meta: [
-				...seo({
-					title: `${brand.name} — Productos y precios | Renovabit`,
-					description:
-						brand.description ??
-						`Productos de la marca ${brand.name} en Renovabit. Envíos a todo Perú. ${brand.productCount} productos disponibles.`,
-				}),
-			],
+			meta: [...seo({ title, description })],
+			links: [{ rel: "canonical", href: loaderData.canonicalUrl }],
 		};
 	},
 
@@ -44,17 +84,29 @@ export const Route = createFileRoute("/_main/marca/$slug")({
 
 function BrandPage() {
 	const { slug } = Route.useParams();
+	const search = Route.useSearch();
 	const { data: brand } = useSuspenseQuery(brandQueries.bySlug(slug));
+
+	const productFilters = useMemo<ProductListFilters>(
+		() => buildFilters(slug, search),
+		[slug, search],
+	);
+
 	const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage } =
-		useSuspenseInfiniteQuery(productQueries.infiniteByBrandSlug(slug));
+		useSuspenseInfiniteQuery(productQueries.infiniteList(productFilters));
 
 	const products = data.pages.flatMap((page) => page.data);
 	const totalProducts = data.pages[0]?.total ?? 0;
 
+	const hasActiveFilters = !!(
+		productFilters.sortBy ||
+		productFilters.minPrice ||
+		productFilters.maxPrice
+	);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 py-6">
-			{/* Header */}
-			<div className="animate-fade-in-up flex items-center gap-4">
+			<div className="flex items-center gap-4">
 				{brand.imageUrl && (
 					<img
 						src={brand.imageUrl}
@@ -72,35 +124,28 @@ function BrandPage() {
 					</p>
 				</div>
 			</div>
-
-			{/* Content: Filters + Grid */}
 			<div className="flex flex-col gap-6 lg:flex-row">
-				{/* Filtros */}
-				<div className="animate-fade-in">
+				<div>
 					<FilterSidebar />
 				</div>
-
-				{/* Product Grid + Infinite Scroll */}
 				<div className="min-w-0 flex-1 space-y-6">
 					{products.length > 0 ? (
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-							{products.map((product, i) => (
-								<div
-									key={product.id}
-									className="animate-fade-in-up"
-									style={{ animationDelay: `${(i % 12) * 40}ms` }}
-								>
+							{products.map((product) => (
+								<div key={product.id}>
 									<ProductCard product={product} />
 								</div>
 							))}
 						</div>
 					) : (
-						<div className="animate-fade-in flex items-center justify-center py-16">
-							<p className="text-muted-foreground text-lg">No hay productos de esta marca aún.</p>
+						<div className="flex items-center justify-center py-16">
+							<p className="text-muted-foreground text-lg">
+								{hasActiveFilters
+									? "No se encontraron productos con estos filtros."
+									: "No hay productos de esta marca aún."}
+							</p>
 						</div>
 					)}
-
-					{/* Sentinel + Infinite Scroll */}
 					<InfiniteScrollSentinel
 						hasNextPage={hasNextPage}
 						isFetching={isFetching}
@@ -109,8 +154,6 @@ function BrandPage() {
 					/>
 				</div>
 			</div>
-
-			{/* Structured Data: Brand */}
 			<script
 				type="application/ld+json"
 				dangerouslySetInnerHTML={{

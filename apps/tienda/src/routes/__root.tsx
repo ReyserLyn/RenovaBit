@@ -65,7 +65,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<ThemeProvider attribute="class" disableTransitionOnChange>
 					<TanStackQueryProvider>
 						<Toaster richColors />
-						<NuqsAdapter defaultOptions={{ clearOnDefault: true }}>{children}</NuqsAdapter>
+						<NuqsAdapter>{children}</NuqsAdapter>
 						<TanStackDevtools
 							config={{ position: "bottom-right" }}
 							plugins={[TanStackRouterDevtools, TanStackQueryDevtools, TanStackFormDevtools]}
