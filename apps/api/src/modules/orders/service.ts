@@ -41,10 +41,25 @@ function isOrderNumberUniqueViolation(error: unknown): boolean {
 	);
 }
 
-function sanitizePagination(page: number = 0, limit: number = DEFAULT_PAGE_SIZE) {
-	const safePage = Number.isFinite(page) && page >= 0 ? Math.trunc(page) : 0;
+function sanitizePagination(
+	page: string | number | undefined = 0,
+	limit: string | number | undefined = DEFAULT_PAGE_SIZE,
+) {
+	const parsedPage =
+		typeof page === "string" ? Number.parseInt(page ?? "0", 10) : (page as number | undefined);
+	const parsedLimit =
+		typeof limit === "string"
+			? Number.parseInt(limit ?? String(DEFAULT_PAGE_SIZE), 10)
+			: (limit as number | undefined);
+
+	const safePage =
+		Number.isFinite(parsedPage as number) && (parsedPage as number) >= 0
+			? Math.trunc(parsedPage as number)
+			: 0;
 	const requestedLimit =
-		Number.isFinite(limit) && limit > 0 ? Math.trunc(limit) : DEFAULT_PAGE_SIZE;
+		Number.isFinite(parsedLimit as number) && (parsedLimit as number) > 0
+			? Math.trunc(parsedLimit as number)
+			: DEFAULT_PAGE_SIZE;
 	const safeLimit = Math.min(requestedLimit, MAX_PAGE_SIZE);
 	return { safePage, safeLimit, offset: safePage * safeLimit };
 }
@@ -65,7 +80,7 @@ async function buildOrderResponse(order: OrderRow): Promise<OrderResponse> {
 		status: order.status,
 		source: order.source,
 		paymentMethod: order.paymentMethod ?? null,
-		paymentProofUrl: null,
+		paymentProofUrl: null, // TODO: populate when payment proof upload supported
 		customerName: order.customerName ?? null,
 		customerPhone: order.customerPhone ?? null,
 		subtotal: order.subtotal,
@@ -419,7 +434,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 		status: orderResult.order.status,
 		source: orderResult.order.source,
 		paymentMethod: orderResult.order.paymentMethod ?? null,
-		paymentProofUrl: null,
+		paymentProofUrl: null, // TODO: populate when payment proof upload supported
 		customerName: orderResult.order.customerName ?? null,
 		customerPhone: orderResult.order.customerPhone ?? null,
 		subtotal: orderResult.order.subtotal,
@@ -470,14 +485,15 @@ async function getById(orderId: string): Promise<OrderResponse | null> {
 
 async function listByUser(
 	userId: string,
-	page: number = 0,
-	limit: number = DEFAULT_PAGE_SIZE,
+	page: string | number | undefined,
+	limit: string | number | undefined,
 ): Promise<{ orders: OrderListItem[]; total: number }> {
 	// Antes de listar, cancelamos los pending vencidos (idempotente, fire-and-forget)
 	autoCancelExpiredPending().catch((err) =>
 		logger.withError(err).warn("[Orders] autoCancel en listByUser falló"),
 	);
 
+	// sanitizePagination accepts string|number
 	const { safeLimit, offset } = sanitizePagination(page, limit);
 
 	const [countRow] = await db
@@ -542,8 +558,8 @@ async function listByUser(
 async function listAdmin(
 	options: {
 		status?: "pending" | "confirmed" | "cancelled" | "refunded";
-		page?: number;
-		limit?: number;
+		page?: string | number | undefined;
+		limit?: string | number | undefined;
 	} = {},
 ): Promise<{ orders: OrderListItem[]; total: number }> {
 	autoCancelExpiredPending().catch((err) =>

@@ -19,7 +19,7 @@ const OrderResponse = t.Object({
 	status: t.String(),
 	source: t.String(),
 	paymentMethod: t.Nullable(t.String()),
-	paymentProofUrl: t.Nullable(t.String()),
+	paymentProofUrl: t.Nullable(t.String()), // reserved for future payment proof uploads; currently unpopulated by service
 
 	customerName: t.Nullable(t.String()),
 	customerPhone: t.Nullable(t.String()),

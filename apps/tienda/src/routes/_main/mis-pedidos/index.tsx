@@ -17,73 +17,45 @@ import {
 	ItemGroup,
 	ItemTitle,
 } from "@renovabit/ui/components/ui/item";
-import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { orderQueries } from "@/features/orders/hooks/queries";
+import { getOrderListServerFn } from "@/features/orders/hooks/server";
 import { getOrderStatusInfo } from "@/features/orders/lib/order-status";
 import { Breadcrumbs } from "@/shared/components/breadcrumbs";
-import { isApiClientError } from "@/shared/lib/api";
+import { InfiniteScrollSentinel } from "@/shared/components/infinite-scroll-sentinel";
+import { authSessionQueryOptions } from "@/shared/lib/auth/auth-session";
 import { formatPrice } from "@/shared/lib/format";
 
+const PAGE_SIZE = 10;
+
 export const Route = createFileRoute("/_main/mis-pedidos/")({
+	loader: async ({ context: { queryClient } }) => {
+		const session = await queryClient.fetchQuery(authSessionQueryOptions());
+		if (!session?.user) {
+			throw redirect({ to: "/iniciar-sesion" });
+		}
+
+		const result = await getOrderListServerFn({ data: { page: 0, pageSize: PAGE_SIZE } });
+		if (result.errorCode === "INVALID_CREDENTIALS") {
+			throw redirect({ to: "/iniciar-sesion" });
+		}
+
+		return { firstPage: result.data ?? undefined };
+	},
 	component: OrdersPage,
 });
 
-const PAGE_SIZE = 10;
 const ORDER_LIST_DATE_FORMATTER = new Intl.DateTimeFormat("es-PE", {
 	year: "numeric",
 	month: "long",
 	day: "numeric",
 });
 
-function OrderRowSkeleton() {
-	return (
-		<Card>
-			<CardContent className="p-0">
-				<div className="flex items-center gap-4 p-4">
-					<Skeleton className="size-10 shrink-0 rounded-md" />
-					<div className="min-w-0 flex-1 space-y-2">
-						<Skeleton className="h-4 w-1/3" />
-						<Skeleton className="h-3 w-1/2" />
-					</div>
-					<Skeleton className="h-6 w-20" />
-				</div>
-			</CardContent>
-		</Card>
-	);
-}
-
 function OrdersPage() {
-	const [page, setPage] = useState(0);
-	const { data, isLoading, isFetching, error } = useQuery({
-		...orderQueries.list(page, PAGE_SIZE),
-		placeholderData: keepPreviousData,
-	});
+	const { firstPage } = Route.useLoaderData();
 
-	if (error && !isLoading) {
-		const isUnauthorized = isApiClientError(error) && error.code === "INVALID_CREDENTIALS";
-		if (isUnauthorized) {
-			return (
-				<div className="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center">
-					<Empty className="border-0 p-0">
-						<EmptyHeader>
-							<EmptyMedia variant="icon">
-								<HugeiconsIcon icon={Package01Icon} size={20} strokeWidth={1.5} />
-							</EmptyMedia>
-							<EmptyTitle>Inicia sesión para ver tus pedidos</EmptyTitle>
-							<EmptyDescription>
-								Necesitas una cuenta para consultar el historial de pedidos.
-							</EmptyDescription>
-						</EmptyHeader>
-						<Button nativeButton={false} render={<Link to="/iniciar-sesion" />}>
-							Iniciar sesión
-						</Button>
-					</Empty>
-				</div>
-			);
-		}
+	if (!firstPage) {
 		return (
 			<div className="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center">
 				<Empty className="border-0 p-0">
@@ -104,26 +76,15 @@ function OrdersPage() {
 		);
 	}
 
-	if (isLoading && !data) {
-		return (
-			<div className="flex flex-1 flex-col gap-6 py-6">
-				<Breadcrumbs items={[{ name: "Mis pedidos" }]} />
-				<div className="flex items-end justify-between gap-4">
-					<div className="space-y-2">
-						<h1 className="text-2xl font-bold tracking-tight">Mis pedidos</h1>
-						<p className="text-muted-foreground text-sm">Cargando...</p>
-					</div>
-				</div>
-				<div className="flex flex-col gap-3">
-					<OrderRowSkeleton />
-					<OrderRowSkeleton />
-					<OrderRowSkeleton />
-				</div>
-			</div>
-		);
-	}
+	const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage } = useInfiniteQuery({
+		...orderQueries.infiniteList(),
+		initialData: { pages: [firstPage], pageParams: [0] },
+	});
 
-	if (!data || data.orders.length === 0) {
+	const orders = data.pages.flatMap((page) => page.orders);
+	const total = data.pages[0]?.total ?? 0;
+
+	if (orders.length === 0) {
 		return (
 			<div className="flex flex-1 flex-col py-6">
 				<Breadcrumbs items={[{ name: "Mis pedidos" }]} />
@@ -145,8 +106,6 @@ function OrdersPage() {
 		);
 	}
 
-	const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
-
 	return (
 		<div className="flex flex-1 flex-col gap-6 py-6">
 			<Breadcrumbs items={[{ name: "Mis pedidos" }]} />
@@ -155,13 +114,13 @@ function OrdersPage() {
 				<div className="space-y-1">
 					<h1 className="text-2xl font-bold tracking-tight">Mis pedidos</h1>
 					<p className="text-muted-foreground text-sm">
-						{data.total === 1 ? "1 pedido en total" : `${data.total} pedidos en total`}
+						{total === 1 ? "1 pedido en total" : `${total} pedidos en total`}
 					</p>
 				</div>
 			</div>
 
 			<ItemGroup>
-				{data.orders.map((order) => {
+				{orders.map((order) => {
 					const status = getOrderStatusInfo(order.status);
 					const itemsLabel = `${order.itemsCount} ${
 						order.itemsCount === 1 ? "producto" : "productos"
@@ -202,30 +161,12 @@ function OrdersPage() {
 				})}
 			</ItemGroup>
 
-			{totalPages > 1 && (
-				<div className="flex items-center justify-center gap-3 pt-2">
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={page === 0 || isFetching}
-						onClick={() => setPage((p) => Math.max(0, p - 1))}
-					>
-						Anterior
-					</Button>
-					<span className="text-muted-foreground text-xs">
-						Página {page + 1} de {totalPages}
-						{isFetching ? " · Cargando..." : ""}
-					</span>
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={page >= totalPages - 1 || isFetching}
-						onClick={() => setPage((p) => p + 1)}
-					>
-						Siguiente
-					</Button>
-				</div>
-			)}
+			<InfiniteScrollSentinel
+				hasNextPage={hasNextPage}
+				isFetching={isFetching}
+				isFetchingNextPage={isFetchingNextPage}
+				fetchNextPage={fetchNextPage}
+			/>
 		</div>
 	);
 }

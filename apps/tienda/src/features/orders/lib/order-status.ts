@@ -29,10 +29,6 @@ export function getOrderStatusInfo(status: string) {
  */
 export const AUTO_CANCEL_DAYS = 2;
 
-export function getAutoCancelCutoff(): Date {
-	return new Date(Date.now() - AUTO_CANCEL_DAYS * 24 * 60 * 60 * 1000);
-}
-
 /**
  * Mapa de método de pago → label en español.
  * Mantiene paridad con `PAYMENT_METHOD_OPTIONS` (mismos value).

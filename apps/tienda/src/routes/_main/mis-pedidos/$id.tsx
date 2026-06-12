@@ -38,11 +38,11 @@ import {
 	ItemSeparator,
 	ItemTitle,
 } from "@renovabit/ui/components/ui/item";
-import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { orderQueries } from "@/features/orders/hooks/queries";
+import { getOrderDetailServerFn } from "@/features/orders/hooks/server";
 import {
 	AUTO_CANCEL_DAYS,
 	getOrderStatusInfo,
@@ -59,12 +59,23 @@ import { getSiteUrl } from "@/shared/lib/env";
 import { formatPrice } from "@/shared/lib/format";
 
 const ORDER_DATE_FORMATTER = new Intl.DateTimeFormat("es-PE", {
+	timeZone: "America/Lima",
 	year: "numeric",
 	month: "long",
 	day: "numeric",
+});
+
+const ORDER_TIME_FORMATTER = new Intl.DateTimeFormat("es-PE", {
+	timeZone: "America/Lima",
 	hour: "2-digit",
 	minute: "2-digit",
+	hour12: true,
 });
+
+function formatOrderDateTime(value: string): string {
+	const date = new Date(value);
+	return `${ORDER_DATE_FORMATTER.format(date)}, ${ORDER_TIME_FORMATTER.format(date)}`;
+}
 
 export const Route = createFileRoute("/_main/mis-pedidos/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
@@ -73,65 +84,35 @@ export const Route = createFileRoute("/_main/mis-pedidos/$id")({
 			throw redirect({ to: "/iniciar-sesion" });
 		}
 
-		try {
-			const order = await queryClient.ensureQueryData(orderQueries.detail(params.id));
-			return { order };
-		} catch (error) {
-			if (isApiClientError(error)) {
-				if (error.code === "NOT_FOUND_ERROR" || error.code === "ACCESS_DENIED") {
-					throw notFound();
-				}
-				if (error.code === "INVALID_CREDENTIALS") {
-					return { order: undefined };
-				}
-			}
-			throw error;
+		const result = await getOrderDetailServerFn({ data: { id: params.id } });
+		if (result.order) {
+			queryClient.setQueryData(orderQueries.detail(params.id).queryKey, result.order);
+			return { order: result.order };
 		}
+
+		if (result.errorCode === "INVALID_CREDENTIALS") {
+			throw redirect({ to: "/iniciar-sesion" });
+		}
+
+		if (result.errorCode === "NOT_FOUND_ERROR" || result.errorCode === "ACCESS_DENIED") {
+			throw notFound();
+		}
+
+		return { order: undefined };
 	},
 	component: OrderDetailPage,
 });
-
-function OrderDetailSkeleton() {
-	return (
-		<div className="flex flex-1 flex-col gap-6 py-6">
-			<Breadcrumbs
-				items={[{ name: "Mis pedidos", link: { to: "/mis-pedidos" } }, { name: "Cargando..." }]}
-			/>
-			<div className="space-y-2">
-				<Skeleton className="h-7 w-1/2" />
-				<Skeleton className="h-4 w-1/3" />
-			</div>
-			<Card>
-				<CardContent className="space-y-3 p-4">
-					<Skeleton className="h-4 w-1/4" />
-					<Skeleton className="h-8 w-1/2" />
-				</CardContent>
-			</Card>
-			<Card>
-				<CardContent className="space-y-3 p-4">
-					<Skeleton className="h-4 w-1/4" />
-					<Skeleton className="h-16 w-full" />
-					<Skeleton className="h-16 w-full" />
-				</CardContent>
-			</Card>
-		</div>
-	);
-}
 
 function OrderDetailPage() {
 	const [copied, setCopied] = useState<"order" | "link" | null>(null);
 	const { id } = Route.useParams();
 	const { order: initialOrder } = Route.useLoaderData();
-	const {
-		data: order,
-		isLoading,
-		error,
-	} = useQuery({
+	const { data: order, error } = useQuery({
 		...orderQueries.detail(id),
 		initialData: initialOrder,
 	});
 
-	if (error && !order) {
+	if (!order) {
 		const code = isApiClientError(error) ? error.code : null;
 		if (code === "INVALID_CREDENTIALS") {
 			return (
@@ -151,10 +132,6 @@ function OrderDetailPage() {
 				ctaTo="/mis-pedidos"
 			/>
 		);
-	}
-
-	if (isLoading || !order) {
-		return <OrderDetailSkeleton />;
 	}
 
 	const status = getOrderStatusInfo(order.status);
@@ -202,7 +179,7 @@ function OrderDetailPage() {
 							strokeWidth={1.5}
 							className="mr-1 inline align-[-2px]"
 						/>
-						Realizado el {ORDER_DATE_FORMATTER.format(new Date(order.createdAt))}
+						Realizado el {formatOrderDateTime(order.createdAt)}
 					</p>
 				</div>
 				<div className="flex flex-wrap justify-end gap-2">

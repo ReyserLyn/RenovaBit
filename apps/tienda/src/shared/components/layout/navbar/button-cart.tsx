@@ -123,7 +123,7 @@ export default function ButtonCart() {
 				)}
 			</Button>
 
-			<SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
+			<SheetContent side="right" className="flex w-full flex-col sm:max-w-md h-dvh max-h-dvh">
 				<SheetHeader>
 					<SheetTitle>Carrito{cart ? ` (${cart.itemsCount})` : ""}</SheetTitle>
 				</SheetHeader>

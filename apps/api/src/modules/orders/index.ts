@@ -55,11 +55,7 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 
 			set.headers["cache-control"] = "no-store";
 
-			const pageParsed = Number.parseInt(query.page ?? "0", 10);
-			const limitParsed = Number.parseInt(query.limit ?? "10", 10);
-			const page = Number.isNaN(pageParsed) || pageParsed < 0 ? 0 : pageParsed;
-			const limit = Number.isNaN(limitParsed) || limitParsed <= 0 ? 10 : limitParsed;
-			return OrderService.listByUser(session.user.id, page, limit);
+			return OrderService.listByUser(session.user.id, query.page, query.limit);
 		},
 		{
 			query: OrderModel.listQuery,

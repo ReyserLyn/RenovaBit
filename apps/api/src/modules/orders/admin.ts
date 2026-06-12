@@ -13,15 +13,7 @@ export const adminOrdersRoute = new Elysia({ prefix: "/orders" })
 	.get(
 		"/",
 		async ({ query }) => {
-			const pageParsed = Number.parseInt(query.page ?? "0", 10);
-			const limitParsed = Number.parseInt(query.limit ?? "20", 10);
-			const page = Number.isNaN(pageParsed) || pageParsed < 0 ? 0 : pageParsed;
-			const limit = Number.isNaN(limitParsed) || limitParsed <= 0 ? 20 : limitParsed;
-			return OrderService.listAdmin({
-				status: query.status,
-				page,
-				limit,
-			});
+			return OrderService.listAdmin({ status: query.status, page: query.page, limit: query.limit });
 		},
 		{
 			isAdmin: true,

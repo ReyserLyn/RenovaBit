@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api, unwrapResponse } from "@/shared/lib/api";
 
 // ── Query Keys Factory ───────────────────────────────────────
@@ -6,7 +6,7 @@ import { api, unwrapResponse } from "@/shared/lib/api";
 export const orderKeys = {
 	all: ["orders"] as const,
 	lists: () => [...orderKeys.all, "list"] as const,
-	list: (page = 0, limit = 10) => [...orderKeys.lists(), page, limit] as const,
+	infiniteList: (pageSize = 10) => [...orderKeys.lists(), "infinite", pageSize] as const,
 	details: () => [...orderKeys.all, "detail"] as const,
 	detail: (id: string) => [...orderKeys.details(), id] as const,
 };
@@ -14,15 +14,21 @@ export const orderKeys = {
 // ── Query Options ─────────────────────────────────────────────
 
 export const orderQueries = {
-	list: (page = 0, limit = 10) =>
-		queryOptions({
-			queryKey: orderKeys.list(page, limit),
-			queryFn: () =>
+	infiniteList: (pageSize = 10) =>
+		infiniteQueryOptions({
+			queryKey: orderKeys.infiniteList(pageSize),
+			queryFn: ({ pageParam }) =>
 				unwrapResponse(
 					api.api.v1.orders.get({
-						query: { page: String(page), limit: String(limit) },
+						query: { page: String(pageParam), limit: String(pageSize) },
 					}),
 				),
+			initialPageParam: 0,
+			getNextPageParam: (lastPage, allPages) => {
+				const nextPage = allPages.length;
+				return nextPage * pageSize < lastPage.total ? nextPage : undefined;
+			},
+			placeholderData: (previousData) => previousData,
 			staleTime: 1000 * 60,
 		}),
 
@@ -33,3 +39,10 @@ export const orderQueries = {
 			staleTime: 1000 * 60,
 		}),
 };
+
+export type OrderListPage = Awaited<
+	ReturnType<NonNullable<ReturnType<typeof orderQueries.infiniteList>["queryFn"]>>
+>;
+export type OrderDetailResponse = Awaited<
+	ReturnType<NonNullable<ReturnType<typeof orderQueries.detail>["queryFn"]>>
+>;
