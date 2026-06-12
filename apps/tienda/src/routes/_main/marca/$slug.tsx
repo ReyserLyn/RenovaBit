@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { brandQueries } from "@/features/brands/hooks/queries";
 import { ProductCard } from "@/features/products/components/product-card";
 import { type ProductListFilters, productQueries } from "@/features/products/hooks/queries";
+import { Breadcrumbs } from "@/shared/components/breadcrumbs";
 import { FilterSidebar } from "@/shared/components/filters/filter-sidebar";
 import { InfiniteScrollSentinel } from "@/shared/components/infinite-scroll-sentinel";
 import { isApiClientError } from "@/shared/lib/api";
@@ -106,6 +107,7 @@ function BrandPage() {
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 py-6">
+			<Breadcrumbs items={[{ name: brand.name }]} />
 			<div className="flex items-center gap-4">
 				{brand.imageUrl && (
 					<img

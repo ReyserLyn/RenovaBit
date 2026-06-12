@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { RelatedProducts } from "@/features/products/components/related-products";
 import { productQueries } from "@/features/products/hooks/queries";
+import { Breadcrumbs } from "@/shared/components/breadcrumbs";
 import { FavoriteButton } from "@/shared/components/favorites/favorite-button";
 import { WhatsAppIcon } from "@/shared/components/icons";
 import {
@@ -79,38 +80,35 @@ function ProductPage() {
 	return (
 		<div className="flex flex-1 flex-col gap-8 py-6">
 			{/* ── Breadcrumb ──────────────────────── */}
-			<nav className="animate-fade-in flex items-center gap-2 text-sm text-muted-foreground">
-				<Link to="/" className="hover:text-foreground transition-colors">
-					Inicio
-				</Link>
-				{product.category && (
-					<>
-						<span>/</span>
-						<Link
-							to="/categoria/$slug"
-							params={{ slug: product.category.slug }}
-							search={{}}
-							className="hover:text-foreground transition-colors"
-						>
-							{product.category.name}
-						</Link>
-					</>
-				)}
-				{product.brand && (
-					<>
-						<span>/</span>
-						<Link
-							to="/marca/$slug"
-							params={{ slug: product.brand.slug }}
-							className="hover:text-foreground transition-colors"
-						>
-							{product.brand.name}
-						</Link>
-					</>
-				)}
-				<span>/</span>
-				<span className="font-medium truncate max-w-[200px]">{product.name}</span>
-			</nav>
+			<Breadcrumbs
+				className="animate-fade-in"
+				items={[
+					...(product.category
+						? [
+								{
+									name: product.category.name,
+									link: {
+										to: "/categoria/$slug" as const,
+										params: { slug: product.category.slug },
+										search: {} as const,
+									},
+								},
+							]
+						: []),
+					...(product.brand
+						? [
+								{
+									name: product.brand.name,
+									link: {
+										to: "/marca/$slug" as const,
+										params: { slug: product.brand.slug },
+									},
+								},
+							]
+						: []),
+					{ name: product.name },
+				]}
+			/>
 
 			{/* ── Content ─────────────────────────── */}
 			<div className="flex flex-col gap-8 lg:flex-row lg:gap-12">

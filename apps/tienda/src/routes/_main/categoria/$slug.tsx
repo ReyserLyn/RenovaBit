@@ -1,19 +1,12 @@
-import {
-	Breadcrumb,
-	BreadcrumbItem,
-	BreadcrumbLink,
-	BreadcrumbList,
-	BreadcrumbPage,
-	BreadcrumbSeparator,
-} from "@renovabit/ui/components/ui/breadcrumb";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { createSerializer } from "nuqs";
-import { Fragment, useMemo } from "react";
+import { useMemo } from "react";
 import { brandQueries } from "@/features/brands/hooks/queries";
 import { categoryQueries } from "@/features/categories/hooks/queries";
 import { ProductCard } from "@/features/products/components/product-card";
 import { type ProductListFilters, productQueries } from "@/features/products/hooks/queries";
+import { Breadcrumbs } from "@/shared/components/breadcrumbs";
 import { FilterSidebar } from "@/shared/components/filters/filter-sidebar";
 import { InfiniteScrollSentinel } from "@/shared/components/infinite-scroll-sentinel";
 import { isApiClientError } from "@/shared/lib/api";
@@ -127,7 +120,12 @@ function CategoryPage() {
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 py-6">
-			<CategoryBreadcrumb items={category.breadcrumb} />
+			<Breadcrumbs
+				items={category.breadcrumb.map((item) => ({
+					name: item.name,
+					link: { to: "/categoria/$slug", params: { slug: item.slug }, search: {} },
+				}))}
+			/>
 			<div className="space-y-2">
 				<h1 className="text-3xl font-bold tracking-tight">{category.name}</h1>
 				{category.description && (
@@ -181,37 +179,5 @@ function CategoryPage() {
 				}}
 			/>
 		</div>
-	);
-}
-
-function CategoryBreadcrumb({
-	items,
-}: {
-	items: Array<{ id: string; name: string; slug: string }>;
-}) {
-	return (
-		<Breadcrumb>
-			<BreadcrumbList>
-				<BreadcrumbItem>
-					<BreadcrumbLink render={<Link to="/" />}>Inicio</BreadcrumbLink>
-				</BreadcrumbItem>
-				{items.map((item) => (
-					<Fragment key={item.id}>
-						<BreadcrumbSeparator />
-						<BreadcrumbItem>
-							{item.slug === items[items.length - 1]?.slug ? (
-								<BreadcrumbPage>{item.name}</BreadcrumbPage>
-							) : (
-								<BreadcrumbLink
-									render={<Link to="/categoria/$slug" params={{ slug: item.slug }} search={{}} />}
-								>
-									{item.name}
-								</BreadcrumbLink>
-							)}
-						</BreadcrumbItem>
-					</Fragment>
-				))}
-			</BreadcrumbList>
-		</Breadcrumb>
 	);
 }
