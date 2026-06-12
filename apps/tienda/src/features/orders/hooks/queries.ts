@@ -6,7 +6,7 @@ import { api, unwrapResponse } from "@/shared/lib/api";
 export const orderKeys = {
 	all: ["orders"] as const,
 	lists: () => [...orderKeys.all, "list"] as const,
-	list: (page = 0) => [...orderKeys.lists(), page] as const,
+	list: (page = 0, limit = 10) => [...orderKeys.lists(), page, limit] as const,
 	details: () => [...orderKeys.all, "detail"] as const,
 	detail: (id: string) => [...orderKeys.details(), id] as const,
 };
@@ -16,7 +16,7 @@ export const orderKeys = {
 export const orderQueries = {
 	list: (page = 0, limit = 10) =>
 		queryOptions({
-			queryKey: orderKeys.list(page),
+			queryKey: orderKeys.list(page, limit),
 			queryFn: () =>
 				unwrapResponse(
 					api.api.v1.orders.get({

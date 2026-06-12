@@ -13,11 +13,12 @@ import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import { Textarea } from "@renovabit/ui/components/ui/textarea";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { CartItem } from "@/features/cart/components/cart-item";
 import { cartQueries } from "@/features/cart/hooks/queries";
 import { getCartServerFn } from "@/features/cart/hooks/server";
 import { summarizeAvailableCartItems } from "@/features/cart/lib/summary";
+import { OrderSuccessPanel } from "@/features/orders/components/order-success-panel";
 import { useCreateOrder } from "@/features/orders/hooks/mutations";
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from "@/features/orders/lib/payment-methods";
 import { authSessionQueryOptions } from "@/shared/lib/auth/auth-session";
@@ -59,8 +60,10 @@ function CartPage() {
 	const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
 	const [notes, setNotes] = useState("");
 	const [completedOrder, setCompletedOrder] = useState<{
+		id: string;
 		orderNumber: string;
 		total: string;
+		customerName?: string | null;
 	} | null>(null);
 
 	useEffect(() => {
@@ -106,29 +109,7 @@ function CartPage() {
 	}
 
 	if (completedOrder) {
-		return (
-			<div className="flex flex-1 flex-col items-center justify-center gap-6 py-12 text-center">
-				<h1 className="text-2xl font-bold tracking-tight">¡Pedido creado con éxito!</h1>
-				<p className="text-4xl font-bold tracking-tight text-primary">
-					{completedOrder.orderNumber}
-				</p>
-				<p className="text-muted-foreground text-sm">Total: {formatPrice(completedOrder.total)}</p>
-				<p className="text-muted-foreground max-w-md text-sm">
-					Te contactaremos pronto para coordinar el pago y envío.
-					{!isLoggedIn && " Guarda tu número de pedido para hacer seguimiento."}
-				</p>
-				<div className="flex gap-3">
-					<Button nativeButton={false} render={<Link to="/" />}>
-						Seguir comprando
-					</Button>
-					{isLoggedIn && (
-						<Button variant="outline" nativeButton={false} render={<Link to="/mis-pedidos" />}>
-							Mis pedidos
-						</Button>
-					)}
-				</div>
-			</div>
-		);
+		return <OrderSuccessPanel order={completedOrder} isLoggedIn={isLoggedIn} />;
 	}
 
 	if (!cart || cart.items.length === 0) {
@@ -145,7 +126,8 @@ function CartPage() {
 		);
 	}
 
-	const handleSubmit = () => {
+	const handleSubmit = (event?: FormEvent) => {
+		event?.preventDefault();
 		if (!isLoggedIn && !customerName.trim()) return;
 
 		createOrder.mutate(
@@ -160,8 +142,10 @@ function CartPage() {
 			{
 				onSuccess: (order) =>
 					setCompletedOrder({
+						id: order.id,
 						orderNumber: order.orderNumber,
 						total: order.total,
+						customerName: order.customerName ?? null,
 					}),
 			},
 		);
@@ -173,7 +157,8 @@ function CartPage() {
 
 			{hasUnavailableItems && (
 				<div className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-warning">
-					Algunos productos no están disponibles. Solo se procesarán los productos disponibles.
+					Hay productos no disponibles en tu carrito. Retíralos o actualiza cantidades para poder
+					crear el pedido.
 				</div>
 			)}
 
@@ -186,7 +171,7 @@ function CartPage() {
 				</div>
 
 				{/* Checkout Sidebar */}
-				<div className="w-full shrink-0 space-y-6 lg:w-80">
+				<form className="w-full shrink-0 space-y-6 lg:w-80" onSubmit={handleSubmit}>
 					{/* Contact Info (guest only) */}
 					{!isLoggedIn && (
 						<div className="space-y-3">
@@ -200,6 +185,7 @@ function CartPage() {
 									value={customerName}
 									onChange={(e) => setCustomerName(e.target.value)}
 									placeholder="Tu nombre"
+									autoComplete="name"
 									required
 								/>
 							</div>
@@ -211,6 +197,8 @@ function CartPage() {
 									onChange={(e) => setCustomerPhone(e.target.value)}
 									placeholder="999 999 999"
 									type="tel"
+									autoComplete="tel"
+									inputMode="tel"
 								/>
 							</div>
 						</div>
@@ -267,14 +255,15 @@ function CartPage() {
 					</div>
 
 					<Button
+						type="submit"
 						size="xl"
 						className="w-full"
 						disabled={
 							(!isLoggedIn && !customerName.trim()) ||
+							hasUnavailableItems ||
 							availableItems.length === 0 ||
 							createOrder.isPending
 						}
-						onClick={handleSubmit}
 					>
 						{createOrder.isPending ? "Creando pedido..." : "Crear pedido"}
 					</Button>
@@ -290,7 +279,7 @@ function CartPage() {
 							para guardar tus datos y hacer seguimiento a tus pedidos.
 						</p>
 					)}
-				</div>
+				</form>
 			</div>
 		</div>
 	);

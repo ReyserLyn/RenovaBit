@@ -1,6 +1,7 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { Elysia } from "elysia";
 import { auth } from "@/utils/auth/auth";
+import { logger } from "@/utils/logger";
 import { ErrorResponse, OrderModel } from "./model";
 import { OrderService } from "./service";
 
@@ -12,7 +13,8 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 			const session = await auth.api.getSession({ headers: request.headers });
 			const userId = session?.user.id ?? null;
 
-			if (!userId && !body.customerName) {
+			const guestName = typeof body.customerName === "string" ? body.customerName.trim() : "";
+			if (!userId && guestName.length === 0) {
 				set.status = 400;
 				return {
 					errId: "missing-name",
@@ -40,7 +42,7 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 	// ── User Order List ─────────────────────────
 	.get(
 		"/",
-		async ({ query, request }) => {
+		async ({ query, request, set }) => {
 			const session = await auth.api.getSession({ headers: request.headers });
 			if (!session) {
 				throw createApiError({
@@ -50,6 +52,8 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 					doNotLog: true,
 				});
 			}
+
+			set.headers["cache-control"] = "no-store";
 
 			const pageParsed = Number.parseInt(query.page ?? "0", 10);
 			const limitParsed = Number.parseInt(query.limit ?? "10", 10);
@@ -67,7 +71,7 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 	// ── Order Detail ────────────────────────────
 	.get(
 		"/:id",
-		async ({ params: { id }, request }) => {
+		async ({ params: { id }, request, set }) => {
 			const session = await auth.api.getSession({ headers: request.headers });
 			if (!session) {
 				throw createApiError({
@@ -92,6 +96,15 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 			const isOwner = !!order.userId && order.userId === session.user.id;
 
 			if (!isAdmin && !isOwner) {
+				logger
+					.withMetadata({
+						event: "order.access_denied",
+						actorId: session.user.id,
+						actorRole: session.user.role,
+						orderId: order.id,
+						orderOwnerId: order.userId,
+					})
+					.warn("Intento de acceso a pedido ajeno");
 				throw createApiError({
 					code: BackendErrorCodes.ACCESS_DENIED,
 					message: "Este pedido no te pertenece",
@@ -100,7 +113,8 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 				});
 			}
 
-			// Orders response has `userId` only if session user created it
+			set.headers["cache-control"] = "no-store";
+
 			return order;
 		},
 		{

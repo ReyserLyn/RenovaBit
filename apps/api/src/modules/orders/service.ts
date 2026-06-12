@@ -1,8 +1,9 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { cartItems, carts, orderItems, orders, products } from "@renovabit/db/schema";
-import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
+import { enqueueOrderAutoCancel, removeOrderAutoCancel } from "@/jobs/orders.queue";
 import { createNotification, getAdminIds } from "@/modules/notifications/notifications.service";
 import { broadcastToAdmins } from "@/plugins/websocket";
 import { logger } from "@/utils/logger";
@@ -14,6 +15,10 @@ type AdminUpdateBody = OrderModel["adminUpdateBody"];
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 const ORDER_SUFFIX = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 10);
+
+/** Pedidos `pending` más antiguos que esto se cancelan automáticamente. */
+export const AUTO_CANCEL_MS = 2 * 24 * 60 * 60 * 1000; // 2 días
+const AUTO_CANCEL_REASON = "Cancelado automáticamente por falta de confirmación";
 
 function formatDate(date: Date): string {
 	return date.toISOString();
@@ -42,6 +47,46 @@ function sanitizePagination(page: number = 0, limit: number = DEFAULT_PAGE_SIZE)
 		Number.isFinite(limit) && limit > 0 ? Math.trunc(limit) : DEFAULT_PAGE_SIZE;
 	const safeLimit = Math.min(requestedLimit, MAX_PAGE_SIZE);
 	return { safePage, safeLimit, offset: safePage * safeLimit };
+}
+
+type OrderRow = typeof orders.$inferSelect;
+
+async function buildOrderResponse(order: OrderRow): Promise<OrderResponse> {
+	const items = await db
+		.select()
+		.from(orderItems)
+		.where(eq(orderItems.orderId, order.id))
+		.orderBy(asc(orderItems.createdAt));
+
+	return {
+		id: order.id,
+		userId: order.userId ?? null,
+		orderNumber: order.orderNumber,
+		status: order.status,
+		source: order.source,
+		paymentMethod: order.paymentMethod ?? null,
+		paymentProofUrl: null,
+		customerName: order.customerName ?? null,
+		customerPhone: order.customerPhone ?? null,
+		subtotal: order.subtotal,
+		discountTotal: order.discountTotal,
+		total: order.total,
+		notes: order.notes ?? null,
+		adminNotes: order.adminNotes ?? null,
+		items: items.map((i) => ({
+			id: i.id,
+			productId: i.productId ?? null,
+			productName: i.productName,
+			productSku: i.productSku,
+			quantity: i.quantity,
+			unitPrice: i.unitPrice,
+			finalPrice: i.finalPrice,
+		})),
+		createdAt: formatDate(order.createdAt),
+		confirmedAt: order.confirmedAt ? formatDate(order.confirmedAt) : null,
+		cancelledAt: order.cancelledAt ? formatDate(order.cancelledAt) : null,
+		cancelReason: order.cancelReason ?? null,
+	};
 }
 
 // ═══════════════════════════════════════════════════
@@ -196,8 +241,11 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 	}
 
 	const now = new Date();
-	const customerName = data.customerName ?? null;
-	const customerPhone = data.customerPhone ?? null;
+	const customerName =
+		typeof data.customerName === "string" ? data.customerName.trim() || null : null;
+	const customerPhone =
+		typeof data.customerPhone === "string" ? data.customerPhone.trim() || null : null;
+	const normalizedNotes = typeof data.notes === "string" ? data.notes.trim() || null : null;
 
 	const orderResult = await db.transaction(async (tx) => {
 		let order:
@@ -239,7 +287,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 						subtotal: "0",
 						discountTotal: "0",
 						total: "0",
-						notes: data.notes ?? null,
+						notes: normalizedNotes,
 						metadata: {},
 						createdAt: now,
 						updatedAt: now,
@@ -326,7 +374,20 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 		const total = subtotal.toFixed(2);
 
 		await tx.update(orders).set({ subtotal: total, total }).where(eq(orders.id, order.id));
-		await tx.delete(cartItems).where(eq(cartItems.cartId, data.cartId));
+		const deletedCartItems = await tx
+			.delete(cartItems)
+			.where(eq(cartItems.cartId, data.cartId))
+			.returning({ id: cartItems.id });
+
+		if (deletedCartItems.length !== cartItemsList.length) {
+			throw createApiError({
+				code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
+				message: "El carrito cambió mientras procesábamos tu pedido. Intenta nuevamente",
+				logLevel: "info",
+				doNotLog: true,
+			});
+		}
+
 		await tx
 			.update(carts)
 			.set({ itemsCount: 0, lastActivityAt: now })
@@ -344,6 +405,12 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 		orderResult.order.total,
 		customerName,
 	).catch((err) => logger.withMetadata({ err }).error("[Order] Notification error"));
+
+	enqueueOrderAutoCancel(orderResult.order.id, AUTO_CANCEL_MS).catch((err) =>
+		logger
+			.withMetadata({ err, orderId: orderResult.order.id })
+			.warn("[Order] auto-cancel schedule failed"),
+	);
 
 	return {
 		id: orderResult.order.id,
@@ -377,41 +444,24 @@ async function getById(orderId: string): Promise<OrderResponse | null> {
 
 	if (!order) return null;
 
-	const items = await db
-		.select()
-		.from(orderItems)
-		.where(eq(orderItems.orderId, orderId))
-		.orderBy(asc(orderItems.createdAt));
+	// Lazy auto-cancel: si está pending y venció, lo cancelamos antes de devolver
+	if (order.status === "pending" && Date.now() - order.createdAt.getTime() >= AUTO_CANCEL_MS) {
+		const now = new Date();
+		await db
+			.update(orders)
+			.set({
+				status: "cancelled",
+				cancelledAt: now,
+				cancelReason: AUTO_CANCEL_REASON,
+				updatedAt: now,
+			})
+			.where(and(eq(orders.id, orderId), eq(orders.status, "pending")));
+		const [refreshed] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+		if (!refreshed) return null;
+		return buildOrderResponse(refreshed);
+	}
 
-	return {
-		id: order.id,
-		userId: order.userId ?? null,
-		orderNumber: order.orderNumber,
-		status: order.status,
-		source: order.source,
-		paymentMethod: order.paymentMethod ?? null,
-		paymentProofUrl: null,
-		customerName: order.customerName ?? null,
-		customerPhone: order.customerPhone ?? null,
-		subtotal: order.subtotal,
-		discountTotal: order.discountTotal,
-		total: order.total,
-		notes: order.notes ?? null,
-		adminNotes: order.adminNotes ?? null,
-		items: items.map((i) => ({
-			id: i.id,
-			productId: i.productId ?? null,
-			productName: i.productName,
-			productSku: i.productSku,
-			quantity: i.quantity,
-			unitPrice: i.unitPrice,
-			finalPrice: i.finalPrice,
-		})),
-		createdAt: formatDate(order.createdAt),
-		confirmedAt: order.confirmedAt ? formatDate(order.confirmedAt) : null,
-		cancelledAt: order.cancelledAt ? formatDate(order.cancelledAt) : null,
-		cancelReason: order.cancelReason ?? null,
-	};
+	return buildOrderResponse(order);
 }
 
 // ═══════════════════════════════════════════════════
@@ -423,6 +473,11 @@ async function listByUser(
 	page: number = 0,
 	limit: number = DEFAULT_PAGE_SIZE,
 ): Promise<{ orders: OrderListItem[]; total: number }> {
+	// Antes de listar, cancelamos los pending vencidos (idempotente, fire-and-forget)
+	autoCancelExpiredPending().catch((err) =>
+		logger.withError(err).warn("[Orders] autoCancel en listByUser falló"),
+	);
+
 	const { safeLimit, offset } = sanitizePagination(page, limit);
 
 	const [countRow] = await db
@@ -491,6 +546,10 @@ async function listAdmin(
 		limit?: number;
 	} = {},
 ): Promise<{ orders: OrderListItem[]; total: number }> {
+	autoCancelExpiredPending().catch((err) =>
+		logger.withError(err).warn("[Orders] autoCancel en listAdmin falló"),
+	);
+
 	const { safeLimit, offset } = sanitizePagination(options.page, options.limit);
 
 	const conditions = [];
@@ -649,6 +708,15 @@ async function updateStatus(orderId: string, data: AdminUpdateBody): Promise<Ord
 		await tx.update(orders).set(updates).where(eq(orders.id, orderId));
 	});
 
+	if (order.status === "pending") {
+		removeOrderAutoCancel(orderId).catch((err) =>
+			logger
+				.withMetadata({ orderId })
+				.withError(err)
+				.warn("[Orders] failed to remove auto-cancel job"),
+		);
+	}
+
 	const updated = await getById(orderId);
 	if (!updated) {
 		throw createApiError({
@@ -656,12 +724,104 @@ async function updateStatus(orderId: string, data: AdminUpdateBody): Promise<Ord
 			message: "Error al actualizar el pedido",
 		});
 	}
+
 	return updated;
+}
+
+// ═══════════════════════════════════════════════════
+//  AUTO-CANCEL
+// ═══════════════════════════════════════════════════
+
+/**
+ * Cancela automáticamente los pedidos en `pending` con más de
+ * {@link AUTO_CANCEL_MS} de antigüedad. Idempotente: seguro de llamar
+ * en cada read (lazy) o desde el job programado.
+ *
+ * @returns IDs de los pedidos cancelados en esta corrida
+ */
+async function autoCancelExpiredPending(): Promise<string[]> {
+	const cutoff = new Date(Date.now() - AUTO_CANCEL_MS);
+	const now = new Date();
+
+	const stale = await db
+		.update(orders)
+		.set({
+			status: "cancelled",
+			cancelledAt: now,
+			cancelReason: AUTO_CANCEL_REASON,
+			updatedAt: now,
+		})
+		.where(and(eq(orders.status, "pending"), lt(orders.createdAt, cutoff)))
+		.returning({ id: orders.id, orderNumber: orders.orderNumber });
+
+	if (stale.length === 0) return [];
+
+	const staleIds = stale.map((row) => row.id);
+
+	logger
+		.withMetadata({ count: stale.length, orderIds: staleIds })
+		.info("[Orders] Auto-cancel de pedidos pendientes vencidos");
+
+	for (const row of stale) {
+		broadcastToAdmins({
+			type: "order:auto-cancelled",
+			orderId: row.id,
+			orderNumber: row.orderNumber,
+			reason: AUTO_CANCEL_REASON,
+			timestamp: now.toISOString(),
+		});
+	}
+
+	return staleIds;
 }
 
 // ═══════════════════════════════════════════════════
 //  EXPORT
 // ═══════════════════════════════════════════════════
+
+/**
+ * Cancela una orden específica si aún está `pending`. Usado por el worker
+ * de auto-cancel per-orden. Idempotente.
+ *
+ * @returns `true` si la cancelación se aplicó en esta llamada
+ */
+async function cancelIfStillPending(orderId: string): Promise<boolean> {
+	const [order] = await db
+		.select({ status: orders.status, orderNumber: orders.orderNumber })
+		.from(orders)
+		.where(eq(orders.id, orderId))
+		.limit(1);
+
+	if (!order || order.status !== "pending") return false;
+
+	const now = new Date();
+	const updated = await db
+		.update(orders)
+		.set({
+			status: "cancelled",
+			cancelledAt: now,
+			cancelReason: AUTO_CANCEL_REASON,
+			updatedAt: now,
+		})
+		.where(and(eq(orders.id, orderId), eq(orders.status, "pending")))
+		.returning({ id: orders.id });
+
+	if (updated.length === 0) return false;
+
+	logger
+		.withMetadata({ orderId, orderNumber: order.orderNumber })
+		.info("[Orders] Auto-cancel aplicado por worker");
+
+	broadcastToAdmins({
+		type: "order:auto-cancelled",
+		orderId,
+		orderNumber: order.orderNumber,
+		reason: AUTO_CANCEL_REASON,
+		timestamp: now.toISOString(),
+	});
+
+	return true;
+}
 
 export const OrderService = {
 	create,
@@ -669,4 +829,6 @@ export const OrderService = {
 	listByUser,
 	listAdmin,
 	updateStatus,
+	cancelIfStillPending,
+	autoCancelExpiredPending,
 };
