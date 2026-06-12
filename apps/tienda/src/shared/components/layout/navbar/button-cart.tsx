@@ -2,35 +2,104 @@ import { ShoppingCartIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Button } from "@renovabit/ui/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@renovabit/ui/components/ui/sheet";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { CartDrawerContent } from "@/features/cart/components/cart-drawer";
+import { useMergeCart } from "@/features/cart/hooks/mutations";
+import { type CartResponse, cartKeys, cartQueries } from "@/features/cart/hooks/queries";
+import { authSessionQueryOptions } from "@/shared/lib/auth/auth-session";
+import { formatPrice } from "@/shared/lib/format";
+import { useCartGuestStore } from "@/shared/lib/stores/cart";
+import { useCartSsr } from "@/shared/lib/stores/cart-ssr-context";
 
-type CartButtonProps = {
-	itemCount?: number;
-	totalPrice?: number;
-	onCartClick?: () => void;
+const EMPTY_CART: CartResponse = {
+	id: "",
+	guestToken: null,
+	items: [],
+	itemsCount: 0,
+	subtotal: "0",
+	lastActivityAt: "",
 };
 
-export default function ButtonCart({
-	itemCount = 0,
-	totalPrice = 0,
-	onCartClick,
-}: CartButtonProps) {
+export default function ButtonCart() {
+	const guestToken = useCartGuestStore((s) => s.guestToken);
+	const setGuestToken = useCartGuestStore((s) => s.setGuestToken);
+	const ssr = useCartSsr();
+	const [drawerOpen, setDrawerOpen] = useState(false);
+	const [mounted, setMounted] = useState(false);
+	const mergeAttemptedToken = useRef<string | null>(null);
+	const mergeCart = useMergeCart();
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
+	const queryClient = useQueryClient();
+
+	const { data: session } = useQuery({
+		...authSessionQueryOptions(),
+		initialData: ssr.session ?? undefined,
+	});
+
+	const isLoggedIn = !!session?.user;
+	const activeGuestToken = isLoggedIn ? null : guestToken;
+	const hasGuestToken = !!guestToken;
+
+	const shouldFetchTotal = isLoggedIn || (mounted && !!activeGuestToken);
+
+	const { data: total } = useQuery({
+		...cartQueries.total(activeGuestToken),
+		enabled: shouldFetchTotal,
+		// SSR seed solo para sesión autenticada.
+		// En guest NO usar initialData: con staleTime puede congelar contador en 0.
+		initialData: isLoggedIn ? (ssr.cartTotal ?? undefined) : undefined,
+	});
+
+	const { data: cart, isLoading: isCartLoading } = useQuery({
+		...cartQueries.detail(activeGuestToken),
+		enabled: mounted && drawerOpen && (isLoggedIn || !!activeGuestToken),
+		initialData: !isLoggedIn && !hasGuestToken ? EMPTY_CART : undefined,
+	});
+
+	// Reset cart queries when user logs out
+	useEffect(() => {
+		if (!isLoggedIn && !hasGuestToken) {
+			queryClient.resetQueries({ queryKey: cartKeys.all });
+		}
+	}, [isLoggedIn, hasGuestToken, queryClient]);
+
+	useEffect(() => {
+		if (!cart?.guestToken) return;
+		if (cart.guestToken !== guestToken) {
+			setGuestToken(cart.guestToken);
+		}
+	}, [cart?.guestToken, guestToken, setGuestToken]);
+
+	useEffect(() => {
+		if (!session?.user || !guestToken) return;
+		if (mergeAttemptedToken.current === guestToken) return;
+		mergeAttemptedToken.current = guestToken;
+		mergeCart.mutate(guestToken);
+	}, [session?.user?.id, guestToken, mergeCart]);
+
+	const itemCount = total?.itemsCount ?? 0;
 	const displayCount = itemCount > 99 ? "99+" : itemCount.toString();
 	const hasItems = itemCount > 0;
-	const displayText = hasItems ? `S/ ${totalPrice.toFixed(2)}` : "Carrito";
+	const subtotal = total?.subtotal ?? "0";
 
 	return (
-		<>
-			{/* Mobile */}
+		<Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
 			<Button
-				aria-label={`Carrito con ${itemCount} productos`}
+				aria-label={`Carrito con ${itemCount} producto${itemCount !== 1 ? "s" : ""}`}
 				className="relative md:hidden"
-				onClick={onCartClick}
 				variant="outline"
+				onClick={() => setDrawerOpen(true)}
 			>
 				<HugeiconsIcon icon={ShoppingCartIcon} size={16} />
 				{hasItems && (
 					<Badge
-						className="-translate-y-1/2 -translate-x-1/2 absolute start-full top-0 rtl:translate-x-1/2"
+						className="-translate-y-1/2 -translate-x-1/2 absolute start-full top-0"
 						radius="full"
 						size="sm"
 					>
@@ -39,21 +108,38 @@ export default function ButtonCart({
 				)}
 			</Button>
 
-			{/* Desktop */}
 			<Button
-				aria-label={`Carrito con ${itemCount} productos`}
+				aria-label={`Carrito con ${itemCount} producto${itemCount !== 1 ? "s" : ""}`}
 				className="hidden md:flex"
-				onClick={onCartClick}
 				variant="outline"
+				onClick={() => setDrawerOpen(true)}
 			>
 				<HugeiconsIcon icon={ShoppingCartIcon} size={16} />
-				{displayText}
+				{hasItems ? formatPrice(subtotal) : "Carrito"}
 				{hasItems && (
 					<Badge radius="full" size="sm">
 						{displayCount}
 					</Badge>
 				)}
 			</Button>
-		</>
+
+			<SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
+				<SheetHeader>
+					<SheetTitle>Carrito{cart ? ` (${cart.itemsCount})` : ""}</SheetTitle>
+				</SheetHeader>
+
+				{cart ? (
+					<CartDrawerContent
+						cart={cart}
+						isLoading={isCartLoading}
+						onNavigate={() => setDrawerOpen(false)}
+					/>
+				) : (
+					<div className="flex items-center justify-center py-12">
+						<span className="text-muted-foreground text-sm">Cargando...</span>
+					</div>
+				)}
+			</SheetContent>
+		</Sheet>
 	);
 }

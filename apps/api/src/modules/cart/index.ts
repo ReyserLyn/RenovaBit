@@ -27,10 +27,10 @@ export const cartRoute = new Elysia({ prefix: "/cart" })
 		async ({ query, request, set }) => {
 			const { userId } = await resolveCartOwner(request);
 			const guestToken = getGuestToken(query);
-			const { cart, newGuestToken } = await CartService.getOrCreate(userId, guestToken);
+			const cart = await CartService.getOrCreate(userId, guestToken);
 
-			if (newGuestToken) {
-				set.headers!["x-guest-token"] = newGuestToken;
+			if (cart.guestToken) {
+				set.headers!["x-guest-token"] = cart.guestToken;
 			}
 
 			return cart;
@@ -48,8 +48,7 @@ export const cartRoute = new Elysia({ prefix: "/cart" })
 		async ({ query, request }) => {
 			const { userId } = await resolveCartOwner(request);
 			const guestToken = getGuestToken(query);
-			const { cart } = await CartService.getOrCreate(userId, guestToken);
-			return CartService.getTotal(cart.id);
+			return CartService.getTotalByOwner(userId, guestToken);
 		},
 		{
 			query: CartModel.cartQuery,
@@ -64,7 +63,7 @@ export const cartRoute = new Elysia({ prefix: "/cart" })
 		async ({ body, query, request }) => {
 			const { userId } = await resolveCartOwner(request);
 			const guestToken = getGuestToken(query);
-			const { cart } = await CartService.getOrCreate(userId, guestToken);
+			const cart = await CartService.getOrCreate(userId, guestToken);
 			return CartService.addItem(cart.id, body);
 		},
 		{
@@ -86,7 +85,7 @@ export const cartRoute = new Elysia({ prefix: "/cart" })
 		async ({ params: { id }, body, query, request }) => {
 			const { userId } = await resolveCartOwner(request);
 			const guestToken = getGuestToken(query);
-			const { cart } = await CartService.getOrCreate(userId, guestToken);
+			const cart = await CartService.requireCart(userId, guestToken);
 			return CartService.updateQuantity(cart.id, id, body);
 		},
 		{
@@ -104,7 +103,7 @@ export const cartRoute = new Elysia({ prefix: "/cart" })
 		async ({ params: { id }, query, request }) => {
 			const { userId } = await resolveCartOwner(request);
 			const guestToken = getGuestToken(query);
-			const { cart } = await CartService.getOrCreate(userId, guestToken);
+			const cart = await CartService.requireCart(userId, guestToken);
 			return CartService.removeItem(cart.id, id);
 		},
 		{
@@ -121,7 +120,7 @@ export const cartRoute = new Elysia({ prefix: "/cart" })
 		async ({ query, request, set }) => {
 			const { userId } = await resolveCartOwner(request);
 			const guestToken = getGuestToken(query);
-			const { cart } = await CartService.getOrCreate(userId, guestToken);
+			const cart = await CartService.requireCart(userId, guestToken);
 			await CartService.clearCart(cart.id);
 			set.status = 204;
 		},

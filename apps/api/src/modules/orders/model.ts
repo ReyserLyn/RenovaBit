@@ -65,14 +65,7 @@ const CreateOrderBody = t.Object({
 	notes: t.Optional(t.Nullable(t.String({ maxLength: 2000 }))),
 	paymentMethod: t.Optional(
 		t.Nullable(
-			t.Union([
-				t.Literal("cash"),
-				t.Literal("transfer"),
-				t.Literal("deposit"),
-				t.Literal("yape"),
-				t.Literal("plin"),
-				t.Literal("culqi"),
-			]),
+			t.Union([t.Literal("cash"), t.Literal("transfer"), t.Literal("yape"), t.Literal("plin")]),
 		),
 	),
 });

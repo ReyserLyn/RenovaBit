@@ -5,6 +5,8 @@ import { Label } from "@renovabit/ui/components/ui/label";
 import { cn } from "@renovabit/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { useState } from "react";
+import { useAddToCart } from "@/features/cart/hooks/mutations";
 import { RelatedProducts } from "@/features/products/components/related-products";
 import { productQueries } from "@/features/products/hooks/queries";
 import { Breadcrumbs } from "@/shared/components/breadcrumbs";
@@ -60,6 +62,9 @@ function ProductPage() {
 		...productQueries.bySlug(slug),
 		initialData: initialProduct,
 	});
+
+	const [qty, setQty] = useState(1);
+	const addToCart = useAddToCart();
 
 	const inStock = product.stock > 0;
 	const stockLabel = inStock ? `Stock: ${product.stock}` : "Agotado";
@@ -198,7 +203,8 @@ function ProductPage() {
 						<Label htmlFor="product-qty">Cantidad</Label>
 						<NumberField
 							id="product-qty"
-							defaultValue={1}
+							value={qty}
+							onValueChange={(val) => setQty(val ?? 1)}
 							min={1}
 							max={product.stock}
 							disabled={!inStock}
@@ -213,9 +219,14 @@ function ProductPage() {
 
 					{/* ── Botones de acción ───── */}
 					<div className="flex flex-col gap-3 sm:flex-row">
-						<Button size="xl" className="sm:flex-1" disabled={!inStock}>
+						<Button
+							size="xl"
+							className="sm:flex-1"
+							disabled={!inStock || addToCart.isPending}
+							onClick={() => addToCart.mutate({ productId: product.id, quantity: qty })}
+						>
 							<HugeiconsIcon icon={ShoppingCartIcon} size={20} />
-							{inStock ? "Añadir al carrito" : "Agotado"}
+							{addToCart.isPending ? "Añadiendo..." : inStock ? "Añadir al carrito" : "Agotado"}
 						</Button>
 
 						<Button

@@ -1,0 +1,93 @@
+import { Button } from "@renovabit/ui/components/ui/button";
+import { ScrollArea } from "@renovabit/ui/components/ui/scroll-area";
+import { Separator } from "@renovabit/ui/components/ui/separator";
+import { useNavigate } from "@tanstack/react-router";
+import type { CartResponse } from "@/features/cart/hooks/queries";
+import { summarizeAvailableCartItems } from "@/features/cart/lib/summary";
+import { formatPrice } from "@/shared/lib/format";
+import { CartItem } from "./cart-item";
+
+type NonNullCart = NonNullable<CartResponse>;
+
+interface CartDrawerContentProps {
+	cart: NonNullCart;
+	isLoading: boolean;
+	onNavigate?: () => void;
+}
+
+export function CartDrawerContent({ cart, isLoading, onNavigate }: CartDrawerContentProps) {
+	const navigate = useNavigate();
+	const { availableItems, availableItemsCount, availableSubtotal } = summarizeAvailableCartItems(
+		cart.items,
+	);
+
+	const handleNavigateCart = () => {
+		onNavigate?.();
+		navigate({ to: "/carrito" });
+	};
+
+	return (
+		<div className="flex h-full flex-col">
+			<div className="flex-1 overflow-hidden px-4">
+				<ScrollArea className="h-full">
+					{isLoading ? (
+						<div className="space-y-3 py-2">
+							{[1, 2, 3].map((i) => (
+								<div key={i} className="flex gap-3">
+									<div className="size-16 animate-pulse rounded-lg bg-muted" />
+									<div className="flex-1 space-y-2">
+										<div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
+										<div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+									</div>
+								</div>
+							))}
+						</div>
+					) : cart.items.length === 0 ? (
+						<div className="flex flex-col items-center justify-center py-12 text-center">
+							<p className="text-muted-foreground text-sm">Tu carrito está vacío</p>
+							<Button variant="link" className="mt-1" onClick={() => navigate({ to: "/" })}>
+								Ver productos
+							</Button>
+						</div>
+					) : (
+						<div className="space-y-3 py-2">
+							{cart.items.map((item) => (
+								<CartItem key={item.id} item={item} />
+							))}
+						</div>
+					)}
+				</ScrollArea>
+			</div>
+
+			{cart.items.length > 0 && (
+				<div className="px-4 pb-4">
+					<Separator className="mb-4" />
+					<div className="space-y-3">
+						<div className="flex items-center justify-between text-sm">
+							<span className="text-muted-foreground">
+								Subtotal ({availableItemsCount}{" "}
+								{availableItemsCount === 1 ? "producto" : "productos"})
+							</span>
+							<span className="font-semibold">{formatPrice(availableSubtotal)}</span>
+						</div>
+
+						{availableItems.length < cart.items.length && (
+							<p className="text-xs text-warning">
+								Algunos productos no están disponibles. Revisa tu carrito.
+							</p>
+						)}
+
+						<Button
+							size="xl"
+							className="w-full"
+							disabled={availableItems.length === 0}
+							onClick={handleNavigateCart}
+						>
+							Ir al carrito
+						</Button>
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}

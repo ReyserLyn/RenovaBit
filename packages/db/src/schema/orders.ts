@@ -25,14 +25,7 @@ export const orderStatusEnum = pgEnum("order_status", [
 
 export const orderSourceEnum = pgEnum("order_source", ["web", "whatsapp"]);
 
-export const paymentMethodEnum = pgEnum("payment_method", [
-	"cash",
-	"transfer",
-	"deposit",
-	"yape",
-	"plin",
-	"culqi",
-]);
+export const paymentMethodEnum = pgEnum("payment_method", ["cash", "transfer", "yape", "plin"]);
 
 // ── Orders ────────────────────────────────────────────
 

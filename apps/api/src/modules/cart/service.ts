@@ -189,7 +189,7 @@ async function getCartWithItems(cartId: string): Promise<CartResponse> {
 		.toFixed(2);
 
 	const [cart] = await db
-		.select({ lastActivityAt: carts.lastActivityAt })
+		.select({ lastActivityAt: carts.lastActivityAt, guestToken: carts.guestToken })
 		.from(carts)
 		.where(eq(carts.id, cartId))
 		.limit(1);
@@ -198,6 +198,7 @@ async function getCartWithItems(cartId: string): Promise<CartResponse> {
 
 	return {
 		id: cartId,
+		guestToken: cart?.guestToken ?? null,
 		items,
 		itemsCount,
 		subtotal,
@@ -212,22 +213,33 @@ async function getCartWithItems(cartId: string): Promise<CartResponse> {
 async function getOrCreate(
 	userId: string | null,
 	guestToken: string | null,
-): Promise<{ cart: CartResponse; newGuestToken?: string }> {
+): Promise<CartResponse> {
 	const existing = await findCart(userId, guestToken);
 
 	if (existing) {
 		await refreshCartItems(existing.id);
-		const cart = await getCartWithItems(existing.id);
-		return { cart };
+		return getCartWithItems(existing.id);
 	}
 
 	const created = await createCart(userId);
-	const cart = await getCartWithItems(created.id);
+	return getCartWithItems(created.id);
+}
 
-	return {
-		cart,
-		...(created.guestToken ? { newGuestToken: created.guestToken } : {}),
-	};
+async function requireCart(
+	userId: string | null,
+	guestToken: string | null,
+): Promise<CartResponse> {
+	const existing = await findCart(userId, guestToken);
+	if (!existing) {
+		throw createApiError({
+			code: BackendErrorCodes.NOT_FOUND_ERROR,
+			message: "Carrito no encontrado. Agrega productos primero.",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+	await refreshCartItems(existing.id);
+	return getCartWithItems(existing.id);
 }
 
 async function addItem(cartId: string, data: AddToCartBody): Promise<CartResponse> {
@@ -472,16 +484,40 @@ async function getTotal(cartId: string): Promise<CartTotalResponse> {
 	};
 }
 
+async function getTotalByOwner(
+	userId: string | null,
+	guestToken: string | null,
+): Promise<CartTotalResponse> {
+	if (userId) {
+		const cart = await getOrCreate(userId, null);
+		return getTotal(cart.id);
+	}
+
+	if (!guestToken) {
+		return { itemsCount: 0, subtotal: "0.00" };
+	}
+
+	const cart = await findCart(null, guestToken);
+	if (!cart) {
+		return { itemsCount: 0, subtotal: "0.00" };
+	}
+
+	await refreshCartItems(cart.id);
+	return getTotal(cart.id);
+}
+
 // ═══════════════════════════════════════════════════
 //  EXPORT
 // ═══════════════════════════════════════════════════
 
 export const CartService = {
 	getOrCreate,
+	requireCart,
 	addItem,
 	updateQuantity,
 	removeItem,
 	clearCart,
 	merge: mergeGuestCart,
 	getTotal,
+	getTotalByOwner,
 };

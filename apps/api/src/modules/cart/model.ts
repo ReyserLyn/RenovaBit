@@ -30,6 +30,7 @@ const CartItemResponse = t.Object({
 
 const CartResponse = t.Object({
 	id: t.String({ format: "uuid" }),
+	guestToken: t.Nullable(t.String()),
 	items: t.Array(CartItemResponse),
 	itemsCount: t.Integer({ minimum: 0 }),
 	subtotal: t.String(),

@@ -4,6 +4,7 @@ import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Button } from "@renovabit/ui/components/ui/button";
 import { cn } from "@renovabit/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
+import { useAddToCart } from "@/features/cart/hooks/mutations";
 import { FavoriteButton } from "@/shared/components/favorites/favorite-button";
 import { formatPrice } from "@/shared/lib/format";
 import type { ProductListItem } from "../types";
@@ -13,6 +14,8 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
+	const addToCart = useAddToCart();
+
 	return (
 		<div className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs transition-all duration-200 hover:shadow-md">
 			{/* ── Imagen ─────────────────────────── */}
@@ -96,9 +99,14 @@ export function ProductCard({ product }: ProductCardProps) {
 						}
 					/>
 
-					<Button variant="outline" size="xl" disabled>
+					<Button
+						variant="outline"
+						size="xl"
+						disabled={addToCart.isPending || product.stock <= 0}
+						onClick={() => addToCart.mutate({ productId: product.id })}
+					>
 						<HugeiconsIcon icon={ShoppingCartIcon} size={16} />
-						Añadir
+						{addToCart.isPending ? "..." : "Añadir"}
 					</Button>
 				</div>
 			</div>

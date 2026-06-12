@@ -207,7 +207,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 					orderNumber: string;
 					status: "pending" | "confirmed" | "cancelled" | "refunded";
 					source: "web" | "whatsapp";
-					paymentMethod: "cash" | "transfer" | "deposit" | "yape" | "plin" | "culqi" | null;
+					paymentMethod: "cash" | "transfer" | "yape" | "plin" | null;
 					subtotal: string;
 					discountTotal: string;
 					total: string;
@@ -230,10 +230,8 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 						paymentMethod: data.paymentMethod as
 							| "cash"
 							| "transfer"
-							| "deposit"
 							| "yape"
 							| "plin"
-							| "culqi"
 							| null
 							| undefined,
 						customerName,
