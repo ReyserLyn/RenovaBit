@@ -1,0 +1,155 @@
+import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
+import { Elysia, t } from "elysia";
+import { auth } from "@/utils/auth/auth";
+import { CartModel, ErrorResponse } from "./model";
+import { CartService } from "./service";
+
+async function resolveCartOwner(
+	request: Request,
+): Promise<{ userId: string | null; guestToken: string | null }> {
+	const session = await auth.api.getSession({ headers: request.headers });
+	const userId = session?.user.id ?? null;
+	return { userId, guestToken: null };
+}
+
+function getGuestToken(query: { guestToken?: string }): string | null {
+	return query.guestToken ?? null;
+}
+
+// ═══════════════════════════════════════════════════
+//  Prefijo: /api/v1/cart
+// ═══════════════════════════════════════════════════
+
+export const cartRoute = new Elysia({ prefix: "/cart" })
+	// ── Get or Create Cart ──────────────────────
+	.get(
+		"/",
+		async ({ query, request, set }) => {
+			const { userId } = await resolveCartOwner(request);
+			const guestToken = getGuestToken(query);
+			const { cart, newGuestToken } = await CartService.getOrCreate(userId, guestToken);
+
+			if (newGuestToken) {
+				set.headers!["x-guest-token"] = newGuestToken;
+			}
+
+			return cart;
+		},
+		{
+			query: CartModel.cartQuery,
+			response: { 200: CartModel.cartResponse, 400: ErrorResponse },
+			detail: { summary: "Obtener o crear carrito", tags: ["Cart"] },
+		},
+	)
+
+	// ── Get Cart Total (lightweight) ────────────
+	.get(
+		"/total",
+		async ({ query, request }) => {
+			const { userId } = await resolveCartOwner(request);
+			const guestToken = getGuestToken(query);
+			const { cart } = await CartService.getOrCreate(userId, guestToken);
+			return CartService.getTotal(cart.id);
+		},
+		{
+			query: CartModel.cartQuery,
+			response: { 200: CartModel.cartTotalResponse },
+			detail: { summary: "Total del carrito (items + subtotal)", tags: ["Cart"] },
+		},
+	)
+
+	// ── Add Item ────────────────────────────────
+	.post(
+		"/items",
+		async ({ body, query, request }) => {
+			const { userId } = await resolveCartOwner(request);
+			const guestToken = getGuestToken(query);
+			const { cart } = await CartService.getOrCreate(userId, guestToken);
+			return CartService.addItem(cart.id, body);
+		},
+		{
+			query: CartModel.cartQuery,
+			body: CartModel.addToCartBody,
+			response: {
+				200: CartModel.cartResponse,
+				400: ErrorResponse,
+				404: ErrorResponse,
+				422: ErrorResponse,
+			},
+			detail: { summary: "Añadir producto al carrito", tags: ["Cart"] },
+		},
+	)
+
+	// ── Update Item Quantity ────────────────────
+	.patch(
+		"/items/:id",
+		async ({ params: { id }, body, query, request }) => {
+			const { userId } = await resolveCartOwner(request);
+			const guestToken = getGuestToken(query);
+			const { cart } = await CartService.getOrCreate(userId, guestToken);
+			return CartService.updateQuantity(cart.id, id, body);
+		},
+		{
+			query: CartModel.cartQuery,
+			params: CartModel.itemIdParams,
+			body: CartModel.updateCartItemBody,
+			response: { 200: CartModel.cartResponse, 400: ErrorResponse, 404: ErrorResponse },
+			detail: { summary: "Actualizar cantidad de un item", tags: ["Cart"] },
+		},
+	)
+
+	// ── Remove Item ─────────────────────────────
+	.delete(
+		"/items/:id",
+		async ({ params: { id }, query, request }) => {
+			const { userId } = await resolveCartOwner(request);
+			const guestToken = getGuestToken(query);
+			const { cart } = await CartService.getOrCreate(userId, guestToken);
+			return CartService.removeItem(cart.id, id);
+		},
+		{
+			query: CartModel.cartQuery,
+			params: CartModel.itemIdParams,
+			response: { 200: CartModel.cartResponse, 404: ErrorResponse },
+			detail: { summary: "Eliminar item del carrito", tags: ["Cart"] },
+		},
+	)
+
+	// ── Clear Cart ──────────────────────────────
+	.delete(
+		"/",
+		async ({ query, request, set }) => {
+			const { userId } = await resolveCartOwner(request);
+			const guestToken = getGuestToken(query);
+			const { cart } = await CartService.getOrCreate(userId, guestToken);
+			await CartService.clearCart(cart.id);
+			set.status = 204;
+		},
+		{
+			query: CartModel.cartQuery,
+			response: { 204: t.Undefined() },
+			detail: { summary: "Vaciar carrito", tags: ["Cart"] },
+		},
+	)
+
+	// ── Merge Guest Cart into User Cart ─────────
+	.post(
+		"/merge",
+		async ({ body, request }) => {
+			const session = await auth.api.getSession({ headers: request.headers });
+			if (!session) {
+				throw createApiError({
+					code: BackendErrorCodes.INVALID_CREDENTIALS,
+					message: "Inicia sesión para fusionar tu carrito",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+			return CartService.merge(session.user.id, body.guestToken);
+		},
+		{
+			body: CartModel.mergeCartBody,
+			response: { 200: CartModel.cartResponse, 401: ErrorResponse, 404: ErrorResponse },
+			detail: { summary: "Fusionar carrito invitado al del usuario", tags: ["Cart"] },
+		},
+	);

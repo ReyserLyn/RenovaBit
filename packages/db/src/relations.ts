@@ -1,7 +1,9 @@
 import { relations } from "drizzle-orm";
 import { users } from "./schema/auth";
 import { brands } from "./schema/brands";
+import { cartItems, carts } from "./schema/cart";
 import { categories } from "./schema/categories";
+import { orderItems, orders } from "./schema/orders";
 import { productImages, products } from "./schema/products";
 import { productProviders } from "./schema/providers";
 import { scrapingBlacklist } from "./schema/scraping-blacklist";
@@ -39,6 +41,8 @@ export const productsRelations = relations(products, ({ one, many }) => ({
 	images: many(productImages),
 	providers: many(productProviders),
 	changes: many(productChanges),
+	cartItems: many(cartItems),
+	orderItems: many(orderItems),
 }));
 
 // ── Product Images ───────────────────────────────────
@@ -97,5 +101,47 @@ export const adminNotificationsRelations = relations(adminNotifications, ({ one 
 	user: one(users, {
 		fields: [adminNotifications.userId],
 		references: [users.id],
+	}),
+}));
+
+// ── Carts ─────────────────────────────────────────────
+
+export const cartsRelations = relations(carts, ({ many, one }) => ({
+	user: one(users, {
+		fields: [carts.userId],
+		references: [users.id],
+	}),
+	items: many(cartItems),
+}));
+
+export const cartItemsRelations = relations(cartItems, ({ one }) => ({
+	cart: one(carts, {
+		fields: [cartItems.cartId],
+		references: [carts.id],
+	}),
+	product: one(products, {
+		fields: [cartItems.productId],
+		references: [products.id],
+	}),
+}));
+
+// ── Orders ────────────────────────────────────────────
+
+export const ordersRelations = relations(orders, ({ many, one }) => ({
+	user: one(users, {
+		fields: [orders.userId],
+		references: [users.id],
+	}),
+	items: many(orderItems),
+}));
+
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+	order: one(orders, {
+		fields: [orderItems.orderId],
+		references: [orders.id],
+	}),
+	product: one(products, {
+		fields: [orderItems.productId],
+		references: [products.id],
 	}),
 }));
