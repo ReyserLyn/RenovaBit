@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@renovabit/ui/components/ui/button";
 import { Label } from "@renovabit/ui/components/ui/label";
 import { cn } from "@renovabit/ui/lib/utils";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { RelatedProducts } from "@/features/products/components/related-products";
 import { productQueries } from "@/features/products/hooks/queries";
@@ -54,7 +54,11 @@ export const Route = createFileRoute("/_main/producto/$slug")({
 
 function ProductPage() {
 	const { slug } = Route.useParams();
-	const { data: product } = useSuspenseQuery(productQueries.bySlug(slug));
+	const { product: initialProduct } = Route.useLoaderData();
+	const { data: product } = useQuery({
+		...productQueries.bySlug(slug),
+		initialData: initialProduct,
+	});
 
 	const inStock = product.stock > 0;
 	const stockLabel = inStock ? `Stock: ${product.stock}` : "Agotado";

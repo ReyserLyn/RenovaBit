@@ -5,7 +5,7 @@ import {
 	CarouselNext,
 	CarouselPrevious,
 } from "@renovabit/ui/components/ui/carousel";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Autoplay from "embla-carousel-autoplay";
 import { ProductCard } from "@/features/products/components/product-card";
 import { productQueries } from "@/features/products/hooks/queries";
@@ -17,11 +17,11 @@ interface RelatedProductsProps {
 
 /** Carrusel de productos de la misma categoría, excluyendo el producto actual. */
 export function RelatedProducts({ currentSlug, categorySlug }: RelatedProductsProps) {
-	const { data: products } = useSuspenseQuery(
+	const { data: products } = useQuery(
 		productQueries.list({ categorySlug, excludeSlug: currentSlug }, 8),
 	);
 
-	if (products.length === 0) return null;
+	if (!products || products.length === 0) return null;
 
 	return (
 		<section className="space-y-4">
