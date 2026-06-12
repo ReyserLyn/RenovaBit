@@ -14,11 +14,16 @@ export const getOrderDetailServerFn = createServerFn({ method: "GET" })
 	);
 
 export const getOrderListServerFn = createServerFn({ method: "GET" })
-	.validator(({ page, pageSize }: { page: number; pageSize: number }) => ({ page, pageSize }))
+	.validator(({ page, pageSize, status }: { page: number; pageSize: number; status?: string }) => ({
+		page,
+		pageSize,
+		status,
+	}))
 	.handler(
 		async ({
-			data: { page, pageSize },
+			data: { page, pageSize, status },
 		}): Promise<{ data: OrderListPage | null; errorCode?: string }> => {
-			return ssrFetch<OrderListPage>(`/api/v1/orders/?page=${page}&limit=${pageSize}`);
+			const params = `page=${page}&limit=${pageSize}${status ? `&status=${status}` : ""}`;
+			return ssrFetch<OrderListPage>(`/api/v1/orders/?${params}`);
 		},
 	);

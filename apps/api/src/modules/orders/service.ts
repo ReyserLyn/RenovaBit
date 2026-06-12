@@ -487,19 +487,24 @@ async function listByUser(
 	userId: string,
 	page: string | number | undefined,
 	limit: string | number | undefined,
+	status?: string,
 ): Promise<{ orders: OrderListItem[]; total: number }> {
-	// Antes de listar, cancelamos los pending vencidos (idempotente, fire-and-forget)
 	autoCancelExpiredPending().catch((err) =>
 		logger.withError(err).warn("[Orders] autoCancel en listByUser falló"),
 	);
 
-	// sanitizePagination accepts string|number
 	const { safeLimit, offset } = sanitizePagination(page, limit);
+
+	const conditions = [eq(orders.userId, userId)];
+	if (status) {
+		conditions.push(eq(orders.status, status as typeof orders.$inferSelect.status));
+	}
+	const where = conditions.length > 0 ? and(...conditions) : undefined;
 
 	const [countRow] = await db
 		.select({ total: count(orders.id) })
 		.from(orders)
-		.where(eq(orders.userId, userId));
+		.where(where);
 
 	const total = Number(countRow?.total ?? 0);
 
@@ -514,7 +519,7 @@ async function listByUser(
 			createdAt: orders.createdAt,
 		})
 		.from(orders)
-		.where(eq(orders.userId, userId))
+		.where(where)
 		.orderBy(desc(orders.createdAt))
 		.offset(offset)
 		.limit(safeLimit);

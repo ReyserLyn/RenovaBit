@@ -87,6 +87,14 @@ const IdParams = t.Object({
 const OrdersListQuery = t.Object({
 	page: t.Optional(t.String()),
 	limit: t.Optional(t.String()),
+	status: t.Optional(
+		t.Union([
+			t.Literal("pending"),
+			t.Literal("confirmed"),
+			t.Literal("cancelled"),
+			t.Literal("refunded"),
+		]),
+	),
 });
 
 const AdminOrdersListQuery = t.Object({

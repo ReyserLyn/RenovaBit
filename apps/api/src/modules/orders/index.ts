@@ -55,7 +55,7 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 
 			set.headers["cache-control"] = "no-store";
 
-			return OrderService.listByUser(session.user.id, query.page, query.limit);
+			return OrderService.listByUser(session.user.id, query.page, query.limit, query.status);
 		},
 		{
 			query: OrderModel.listQuery,

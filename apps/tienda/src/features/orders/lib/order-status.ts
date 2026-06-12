@@ -5,7 +5,7 @@ import { PAYMENT_METHOD_OPTIONS } from "./payment-methods";
  * Centralizada para que admin, tienda, y emails usen la misma UI.
  */
 export const ORDER_STATUS_CONFIG = {
-	pending: { label: "Pendiente", variant: "warning" as const, tone: "warning" },
+	pending: { label: "Pendiente", variant: "invert-light" as const, tone: "muted" },
 	confirmed: { label: "Confirmado", variant: "success" as const, tone: "success" },
 	cancelled: { label: "Cancelado", variant: "destructive" as const, tone: "destructive" },
 	refunded: { label: "Reembolsado", variant: "info" as const, tone: "info" },

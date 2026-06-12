@@ -1,4 +1,5 @@
 import {
+	ArrowRight01Icon,
 	CheckmarkCircle02Icon,
 	Copy01Icon,
 	InformationCircleIcon,
@@ -146,7 +147,12 @@ export function OrderSuccessPanel({ order, isLoggedIn }: OrderSuccessPanelProps)
 					</AlertContent>
 				</Alert>
 			) : (
-				<Alert appearance="light" variant="warning" size="md" className="w-full max-w-md">
+				<Alert
+					appearance="light"
+					variant="secondary"
+					size="md"
+					className="w-full max-w-md bg-accent text-accent-foreground border-accent/30"
+				>
 					<AlertIcon>
 						<HugeiconsIcon icon={InformationCircleIcon} size={18} strokeWidth={1.5} />
 					</AlertIcon>
@@ -170,7 +176,7 @@ export function OrderSuccessPanel({ order, isLoggedIn }: OrderSuccessPanelProps)
 			{/* ── CTAs ────────────────────────────── */}
 			<div className="flex w-full max-w-md flex-col gap-2">
 				<Button
-					size="xl"
+					size="lg"
 					className="w-full border-[#25D366] bg-[#25D366] text-white hover:bg-[#25D366]/90 hover:text-white"
 					nativeButton={false}
 					render={
@@ -198,6 +204,7 @@ export function OrderSuccessPanel({ order, isLoggedIn }: OrderSuccessPanelProps)
 						nativeButton={false}
 						render={<Link to="/" />}
 					>
+						<HugeiconsIcon icon={ArrowRight01Icon} size={18} />
 						Seguir comprando
 					</Button>
 				</div>
