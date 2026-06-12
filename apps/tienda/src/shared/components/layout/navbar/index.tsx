@@ -19,22 +19,24 @@ export default function Navbar() {
 			<div className="flex w-full items-center gap-4 justify-between">
 				<SidebarTrigger className="-ms-1 md:hidden" />
 
-				<Link to="/">
+				<Link to="/" onDragStart={(e) => e.preventDefault()}>
 					<img
 						src="/logo-light.svg"
 						alt="Renovabit"
 						width="200"
 						height="49"
+						draggable={false}
 						fetchPriority="high"
-						className="h-auto w-[170px] dark:hidden md:w-[200px]"
+						className="select-none h-auto w-[170px] dark:hidden md:w-[200px]"
 					/>
 					<img
 						src="/logo-dark.svg"
 						alt="Renovabit"
 						width="200"
 						height="49"
+						draggable={false}
 						fetchPriority="high"
-						className="hidden h-auto w-[170px] dark:block md:w-[200px]"
+						className="select-none hidden h-auto w-[170px] dark:block md:w-[200px]"
 					/>
 				</Link>
 

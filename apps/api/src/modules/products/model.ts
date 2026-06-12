@@ -9,7 +9,7 @@ const _insert = createInsertSchema(products, {
 	slug: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
 	description: t.Optional(t.Nullable(t.String({ maxLength: 10000 }))),
 	sku: t.String({ minLength: 1, maxLength: 100 }),
-	price: t.String({ minLength: 1 }),
+	price: t.String({ minLength: 1, pattern: "^\\d+(\\.\\d{1,2})?$" }),
 	stock: t.Optional(t.Integer({ minimum: 0 })),
 	brandId: t.Optional(t.Nullable(t.String({ format: "uuid" }))),
 	categoryId: t.Optional(t.Nullable(t.String({ format: "uuid" }))),

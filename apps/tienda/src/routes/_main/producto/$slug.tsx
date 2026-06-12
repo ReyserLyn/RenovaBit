@@ -117,9 +117,10 @@ function ProductPage() {
 							<img
 								src={product.images[0]?.url}
 								alt={product.images[0]?.alt ?? product.name}
+								draggable={false}
 								loading="eager"
 								decoding="async"
-								className="h-full w-full object-contain p-6"
+								className="select-none h-full w-full object-contain p-6"
 							/>
 						) : (
 							<div className="flex h-full w-full items-center justify-center text-muted-foreground/40">

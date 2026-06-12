@@ -19,15 +19,17 @@ export function ProductCard({ product }: ProductCardProps) {
 			<Link
 				to="/producto/$slug"
 				params={{ slug: product.slug }}
+				onDragStart={(e) => e.preventDefault()}
 				className="relative block aspect-square overflow-hidden bg-[#f1f1f7] p-3"
 			>
 				{product.primaryImage?.url ? (
 					<img
 						src={product.primaryImage.url}
 						alt={product.primaryImage.alt ?? product.name}
+						draggable={false}
 						loading="lazy"
 						decoding="async"
-						className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+						className="select-none h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
 					/>
 				) : (
 					<div className="flex h-full w-full items-center justify-center text-muted-foreground/40">

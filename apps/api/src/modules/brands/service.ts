@@ -1,8 +1,9 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { brands, categories, products } from "@renovabit/db/schema";
-import { and, asc, count, desc, eq, gt, inArray, like, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, like, sql } from "drizzle-orm";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
+import { logger } from "@/utils/logger";
 import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
 import type { BrandModel, PublicBrandDetail, PublicBrandListItem } from "./model";
 
@@ -122,19 +123,31 @@ async function create(data: CreateBody, userId: string) {
 	const nextName = data.name.trim();
 	const slug = data.slug?.trim() ? makeSlug(data.slug) : makeSlug(nextName);
 
-	const exists = await db
-		.select({ id: brands.id, name: brands.name })
+	const nameExists = await db
+		.select({ id: brands.id })
 		.from(brands)
-		.where(or(eq(brands.name, nextName), eq(brands.slug, slug)))
+		.where(eq(brands.name, nextName))
 		.limit(1);
 
-	if (exists.length > 0) {
-		const isSlugConflict = exists[0]?.name !== nextName;
+	if (nameExists.length > 0) {
 		throw createApiError({
 			code: BackendErrorCodes.EXISTS_ERROR,
-			message: isSlugConflict
-				? "Ya existe una marca con este slug"
-				: "Ya existe una marca con este nombre",
+			message: "Ya existe una marca con este nombre",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+
+	const slugExists = await db
+		.select({ id: brands.id })
+		.from(brands)
+		.where(eq(brands.slug, slug))
+		.limit(1);
+
+	if (slugExists.length > 0) {
+		throw createApiError({
+			code: BackendErrorCodes.EXISTS_ERROR,
+			message: "Ya existe una marca con este slug",
 			logLevel: "info",
 			doNotLog: true,
 		});
@@ -204,12 +217,15 @@ async function update(id: string, data: UpdateBody, userId: string) {
 		}
 	}
 
+	// Normalizar slug
+	const nextSlug = data.slug ? makeSlug(data.slug) : existingRow.slug;
+
 	// Si cambia el slug, verificamos que no exista otro
-	if (data.slug && data.slug !== existingRow.slug) {
+	if (nextSlug !== existingRow.slug) {
 		const dup = await db
 			.select({ id: brands.id })
 			.from(brands)
-			.where(eq(brands.slug, data.slug))
+			.where(eq(brands.slug, nextSlug))
 			.limit(1);
 
 		if (dup.length > 0) {
@@ -224,7 +240,7 @@ async function update(id: string, data: UpdateBody, userId: string) {
 
 	const [item] = await db
 		.update(brands)
-		.set({ ...data, updatedBy: userId })
+		.set({ ...data, slug: nextSlug, updatedBy: userId })
 		.where(eq(brands.id, id))
 		.returning()
 		.catch((err) => handleUniqueViolation(err, "Ya existe una marca con este nombre o slug"));
@@ -269,7 +285,9 @@ async function deleteBrand(id: string) {
 	await db.delete(brands).where(eq(brands.id, id));
 
 	// Limpiar carpeta R2 (no bloqueante, no revierte el delete)
-	deleteEntityFolder("brands", id);
+	deleteEntityFolder("brands", id).catch((err) =>
+		logger.withMetadata({ err }).error(`[R2 cleanup] Failed to delete folder for brand ${id}`),
+	);
 }
 
 // ── Bulk Delete ─────────────────────────────────────
