@@ -21,7 +21,7 @@ export const ordersQueue = createQueue("orders", {
 });
 
 const AUTO_CANCEL_JOB_ID_PREFIX = "auto-cancel:order:";
-const SAFETY_NET_JOB_KEY = "orders:auto-cancel-safety-net";
+const SAFETY_NET_JOB_KEY = "orders:auto-cancel:safety-net";
 
 /** Stable jobId para que `getJob` + `remove` sean deterministas. */
 function autoCancelJobId(orderId: string): string {

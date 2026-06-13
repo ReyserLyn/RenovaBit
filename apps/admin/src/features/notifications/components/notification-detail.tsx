@@ -22,7 +22,7 @@ import type { ReportChange } from "@/features/reports/model";
 import { formatDateTimeSeconds, formatDuration } from "@/shared/lib/format-date";
 import { getUserDisplayName, getUserInitials } from "../lib/user-helpers";
 import type { AppNotification, NotificationData, SortOption, SyncStats } from "../model";
-import { SORT_OPTIONS } from "../model";
+import { isSortOption, SORT_OPTIONS } from "../model";
 import { ChangeRow } from "./change-row";
 import { TriggerBadge } from "./trigger-badge";
 
@@ -119,6 +119,51 @@ export function NotificationDetail({
 	const hasChanges =
 		hasStats && ((parsedData.stats?.created ?? 0) > 0 || (parsedData.stats?.updated ?? 0) > 0);
 	const rawChanges = changesData?.changes ?? [];
+
+	// ── Vista específica para notificaciones de pedidos ──
+
+	if (parsedData.orderId) {
+		return (
+			<Card>
+				<CardHeader className="border-b">
+					<div className="flex items-start justify-between gap-2">
+						<div className="flex items-center gap-3 min-w-0">
+							<Avatar size="sm">
+								<AvatarFallback>{getUserInitials(user)}</AvatarFallback>
+							</Avatar>
+							<div className="min-w-0">
+								<CardTitle className="truncate">{notification.title}</CardTitle>
+								<CardDescription>{getUserDisplayName(user)}</CardDescription>
+							</div>
+						</div>
+					</div>
+				</CardHeader>
+
+				<CardContent className="space-y-3 pt-4">
+					{parsedData.orderNumber && (
+						<p className="text-sm">
+							<span className="text-muted-foreground">Pedido:</span> {parsedData.orderNumber}
+						</p>
+					)}
+					{parsedData.total && (
+						<p className="text-sm">
+							<span className="text-muted-foreground">Total:</span> S/ {parsedData.total}
+						</p>
+					)}
+					{parsedData.reason && (
+						<p className="text-sm">
+							<span className="text-muted-foreground">Motivo:</span> {parsedData.reason}
+						</p>
+					)}
+					{parsedData.timestamp && (
+						<p className="text-xs text-muted-foreground">
+							{formatDateTimeSeconds(parsedData.timestamp)}
+						</p>
+					)}
+				</CardContent>
+			</Card>
+		);
+	}
 
 	const changes = useMemo(() => {
 		const sorted: ReportChange[] = [...rawChanges];
@@ -225,7 +270,7 @@ export function NotificationDetail({
 						<Select
 							items={SORT_OPTIONS}
 							value={sortBy}
-							onValueChange={(value) => setSortBy((value ?? "name-asc") as SortOption)}
+							onValueChange={(value) => setSortBy(isSortOption(value) ? value : "name-asc")}
 						>
 							<SelectTrigger className="h-7 w-[140px] text-xs">
 								<SelectValue placeholder="Ordenar" />

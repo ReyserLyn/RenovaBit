@@ -34,6 +34,8 @@ const AdminProductListResponse = t.Composite([
 		createdByName: t.Nullable(t.String()),
 		updatedByName: t.Nullable(t.String()),
 		providerIds: t.Array(ProviderRef),
+		reservedStock: t.Integer({ minimum: 0 }),
+		availableStock: t.Integer({ minimum: 0 }),
 	}),
 ]);
 

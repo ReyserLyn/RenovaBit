@@ -23,6 +23,7 @@
 		"@hugeicons/core-free-icons": "catalog:",
 		"@hugeicons/react": "catalog:",
 		"@renovabit/backend-client": "*",
+		"@renovabit/db": "*",
 		"@renovabit/ui": "*",
 		"@tailwindcss/vite": "catalog:",
 		"@tanstack/match-sorter-utils": "8.19.4",

@@ -1,8 +1,10 @@
+import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataGridColumnHeader } from "@/shared/components/data-grid/data-grid-column-header";
 import { formatDateTime } from "@/shared/lib/format-date";
 import type { AppNotification, NotificationData } from "../model";
+import { NOTIFICATION_TYPE_LABELS } from "../model";
 import { TriggerBadge } from "./trigger-badge";
 
 export function getNotificationColumns(): ColumnDef<
@@ -49,13 +51,22 @@ export function getNotificationColumns(): ColumnDef<
 		},
 		{
 			id: "trigger",
-			accessorFn: (row) => row._parsed.trigger ?? null,
+			accessorFn: (row) => row._parsed.trigger ?? row.type,
 			meta: {
 				headerTitle: "Tipo",
 				skeleton: <Skeleton className="h-5 w-20 rounded-full" />,
 			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Tipo" />,
-			cell: ({ row }) => <TriggerBadge trigger={row.original._parsed.trigger} />,
+			cell: ({ row }) => {
+				const trigger = row.original._parsed.trigger;
+				if (trigger) return <TriggerBadge trigger={trigger} />;
+				const label = NOTIFICATION_TYPE_LABELS[row.original.type] ?? row.original.type;
+				return (
+					<Badge variant="secondary" size="sm">
+						{label}
+					</Badge>
+				);
+			},
 			size: 120,
 		},
 	];

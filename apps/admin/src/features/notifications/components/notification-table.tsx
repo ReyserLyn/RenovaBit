@@ -23,6 +23,8 @@ interface NotificationTableProps {
 
 const coreRowModel = getCoreRowModel();
 
+const emptyNotificationData: NotificationData = {};
+
 type EnrichedRow = AppNotification & { _parsed: NotificationData };
 
 export const NotificationTable = React.memo(function NotificationTable({
@@ -53,7 +55,7 @@ export const NotificationTable = React.memo(function NotificationTable({
 			const result = notificationDataSchema.safeParse(n.data);
 			return {
 				...n,
-				_parsed: result.success ? (result.data as NotificationData) : ({} as NotificationData),
+				_parsed: result.success ? result.data : emptyNotificationData,
 			};
 		});
 	}, [notifications]);
@@ -133,7 +135,7 @@ export const NotificationTable = React.memo(function NotificationTable({
 					className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
 				/>
 				<Input
-					placeholder="Buscar por ID, Job o Reporte…"
+					placeholder="Buscar por ID, Job, Reporte o Pedido…"
 					value={search}
 					onChange={(e) => setSearch(e.target.value)}
 					className="w-full min-w-0 bg-card pl-9"

@@ -14,12 +14,24 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 			const userId = session?.user.id ?? null;
 
 			const guestName = typeof body.customerName === "string" ? body.customerName.trim() : "";
+			const guestPhone = typeof body.customerPhone === "string" ? body.customerPhone.trim() : "";
+
 			if (!userId && guestName.length === 0) {
 				set.status = 400;
 				return {
 					errId: "missing-name",
 					code: "INPUT_VALIDATION_ERROR",
 					message: "Debes proporcionar tu nombre para crear el pedido",
+					statusCode: 400,
+				};
+			}
+
+			if (!userId && guestPhone.length === 0) {
+				set.status = 400;
+				return {
+					errId: "missing-phone",
+					code: "INPUT_VALIDATION_ERROR",
+					message: "Debes proporcionar tu número de teléfono para crear el pedido",
 					statusCode: 400,
 				};
 			}

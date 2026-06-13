@@ -10,7 +10,6 @@ import {
 	desc,
 	eq,
 	getTableColumns,
-	gt,
 	gte,
 	ilike,
 	inArray,
@@ -21,6 +20,7 @@ import {
 	sql,
 } from "drizzle-orm";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
+import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
 import type {
 	BulkDeleteResult,
@@ -39,6 +39,8 @@ export type ProductWithImage = Product & {
 	createdByName: string | null;
 	updatedByName: string | null;
 	providerIds: Array<{ source: string; externalId: string }>;
+	reservedStock: number;
+	availableStock: number;
 };
 
 /**
@@ -75,8 +77,11 @@ const PUBLIC_DETAIL_CONDITIONS = [
 	eq(products.needsReview, false),
 ] as const;
 
-/** Condiciones para listados públicos (ocultar agotados) */
-const PUBLIC_LIST_CONDITIONS = [...PUBLIC_DETAIL_CONDITIONS, gt(products.stock, 0)] as const;
+/** Condiciones para listados públicos */
+const PUBLIC_LIST_CONDITIONS = [
+	...PUBLIC_DETAIL_CONDITIONS,
+	sql`${products.stock} > (${getReservedStockSubquery(products.id)})`,
+] as const;
 
 // ── FK validation ──────────────────────────────────
 
@@ -260,6 +265,8 @@ async function list(options: ListOptions = {}): Promise<ProductWithImage[]> {
 				),
 				'[]'::jsonb
 			)`,
+			reservedStock: sql<number>`COALESCE((${getReservedStockSubquery(products.id)})::int, 0)`,
+			availableStock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
 		})
 		.from(products)
 		.where(buildWhere(options, false))
@@ -346,7 +353,7 @@ async function listPublic(
 			name: products.name,
 			slug: products.slug,
 			price: sql<string>`${products.price}::text`,
-			stock: products.stock,
+			stock: sql<number>`GREATEST(0, ${products.stock} - (${getReservedStockSubquery(products.id)})::int)`,
 			sku: products.sku,
 			isFeatured: products.isFeatured,
 			primaryImageUrl: sql<string | null>`(
@@ -404,7 +411,7 @@ async function getBySlugPublic(slug: string): Promise<PublicProductDetail | null
 			slug: products.slug,
 			description: products.description,
 			price: sql<string>`${products.price}::text`,
-			stock: products.stock,
+			stock: sql<number>`GREATEST(0, ${products.stock} - (${getReservedStockSubquery(products.id)})::int)`,
 			sku: products.sku,
 			specifications: products.specifications,
 			createdAt: products.createdAt,

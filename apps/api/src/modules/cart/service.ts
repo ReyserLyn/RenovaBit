@@ -3,6 +3,7 @@ import { db } from "@renovabit/db";
 import { cartItems, carts, productImages, products } from "@renovabit/db/schema";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { getAvailableStock } from "@/utils/stock";
 import type { CartItemResponse, CartModel, CartResponse, CartTotalResponse } from "./model";
 
 type AddToCartBody = CartModel["addToCartBody"];
@@ -93,9 +94,9 @@ async function refreshCartItems(cartId: string): Promise<void> {
 	const items = await db
 		.select({
 			itemId: cartItems.id,
+			productId: cartItems.productId,
 			addedAtPrice: cartItems.addedAtPrice,
 			productPrice: products.price,
-			productStock: products.stock,
 			productIsActive: products.isActive,
 			productNeedsReview: products.needsReview,
 		})
@@ -113,14 +114,17 @@ async function refreshCartItems(cartId: string): Promise<void> {
 		} else if (!item.productIsActive || item.productNeedsReview) {
 			status = "unavailable";
 			statusMessage = "Producto no disponible";
-		} else if ((item.productStock ?? 0) <= 0) {
-			status = "out_of_stock";
-			statusMessage = "Producto agotado";
-		} else if (item.productPrice !== item.addedAtPrice) {
-			status = "price_changed";
-			statusMessage = `El precio cambió de S/ ${item.addedAtPrice} a S/ ${item.productPrice}`;
 		} else {
-			status = "available";
+			const availableStock = await getAvailableStock(item.productId);
+			if (availableStock <= 0) {
+				status = "out_of_stock";
+				statusMessage = "Producto agotado";
+			} else if (item.productPrice !== item.addedAtPrice) {
+				status = "price_changed";
+				statusMessage = `El precio cambió de S/ ${item.addedAtPrice} a S/ ${item.productPrice}`;
+			} else {
+				status = "available";
+			}
 		}
 
 		await db
@@ -273,7 +277,9 @@ async function addItem(cartId: string, data: AddToCartBody): Promise<CartRespons
 		});
 	}
 
-	if (product.stock <= 0) {
+	const availableStock = await getAvailableStock(product.id);
+
+	if (availableStock <= 0) {
 		throw createApiError({
 			code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
 			message: "Este producto está agotado",
@@ -292,20 +298,20 @@ async function addItem(cartId: string, data: AddToCartBody): Promise<CartRespons
 
 	if (existingItem) {
 		const newQty = existingItem.quantity + quantity;
-		if (newQty > product.stock) {
+		if (newQty > availableStock) {
 			throw createApiError({
 				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-				message: `Solo hay ${product.stock} unidades disponibles de este producto`,
+				message: `Solo hay ${availableStock} unidades disponibles de este producto`,
 				logLevel: "info",
 				doNotLog: true,
 			});
 		}
 		await db.update(cartItems).set({ quantity: newQty }).where(eq(cartItems.id, existingItem.id));
 	} else {
-		if (product.stock < quantity) {
+		if (availableStock < quantity) {
 			throw createApiError({
 				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-				message: `Solo hay ${product.stock} unidades disponibles de este producto`,
+				message: `Solo hay ${availableStock} unidades disponibles de este producto`,
 				logLevel: "info",
 				doNotLog: true,
 			});
@@ -368,10 +374,21 @@ async function updateQuantity(
 		.where(eq(products.id, item.productId))
 		.limit(1);
 
-	if (product && data.quantity > product.stock) {
+	if (!product) {
+		throw createApiError({
+			code: BackendErrorCodes.NOT_FOUND_ERROR,
+			message: "Producto no encontrado",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+
+	const availableStock = await getAvailableStock(item.productId);
+
+	if (data.quantity > availableStock) {
 		throw createApiError({
 			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-			message: `Solo hay ${product.stock} unidades disponibles de este producto`,
+			message: `Solo hay ${availableStock} unidades disponibles de este producto`,
 			logLevel: "info",
 			doNotLog: true,
 		});
@@ -426,9 +443,31 @@ async function mergeGuestCart(userId: string, guestToken: string): Promise<CartR
 
 	const userCart = await findCart(userId, null);
 
-	const targetCartId = await db.transaction(async (tx) => {
-		const guestItems = await tx.select().from(cartItems).where(eq(cartItems.cartId, guestCart.id));
+	const guestItems = await db.select().from(cartItems).where(eq(cartItems.cartId, guestCart.id));
 
+	const existingItems = userCart
+		? await db
+				.select({ productId: cartItems.productId, quantity: cartItems.quantity })
+				.from(cartItems)
+				.where(eq(cartItems.cartId, userCart.id))
+		: [];
+	const existingQtyByProduct = new Map(existingItems.map((i) => [i.productId, i.quantity]));
+
+	for (const item of guestItems) {
+		const existingQty = existingQtyByProduct.get(item.productId) ?? 0;
+		const availableStock = await getAvailableStock(item.productId);
+		const finalQty = existingQty + item.quantity;
+		if (finalQty > availableStock) {
+			throw createApiError({
+				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+				message: `Solo hay ${availableStock} unidades disponibles de este producto`,
+				logLevel: "info",
+				doNotLog: true,
+			});
+		}
+	}
+
+	const targetCartId = await db.transaction(async (tx) => {
 		if (userCart) {
 			for (const item of guestItems) {
 				const [existing] = await tx

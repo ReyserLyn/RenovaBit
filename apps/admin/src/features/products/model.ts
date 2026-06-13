@@ -23,6 +23,8 @@ export interface Product {
 	sku: string;
 	price: string;
 	stock: number;
+	reservedStock?: number;
+	availableStock?: number;
 	brandId: string | null;
 	categoryId: string | null;
 	specifications: ProductSpecification[] | null;

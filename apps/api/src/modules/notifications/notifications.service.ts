@@ -21,8 +21,12 @@ export async function getNotifications(
 			? [
 					or(
 						sql`${adminNotifications.id}::text ILIKE ${`%${search}%`}`,
+						sql`${adminNotifications.title} ILIKE ${`%${search}%`}`,
+						sql`${adminNotifications.message} ILIKE ${`%${search}%`}`,
 						sql`${adminNotifications.data}->>'jobId' ILIKE ${`%${search}%`}`,
 						sql`${adminNotifications.data}->>'reportId' ILIKE ${`%${search}%`}`,
+						sql`${adminNotifications.data}->>'orderId' ILIKE ${`%${search}%`}`,
+						sql`${adminNotifications.data}->>'orderNumber' ILIKE ${`%${search}%`}`,
 					),
 				]
 			: []),

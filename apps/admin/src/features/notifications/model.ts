@@ -25,6 +25,11 @@ export const notificationDataSchema = z.object({
 	startedAt: isoTimestamp.optional(),
 	completedAt: isoTimestamp.optional(),
 	stats: syncStatsSchema.optional(),
+	orderId: z.string().optional(),
+	orderNumber: z.string().optional(),
+	total: z.string().optional(),
+	reason: z.string().optional(),
+	timestamp: z.string().optional(),
 });
 
 export const userInfoSchema = z.object({
@@ -56,10 +61,31 @@ export type UserInfo = z.infer<typeof userInfoSchema>;
 export type SyncProgress = SyncStats & { total: number; reportId: string };
 export type SyncCompletedEvent = { reportId: string; stats: SyncStats; trigger: string };
 
+export type OrderCreatedEvent = {
+	orderId: string;
+	orderNumber: string;
+	total: string;
+	timestamp: string;
+};
+
+export type OrderAutoCancelledEvent = {
+	orderId: string;
+	orderNumber: string;
+	reason: string;
+	timestamp: string;
+};
+
 // ── Change Type Labels ────────────────────────────
 // Re-exportado desde reports/model
 
 export { CHANGE_LABELS };
+
+export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
+	sync_completed: "Sync",
+	"order:created": "Pedido",
+	"order:auto-cancelled": "Cancelación",
+	order_created: "Pedido",
+};
 
 export const SORT_OPTIONS = [
 	{ label: "Nombre A-Z", value: "name-asc" },
@@ -69,3 +95,7 @@ export const SORT_OPTIONS = [
 ] as const;
 
 export type SortOption = (typeof SORT_OPTIONS)[number]["value"];
+
+export function isSortOption(value: string | null | undefined): value is SortOption {
+	return SORT_OPTIONS.some((option) => option.value === value);
+}

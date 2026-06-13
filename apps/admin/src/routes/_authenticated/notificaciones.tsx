@@ -64,16 +64,14 @@ function NotificacionesPage() {
 	);
 
 	const parsedData = selectedNotification
-		? (notificationDataSchema.safeParse(selectedNotification.data).data as
-				| NotificationData
-				| undefined)
+		? notificationDataSchema.safeParse(selectedNotification.data).data
 		: null;
 
 	return (
 		<div className="flex flex-col gap-6 min-h-0">
 			<PageHeader
 				title="Notificaciones"
-				description="Revisa el historial de sincronizaciones y actividad del sistema."
+				description="Revisa pedidos, sincronizaciones y actividad del sistema."
 			/>
 
 			<div className={`grid flex-1 min-h-0 gap-4 ${selectedNotification ? "lg:grid-cols-2" : ""}`}>

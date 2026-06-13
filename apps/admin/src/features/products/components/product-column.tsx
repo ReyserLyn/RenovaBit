@@ -266,6 +266,36 @@ export function getProductColumns({
 			size: 80,
 		},
 		{
+			accessorKey: "reservedStock",
+			meta: {
+				headerTitle: "Reservado",
+				skeleton: <Skeleton className="h-4 w-12 tabular-nums" />,
+			},
+			header: ({ column }) => <DataGridColumnHeader column={column} title="Reservado" />,
+			cell: ({ row }) => {
+				const reserved = row.getValue<number>("reservedStock");
+				if (reserved === 0) return <span className="text-muted-foreground text-sm">—</span>;
+				return <span className="tabular-nums text-warning font-medium">{reserved}</span>;
+			},
+			size: 90,
+		},
+		{
+			accessorKey: "availableStock",
+			meta: {
+				headerTitle: "Disponible",
+				skeleton: <Skeleton className="h-4 w-12 tabular-nums" />,
+			},
+			header: ({ column }) => <DataGridColumnHeader column={column} title="Disponible" />,
+			cell: ({ row }) => {
+				const available = row.getValue<number>("availableStock");
+				if (available === 0) {
+					return <span className="tabular-nums text-destructive font-medium">0</span>;
+				}
+				return <span className="tabular-nums text-success font-medium">{available}</span>;
+			},
+			size: 90,
+		},
+		{
 			id: "brand",
 			meta: {
 				headerTitle: "Marca",

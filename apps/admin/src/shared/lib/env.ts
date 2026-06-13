@@ -12,6 +12,16 @@ export function getApiBaseUrl(): string {
 }
 
 /**
+ * URL base de la tienda (storefront).
+ *
+ * Se configura con VITE_SITE_URL en .env / .env.production.
+ * En desarrollo usa http://localhost:3003 por defecto.
+ */
+export function getSiteUrl(): string {
+	return import.meta.env.VITE_SITE_URL ?? process.env.VITE_SITE_URL ?? "http://localhost:3003";
+}
+
+/**
  * Convierte la URL HTTP de la API a WebSocket (ws:// o wss://).
  * Ejemplo: https://api.renovabit.com → wss://api.renovabit.com
  */

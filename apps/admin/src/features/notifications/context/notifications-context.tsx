@@ -11,9 +11,15 @@ import {
 import { toast } from "sonner";
 import { useSyncStore } from "@/shared/lib/stores/sync-store";
 import { useMarkAllAsRead, useMarkAsRead } from "../hooks/notification-mutations";
-import { useNotificationsList } from "../hooks/notification-queries";
+import { notificationKeys, useNotificationsList } from "../hooks/notification-queries";
 import { useWebSocket } from "../hooks/use-websocket";
-import type { AppNotification, SyncCompletedEvent, SyncProgress } from "../model";
+import type {
+	AppNotification,
+	OrderAutoCancelledEvent,
+	OrderCreatedEvent,
+	SyncCompletedEvent,
+	SyncProgress,
+} from "../model";
 
 type NotificationsContextValue = {
 	notifications: AppNotification[];
@@ -36,6 +42,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
 	const { data } = useNotificationsList(4);
 
+	const handleOrderEvent = useCallback(() => {
+		queryClient.invalidateQueries({ queryKey: notificationKeys.lists() });
+	}, [queryClient]);
+
 	const isConnected = useWebSocket({
 		onProgress: useCallback(
 			(p: SyncProgress) => {
@@ -54,9 +64,23 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
 				completedTimeoutRef.current = setTimeout(() => syncStore.clearCompleted(), 60_000);
 
-				queryClient.invalidateQueries({ queryKey: ["notifications"] });
+				queryClient.invalidateQueries({ queryKey: notificationKeys.lists() });
 			},
 			[queryClient, syncStore],
+		),
+		onOrderCreated: useCallback(
+			(e: OrderCreatedEvent) => {
+				toast.success(`Nuevo pedido ${e.orderNumber}${e.total ? ` — S/ ${e.total}` : ""}`);
+				handleOrderEvent();
+			},
+			[handleOrderEvent],
+		),
+		onOrderAutoCancelled: useCallback(
+			(e: OrderAutoCancelledEvent) => {
+				toast.info(`Pedido ${e.orderNumber} cancelado automáticamente`);
+				handleOrderEvent();
+			},
+			[handleOrderEvent],
 		),
 	});
 

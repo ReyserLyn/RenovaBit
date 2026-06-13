@@ -1,16 +1,25 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { cartItems, carts, orderItems, orders, products } from "@renovabit/db/schema";
-import { and, asc, count, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import {
+	ORDER_STATUS_LABELS,
+	ORDER_STATUS_TRANSITIONS,
+	type OrderStatus,
+} from "@renovabit/db/orders";
+import { cartItems, carts, orderItems, orders, products, users } from "@renovabit/db/schema";
+import { type Static } from "@sinclair/typebox";
+import type { SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { enqueueOrderAutoCancel, removeOrderAutoCancel } from "@/jobs/orders.queue";
 import { createNotification, getAdminIds } from "@/modules/notifications/notifications.service";
 import { broadcastToAdmins } from "@/plugins/websocket";
 import { logger } from "@/utils/logger";
-import type { OrderListItem, OrderModel, OrderResponse } from "./model";
+import { getAvailableStock } from "@/utils/stock";
+import type { OrderListItem, OrderResponse } from "./model";
+import { OrderModel } from "./model";
 
-type CreateBody = OrderModel["createBody"];
-type AdminUpdateBody = OrderModel["adminUpdateBody"];
+type CreateBody = Static<typeof OrderModel.createBody>;
+type AdminUpdateBody = Static<typeof OrderModel.adminUpdateBody>;
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -31,10 +40,15 @@ function generateOrderNumber(): string {
 
 function isOrderNumberUniqueViolation(error: unknown): boolean {
 	if (!error || typeof error !== "object") return false;
-	const e = error as { code?: unknown; constraint?: unknown; message?: unknown };
-	const code = typeof e.code === "string" ? e.code : "";
-	const constraint = typeof e.constraint === "string" ? e.constraint : "";
-	const message = typeof e.message === "string" ? e.message : "";
+
+	const getString = (key: "code" | "constraint" | "message") => {
+		const value = Reflect.get(error, key);
+		return typeof value === "string" ? value : "";
+	};
+
+	const code = getString("code");
+	const constraint = getString("constraint");
+	const message = getString("message");
 	return (
 		code === "23505" &&
 		(constraint === "orders_order_number_unique" || message.includes("orders_order_number_unique"))
@@ -45,21 +59,18 @@ function sanitizePagination(
 	page: string | number | undefined = 0,
 	limit: string | number | undefined = DEFAULT_PAGE_SIZE,
 ) {
-	const parsedPage =
-		typeof page === "string" ? Number.parseInt(page ?? "0", 10) : (page as number | undefined);
-	const parsedLimit =
-		typeof limit === "string"
-			? Number.parseInt(limit ?? String(DEFAULT_PAGE_SIZE), 10)
-			: (limit as number | undefined);
+	const parseNumber = (value: string | number | undefined, fallback: number): number => {
+		if (value === undefined) return fallback;
+		if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+		const parsed = Number.parseInt(value, 10);
+		return Number.isFinite(parsed) ? parsed : fallback;
+	};
 
-	const safePage =
-		Number.isFinite(parsedPage as number) && (parsedPage as number) >= 0
-			? Math.trunc(parsedPage as number)
-			: 0;
-	const requestedLimit =
-		Number.isFinite(parsedLimit as number) && (parsedLimit as number) > 0
-			? Math.trunc(parsedLimit as number)
-			: DEFAULT_PAGE_SIZE;
+	const parsedPage = parseNumber(page, 0);
+	const parsedLimit = parseNumber(limit, DEFAULT_PAGE_SIZE);
+
+	const safePage = parsedPage >= 0 ? Math.trunc(parsedPage) : 0;
+	const requestedLimit = parsedLimit > 0 ? Math.trunc(parsedLimit) : DEFAULT_PAGE_SIZE;
 	const safeLimit = Math.min(requestedLimit, MAX_PAGE_SIZE);
 	return { safePage, safeLimit, offset: safePage * safeLimit };
 }
@@ -73,6 +84,20 @@ async function buildOrderResponse(order: OrderRow): Promise<OrderResponse> {
 		.where(eq(orderItems.orderId, order.id))
 		.orderBy(asc(orderItems.createdAt));
 
+	let customerName = order.customerName ?? null;
+	let customerEmail: string | null = null;
+	if (order.userId) {
+		const [userRow] = await db
+			.select({ name: users.name, email: users.email })
+			.from(users)
+			.where(eq(users.id, order.userId))
+			.limit(1);
+		if (userRow) {
+			customerEmail = userRow.email ?? null;
+			if (!customerName) customerName = userRow.name;
+		}
+	}
+
 	return {
 		id: order.id,
 		userId: order.userId ?? null,
@@ -81,8 +106,9 @@ async function buildOrderResponse(order: OrderRow): Promise<OrderResponse> {
 		source: order.source,
 		paymentMethod: order.paymentMethod ?? null,
 		paymentProofUrl: null, // TODO: populate when payment proof upload supported
-		customerName: order.customerName ?? null,
+		customerName,
 		customerPhone: order.customerPhone ?? null,
+		customerEmail,
 		subtotal: order.subtotal,
 		discountTotal: order.discountTotal,
 		total: order.total,
@@ -121,10 +147,10 @@ async function notifyAdmins(
 		try {
 			await createNotification({
 				userId: adminId,
-				type: "order_created",
+				type: "order:created",
 				title: "Nuevo pedido recibido",
 				message: `Pedido ${orderNumber} — S/ ${total}${customerName ? ` — ${customerName}` : ""}`,
-				data: { orderId, orderNumber, total },
+				data: { orderId, orderNumber, total, timestamp: new Date().toISOString() },
 			});
 		} catch (err) {
 			logger.withMetadata({ adminId, err }).error("[Order] Failed to notify admin");
@@ -245,10 +271,11 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 				doNotLog: true,
 			});
 		}
-		if (product.stock < item.quantity) {
+		const availableStock = await getAvailableStock(item.productId);
+		if (availableStock < item.quantity) {
 			throw createApiError({
 				code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
-				message: `Stock insuficiente para "${product.name}". Disponible: ${product.stock}`,
+				message: `Stock insuficiente para "${product.name}". Disponible: ${availableStock}`,
 				logLevel: "info",
 				doNotLog: true,
 			});
@@ -256,10 +283,24 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 	}
 
 	const now = new Date();
-	const customerName =
+	let customerName =
 		typeof data.customerName === "string" ? data.customerName.trim() || null : null;
-	const customerPhone =
+	let customerPhone =
 		typeof data.customerPhone === "string" ? data.customerPhone.trim() || null : null;
+
+	if (userId && (!customerName || !customerPhone)) {
+		const [profile] = await db
+			.select({ name: users.name, phone: users.phone })
+			.from(users)
+			.where(eq(users.id, userId))
+			.limit(1);
+
+		if (profile) {
+			if (!customerName) customerName = profile.name;
+			if (!customerPhone) customerPhone = profile.phone ?? null;
+		}
+	}
+
 	const normalizedNotes = typeof data.notes === "string" ? data.notes.trim() || null : null;
 
 	const orderResult = await db.transaction(async (tx) => {
@@ -290,13 +331,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 						userId: userId ?? null,
 						orderNumber,
 						source: "web",
-						paymentMethod: data.paymentMethod as
-							| "cash"
-							| "transfer"
-							| "yape"
-							| "plin"
-							| null
-							| undefined,
+						paymentMethod: data.paymentMethod,
 						customerName,
 						customerPhone,
 						subtotal: "0",
@@ -437,6 +472,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 		paymentProofUrl: null, // TODO: populate when payment proof upload supported
 		customerName: orderResult.order.customerName ?? null,
 		customerPhone: orderResult.order.customerPhone ?? null,
+		customerEmail: null, // will be available after buildOrderResponse
 		subtotal: orderResult.order.subtotal,
 		discountTotal: orderResult.order.discountTotal,
 		total: orderResult.order.total,
@@ -480,26 +516,20 @@ async function getById(orderId: string): Promise<OrderResponse | null> {
 }
 
 // ═══════════════════════════════════════════════════
-//  LIST ORDERS (USER)
+//  LIST ORDERS (SHARED)
 // ═══════════════════════════════════════════════════
 
-async function listByUser(
-	userId: string,
+async function queryOrderList(
+	where: SQL<unknown> | undefined,
 	page: string | number | undefined,
 	limit: string | number | undefined,
-	status?: string,
+	context: string,
 ): Promise<{ orders: OrderListItem[]; total: number }> {
 	autoCancelExpiredPending().catch((err) =>
-		logger.withError(err).warn("[Orders] autoCancel en listByUser falló"),
+		logger.withError(err).warn(`[Orders] autoCancel en ${context} falló`),
 	);
 
 	const { safeLimit, offset } = sanitizePagination(page, limit);
-
-	const conditions = [eq(orders.userId, userId)];
-	if (status) {
-		conditions.push(eq(orders.status, status as typeof orders.$inferSelect.status));
-	}
-	const where = conditions.length > 0 ? and(...conditions) : undefined;
 
 	const [countRow] = await db
 		.select({ total: count(orders.id) })
@@ -515,10 +545,11 @@ async function listByUser(
 			status: orders.status,
 			source: orders.source,
 			total: orders.total,
-			customerName: orders.customerName,
+			customerName: sql<string | null>`COALESCE(${orders.customerName}, ${users.name})`,
 			createdAt: orders.createdAt,
 		})
 		.from(orders)
+		.leftJoin(users, eq(orders.userId, users.id))
 		.where(where)
 		.orderBy(desc(orders.createdAt))
 		.offset(offset)
@@ -542,7 +573,7 @@ async function listByUser(
 		}
 	}
 
-	const ordersList = rows.map((row) => ({
+	const ordersList: OrderListItem[] = rows.map((row) => ({
 		id: row.id,
 		orderNumber: row.orderNumber,
 		status: row.status,
@@ -557,82 +588,48 @@ async function listByUser(
 }
 
 // ═══════════════════════════════════════════════════
+//  LIST ORDERS (USER)
+// ═══════════════════════════════════════════════════
+
+async function listByUser(
+	userId: string,
+	page: string | number | undefined,
+	limit: string | number | undefined,
+	status?: OrderStatus,
+): Promise<{ orders: OrderListItem[]; total: number }> {
+	const conditions = [eq(orders.userId, userId)];
+	if (status) {
+		conditions.push(eq(orders.status, status));
+	}
+	const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+	return queryOrderList(where, page, limit, "listByUser");
+}
+
+// ═══════════════════════════════════════════════════
 //  LIST ORDERS (ADMIN)
 // ═══════════════════════════════════════════════════
 
 async function listAdmin(
 	options: {
-		status?: "pending" | "confirmed" | "cancelled" | "refunded";
+		status?: OrderStatus;
 		page?: string | number | undefined;
 		limit?: string | number | undefined;
+		search?: string | undefined;
 	} = {},
 ): Promise<{ orders: OrderListItem[]; total: number }> {
-	autoCancelExpiredPending().catch((err) =>
-		logger.withError(err).warn("[Orders] autoCancel en listAdmin falló"),
-	);
-
-	const { safeLimit, offset } = sanitizePagination(options.page, options.limit);
-
 	const conditions = [];
 	if (options.status) {
 		conditions.push(eq(orders.status, options.status));
 	}
+	if (options.search) {
+		const term = `%${options.search}%`;
+		conditions.push(or(ilike(orders.orderNumber, term), ilike(orders.customerName, term)));
+	}
 
 	const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-	const [countRow] = await db
-		.select({ total: count(orders.id) })
-		.from(orders)
-		.where(where);
-
-	const total = Number(countRow?.total ?? 0);
-
-	const rows = await db
-		.select({
-			id: orders.id,
-			orderNumber: orders.orderNumber,
-			status: orders.status,
-			source: orders.source,
-			total: orders.total,
-			customerName: orders.customerName,
-			createdAt: orders.createdAt,
-		})
-		.from(orders)
-		.where(where)
-		.orderBy(desc(orders.createdAt))
-		.offset(offset)
-		.limit(safeLimit);
-
-	const orderIds = rows.map((r) => r.id);
-	const itemsCounts: Record<string, number> = {};
-
-	if (orderIds.length > 0) {
-		const counts = await db
-			.select({
-				orderId: orderItems.orderId,
-				qty: sql<number>`sum(${orderItems.quantity})::int`,
-			})
-			.from(orderItems)
-			.where(inArray(orderItems.orderId, orderIds))
-			.groupBy(orderItems.orderId);
-
-		for (const c of counts) {
-			itemsCounts[c.orderId] = c.qty;
-		}
-	}
-
-	const ordersList = rows.map((row) => ({
-		id: row.id,
-		orderNumber: row.orderNumber,
-		status: row.status,
-		source: row.source,
-		total: row.total,
-		itemsCount: itemsCounts[row.id] ?? 0,
-		customerName: row.customerName ?? null,
-		createdAt: formatDate(row.createdAt),
-	}));
-
-	return { orders: ordersList, total };
+	return queryOrderList(where, options.page, options.limit, "listAdmin");
 }
 
 // ═══════════════════════════════════════════════════
@@ -651,85 +648,97 @@ async function updateStatus(orderId: string, data: AdminUpdateBody): Promise<Ord
 		});
 	}
 
-	const validTransitions: Record<string, string[]> = {
-		pending: ["confirmed", "cancelled"],
-		confirmed: ["cancelled", "refunded"],
-		cancelled: [],
-		refunded: [],
-	};
+	const isStatusChanging = data.status !== order.status;
 
-	const allowed = validTransitions[order.status] ?? [];
-	if (!allowed.includes(data.status)) {
-		throw createApiError({
-			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-			message: `No se puede cambiar el estado de "${order.status}" a "${data.status}"`,
-			logLevel: "info",
-			doNotLog: true,
-		});
+	if (isStatusChanging) {
+		const allowed = ORDER_STATUS_TRANSITIONS[order.status] ?? [];
+		if (!allowed.includes(data.status)) {
+			throw createApiError({
+				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+				message: `No se puede cambiar el estado de "${order.status}" a "${data.status}"`,
+				logLevel: "info",
+				doNotLog: true,
+			});
+		}
 	}
 
 	const now = new Date();
 	const updates: Record<string, unknown> = {
-		status: data.status,
 		updatedAt: now,
 	};
 
-	if (data.status === "confirmed") {
-		updates.confirmedAt = now;
+	if (isStatusChanging) {
+		updates.status = data.status;
+		if (data.status === "confirmed") {
+			updates.confirmedAt = now;
+		}
+		if (data.status === "cancelled") {
+			updates.cancelledAt = now;
+			updates.cancelReason = data.cancelReason ?? null;
+		}
+
+		const dateStr = now.toISOString().replace("T", " ").slice(0, 16);
+		const systemNote = `[${dateStr}] Sistema: Pedido ${(ORDER_STATUS_LABELS[data.status] ?? data.status).toLowerCase()}`;
+		const existingNotes = order.adminNotes ?? "";
+		const adminProvidedNotes = data.adminNotes !== undefined ? data.adminNotes : "";
+		const combinedNotes = [adminProvidedNotes, existingNotes, systemNote]
+			.filter(Boolean)
+			.join("\n");
+		updates.adminNotes = combinedNotes || systemNote;
 	}
-	if (data.status === "cancelled") {
-		updates.cancelledAt = now;
-		updates.cancelReason = data.cancelReason ?? null;
-	}
-	if (data.adminNotes !== undefined) {
+	if (data.adminNotes !== undefined && !isStatusChanging) {
 		updates.adminNotes = data.adminNotes;
 	}
 
-	const orderItemsList = await db
-		.select({
-			productId: orderItems.productId,
-			quantity: orderItems.quantity,
-			productName: orderItems.productName,
-		})
-		.from(orderItems)
-		.where(eq(orderItems.orderId, orderId));
+	if (isStatusChanging) {
+		const orderItemsList = await db
+			.select({
+				productId: orderItems.productId,
+				quantity: orderItems.quantity,
+				productName: orderItems.productName,
+			})
+			.from(orderItems)
+			.where(eq(orderItems.orderId, orderId));
 
-	await db.transaction(async (tx) => {
-		if (data.status === "confirmed") {
-			for (const item of orderItemsList) {
-				if (!item.productId) continue;
-				const updatedStock = await tx
-					.update(products)
-					.set({ stock: sql`${products.stock} - ${item.quantity}` })
-					.where(and(eq(products.id, item.productId), gte(products.stock, item.quantity)))
-					.returning({ id: products.id });
+		await db.transaction(async (tx) => {
+			if (data.status === "confirmed") {
+				for (const item of orderItemsList) {
+					if (!item.productId) continue;
+					const updatedStock = await tx
+						.update(products)
+						.set({ stock: sql`${products.stock} - ${item.quantity}` })
+						.where(and(eq(products.id, item.productId), gte(products.stock, item.quantity)))
+						.returning({ id: products.id });
 
-				if (updatedStock.length === 0) {
-					throw createApiError({
-						code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
-						message: `Stock insuficiente para "${item.productName}" al confirmar pedido`,
-						logLevel: "info",
-						doNotLog: true,
-					});
+					if (updatedStock.length === 0) {
+						throw createApiError({
+							code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
+							message: `Stock insuficiente para "${item.productName}" al confirmar pedido`,
+							logLevel: "info",
+							doNotLog: true,
+						});
+					}
+				}
+			} else if (
+				(data.status === "cancelled" || data.status === "refunded") &&
+				order.status === "confirmed"
+			) {
+				for (const item of orderItemsList) {
+					if (!item.productId) continue;
+					await tx
+						.update(products)
+						.set({ stock: sql`${products.stock} + ${item.quantity}` })
+						.where(eq(products.id, item.productId));
 				}
 			}
-		} else if (
-			(data.status === "cancelled" || data.status === "refunded") &&
-			order.status === "confirmed"
-		) {
-			for (const item of orderItemsList) {
-				if (!item.productId) continue;
-				await tx
-					.update(products)
-					.set({ stock: sql`${products.stock} + ${item.quantity}` })
-					.where(eq(products.id, item.productId));
-			}
-		}
 
-		await tx.update(orders).set(updates).where(eq(orders.id, orderId));
-	});
+			await tx.update(orders).set(updates).where(eq(orders.id, orderId));
+		});
+	} else {
+		await db.update(orders).set(updates).where(eq(orders.id, orderId));
+	}
 
-	if (order.status === "pending") {
+	if (isStatusChanging && order.status === "pending") {
 		removeOrderAutoCancel(orderId).catch((err) =>
 			logger
 				.withMetadata({ orderId })
@@ -783,6 +792,8 @@ async function autoCancelExpiredPending(): Promise<string[]> {
 		.withMetadata({ count: stale.length, orderIds: staleIds })
 		.info("[Orders] Auto-cancel de pedidos pendientes vencidos");
 
+	const adminIds = await getAdminIds();
+
 	for (const row of stale) {
 		broadcastToAdmins({
 			type: "order:auto-cancelled",
@@ -791,6 +802,28 @@ async function autoCancelExpiredPending(): Promise<string[]> {
 			reason: AUTO_CANCEL_REASON,
 			timestamp: now.toISOString(),
 		});
+
+		for (const adminId of adminIds) {
+			try {
+				await createNotification({
+					userId: adminId,
+					type: "order:auto-cancelled",
+					title: "Pedido cancelado automáticamente",
+					message: `Pedido ${row.orderNumber} fue cancelado por no ser confirmado a tiempo.`,
+					data: {
+						orderId: row.id,
+						orderNumber: row.orderNumber,
+						reason: AUTO_CANCEL_REASON,
+						timestamp: now.toISOString(),
+					},
+				});
+			} catch (err) {
+				logger
+					.withMetadata({ adminId, orderId: row.id })
+					.withError(err)
+					.error("[Orders] Failed to create auto-cancel notification");
+			}
+		}
 	}
 
 	return staleIds;
@@ -841,7 +874,56 @@ async function cancelIfStillPending(orderId: string): Promise<boolean> {
 		timestamp: now.toISOString(),
 	});
 
+	const adminIds = await getAdminIds();
+	for (const adminId of adminIds) {
+		try {
+			await createNotification({
+				userId: adminId,
+				type: "order:auto-cancelled",
+				title: "Pedido cancelado automáticamente",
+				message: `Pedido ${order.orderNumber} fue cancelado por no ser confirmado a tiempo.`,
+				data: {
+					orderId,
+					orderNumber: order.orderNumber,
+					reason: AUTO_CANCEL_REASON,
+					timestamp: now.toISOString(),
+				},
+			});
+		} catch (err) {
+			logger
+				.withMetadata({ adminId, orderId })
+				.withError(err)
+				.error("[Orders] Failed to create auto-cancel notification");
+		}
+	}
+
 	return true;
+}
+
+// ═══════════════════════════════════════════════════
+//  BATCH
+// ═══════════════════════════════════════════════════
+
+async function batchUpdate(
+	ids: string[],
+	action: "confirmed" | "cancelled" | "refunded",
+): Promise<{ succeeded: string[]; failed: Array<{ id: string; reason: string }> }> {
+	const succeeded: string[] = [];
+	const failed: Array<{ id: string; reason: string }> = [];
+
+	for (const id of ids) {
+		try {
+			await updateStatus(id, {
+				status: action,
+			});
+			succeeded.push(id);
+		} catch (err) {
+			const reason = err instanceof Error ? err.message : "Error desconocido al procesar pedido";
+			failed.push({ id, reason });
+		}
+	}
+
+	return { succeeded, failed };
 }
 
 export const OrderService = {
@@ -850,6 +932,7 @@ export const OrderService = {
 	listByUser,
 	listAdmin,
 	updateStatus,
+	batchUpdate,
 	cancelIfStillPending,
 	autoCancelExpiredPending,
 };

@@ -13,7 +13,12 @@ export const adminOrdersRoute = new Elysia({ prefix: "/orders" })
 	.get(
 		"/",
 		async ({ query }) => {
-			return OrderService.listAdmin({ status: query.status, page: query.page, limit: query.limit });
+			return OrderService.listAdmin({
+				status: query.status,
+				page: query.page,
+				limit: query.limit,
+				search: query.search,
+			});
 		},
 		{
 			isAdmin: true,
@@ -24,6 +29,24 @@ export const adminOrdersRoute = new Elysia({ prefix: "/orders" })
 				403: ErrorResponse,
 			},
 			detail: { summary: "Listar pedidos (admin)", tags: ["Orders"] },
+		},
+	)
+
+	// ── Batch Update ────────────────────────────
+	.post(
+		"/batch",
+		async ({ body }) => {
+			return OrderService.batchUpdate(body.ids, body.action);
+		},
+		{
+			isAdmin: true,
+			body: OrderModel.batchActionBody,
+			response: {
+				200: OrderModel.batchActionResult,
+				401: ErrorResponse,
+				403: ErrorResponse,
+			},
+			detail: { summary: "Actualizar estado de múltiples pedidos", tags: ["Orders"] },
 		},
 	)
 

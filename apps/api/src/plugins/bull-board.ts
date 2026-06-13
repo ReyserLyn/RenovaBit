@@ -2,6 +2,7 @@ import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { ElysiaAdapter } from "@bull-board/elysia";
 import { Elysia } from "elysia";
+import { ordersQueue } from "@/jobs/orders.queue";
 import { scrapingQueue } from "@/jobs/scraping.queue";
 import { auth } from "@/utils/auth/auth";
 
@@ -11,7 +12,7 @@ const serverAdapter = new ElysiaAdapter({
 });
 
 createBullBoard({
-	queues: [new BullMQAdapter(scrapingQueue)],
+	queues: [new BullMQAdapter(scrapingQueue), new BullMQAdapter(ordersQueue)],
 	serverAdapter,
 	options: {
 		uiBasePath: "node_modules/@bull-board/ui",

@@ -10,22 +10,18 @@ import {
 	uuid,
 	varchar,
 } from "drizzle-orm/pg-core";
+import { ORDER_SOURCE_TUPLE, ORDER_STATUS_TUPLE, PAYMENT_METHOD_TUPLE } from "../orders";
 import { lifecycleDates, primaryKey } from "./_utils";
 import { users } from "./auth";
 import { products } from "./products";
 
 // ── Enums ────────────────────────────────────────────
 
-export const orderStatusEnum = pgEnum("order_status", [
-	"pending",
-	"confirmed",
-	"cancelled",
-	"refunded",
-]);
+export const orderStatusEnum = pgEnum("order_status", ORDER_STATUS_TUPLE);
 
-export const orderSourceEnum = pgEnum("order_source", ["web", "whatsapp"]);
+export const orderSourceEnum = pgEnum("order_source", ORDER_SOURCE_TUPLE);
 
-export const paymentMethodEnum = pgEnum("payment_method", ["cash", "transfer", "yape", "plin"]);
+export const paymentMethodEnum = pgEnum("payment_method", PAYMENT_METHOD_TUPLE);
 
 // ── Orders ────────────────────────────────────────────
 

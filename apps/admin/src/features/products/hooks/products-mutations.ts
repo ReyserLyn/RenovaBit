@@ -26,6 +26,8 @@ export function useCreateProduct() {
 				sku: data.sku,
 				price: data.price,
 				stock: data.stock ?? 0,
+				reservedStock: 0,
+				availableStock: data.stock ?? 0,
 				brandId: data.brandId ?? null,
 				categoryId: data.categoryId ?? null,
 				specifications: data.specifications ?? null,

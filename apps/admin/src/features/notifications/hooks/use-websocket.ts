@@ -1,14 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getWsUrl } from "@/shared/lib/env";
-import type { SyncCompletedEvent, SyncProgress, SyncStats } from "../model";
+import type {
+	OrderAutoCancelledEvent,
+	OrderCreatedEvent,
+	SyncCompletedEvent,
+	SyncProgress,
+	SyncStats,
+} from "../model";
 
 type WsMessage =
 	| ({ type: "sync:progress" } & SyncProgress)
-	| { type: "sync:completed"; reportId: string; stats: SyncStats; trigger: string };
+	| { type: "sync:completed"; reportId: string; stats: SyncStats; trigger: string }
+	| ({ type: "order:created" } & OrderCreatedEvent)
+	| ({ type: "order:auto-cancelled" } & OrderAutoCancelledEvent);
 
 type WsCallbacks = {
 	onProgress?: (data: SyncProgress) => void;
 	onCompleted?: (data: SyncCompletedEvent) => void;
+	onOrderCreated?: (data: OrderCreatedEvent) => void;
+	onOrderAutoCancelled?: (data: OrderAutoCancelledEvent) => void;
 };
 
 const WS_URL = getWsUrl();
@@ -56,12 +66,17 @@ export function useWebSocket(callbacks: WsCallbacks) {
 
 			try {
 				const data: WsMessage = JSON.parse(event.data);
-				const { onProgress, onCompleted } = callbacksRef.current;
+				const { onProgress, onCompleted, onOrderCreated, onOrderAutoCancelled } =
+					callbacksRef.current;
 
 				if (data.type === "sync:progress" && onProgress) {
 					onProgress(data);
 				} else if (data.type === "sync:completed" && onCompleted) {
 					onCompleted(data);
+				} else if (data.type === "order:created" && onOrderCreated) {
+					onOrderCreated(data);
+				} else if (data.type === "order:auto-cancelled" && onOrderAutoCancelled) {
+					onOrderAutoCancelled(data);
 				}
 			} catch {
 				// ignore malformed messages

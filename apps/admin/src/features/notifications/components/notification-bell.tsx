@@ -16,9 +16,18 @@ import { notificationDataSchema } from "../model";
 
 function formatSummary(notification: AppNotification): string {
 	const result = notificationDataSchema.safeParse(notification.data);
-	const s = result.success ? result.data.stats : undefined;
-	if (!s) return notification.title;
-	return `${s.processed} procesados · ${s.created} creados · ${s.updated} actualizados`;
+	const data = result.success ? result.data : undefined;
+
+	if (data?.orderNumber) {
+		return `Pedido ${data.orderNumber}${data.total ? ` — S/ ${data.total}` : ""}`;
+	}
+
+	if (data?.stats) {
+		const s = data.stats;
+		return `${s.processed} procesados · ${s.created} creados · ${s.updated} actualizados`;
+	}
+
+	return notification.message ?? notification.title;
 }
 
 export function NotificationBell() {

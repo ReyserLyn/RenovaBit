@@ -190,7 +190,7 @@ function CartPage() {
 								/>
 							</div>
 							<div className="space-y-1.5">
-								<Label htmlFor="checkout-phone">Teléfono</Label>
+								<Label htmlFor="checkout-phone">Teléfono *</Label>
 								<Input
 									id="checkout-phone"
 									value={customerPhone}
@@ -199,6 +199,7 @@ function CartPage() {
 									type="tel"
 									autoComplete="tel"
 									inputMode="tel"
+									required
 								/>
 							</div>
 						</div>
