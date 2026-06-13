@@ -348,7 +348,7 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 								});
 							}}
 						>
-							<SelectTrigger className="h-8 w-[150px] bg-card [&_[data-slot=select-value]]:truncate">
+							<SelectTrigger className="h-8 w-[150px] bg-card">
 								<SelectValue placeholder="Estado" />
 							</SelectTrigger>
 							<SelectContent>
@@ -394,7 +394,7 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 								})
 							}
 						>
-							<SelectTrigger className="h-8 w-[155px] bg-card [&_[data-slot=select-value]]:truncate">
+							<SelectTrigger className="h-8 w-[155px] bg-card">
 								<SelectValue placeholder="Pago" />
 							</SelectTrigger>
 							<SelectContent>
