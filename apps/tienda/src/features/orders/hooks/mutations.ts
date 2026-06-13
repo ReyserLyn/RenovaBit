@@ -22,3 +22,19 @@ export function useCreateOrder() {
 		},
 	});
 }
+
+export function useCancelOrder() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (id: string) => unwrapResponse(api.api.v1.orders({ id }).cancel.post()),
+		onSuccess: (order) => {
+			queryClient.invalidateQueries({ queryKey: orderKeys.all });
+			queryClient.setQueryData(orderKeys.detail(order.id), order);
+			toast.success(`Pedido ${order.orderNumber} cancelado`);
+		},
+		onError: (error) => {
+			toast.error(resolveErrorMessage(error));
+		},
+	});
+}

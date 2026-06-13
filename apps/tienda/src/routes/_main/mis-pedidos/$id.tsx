@@ -1,6 +1,7 @@
 import {
 	ArrowLeft02Icon,
 	Calendar01Icon,
+	Cancel01Icon,
 	Copy01Icon,
 	InformationCircleIcon,
 	NoteIcon,
@@ -15,6 +16,17 @@ import {
 	AlertIcon,
 	AlertTitle,
 } from "@renovabit/ui/components/ui/alert";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@renovabit/ui/components/ui/alert-dialog";
 import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Button } from "@renovabit/ui/components/ui/button";
 import {
@@ -41,10 +53,12 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
 import { useState } from "react";
+import { useCancelOrder } from "@/features/orders/hooks/mutations";
 import { orderQueries } from "@/features/orders/hooks/queries";
 import { getOrderDetailServerFn } from "@/features/orders/hooks/server";
 import {
 	AUTO_CANCEL_DAYS,
+	AUTO_CANCEL_MS,
 	getOrderStatusInfo,
 	getPaymentMethodLabel,
 	getSourceLabel,
@@ -145,6 +159,11 @@ function OrderDetailPage() {
 	});
 	const waUrl = buildWhatsAppUrl({ message: waMessage });
 
+	const canCancel =
+		order.status === "pending" && Date.now() - new Date(order.createdAt).getTime() < AUTO_CANCEL_MS;
+	const cancelOrder = useCancelOrder();
+	const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+
 	function handleCopy(kind: "order" | "link") {
 		const text = kind === "order" ? orderNumber : orderDetailUrl;
 		const label = kind === "order" ? "Número de pedido" : "Enlace del pedido";
@@ -218,6 +237,41 @@ function OrderDetailPage() {
 						<HugeiconsIcon icon={ArrowLeft02Icon} size={16} />
 						Volver
 					</Button>
+					{canCancel && (
+						<AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+							<AlertDialogTrigger
+								render={
+									<Button
+										variant="outline"
+										size="sm"
+										className="border-destructive/40 text-destructive"
+									>
+										<HugeiconsIcon icon={Cancel01Icon} size={16} />
+										Cancelar pedido
+									</Button>
+								}
+							/>
+							<AlertDialogContent>
+								<AlertDialogHeader>
+									<AlertDialogTitle>Cancelar pedido</AlertDialogTitle>
+									<AlertDialogDescription>
+										¿Estás seguro de que deseas cancelar el pedido <strong>{orderNumber}</strong>?
+										Esta acción libera los productos reservados y no se puede deshacer.
+									</AlertDialogDescription>
+								</AlertDialogHeader>
+								<AlertDialogFooter>
+									<AlertDialogCancel>Volverse</AlertDialogCancel>
+									<AlertDialogAction
+										className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+										onClick={() => cancelOrder.mutate(order.id)}
+										disabled={cancelOrder.isPending}
+									>
+										{cancelOrder.isPending ? "Cancelando..." : "Sí, cancelar pedido"}
+									</AlertDialogAction>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
+					)}
 				</div>
 			</div>
 

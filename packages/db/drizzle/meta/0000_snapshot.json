@@ -1,5 +1,5 @@
 {
-	"id": "d2c1629c-1558-435e-8dba-65b10583f3ed",
+	"id": "fecfac60-9f5e-4678-8624-6c95da14ba94",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"version": "7",
 	"dialect": "postgresql",
@@ -1283,6 +1283,12 @@
 					"primaryKey": false,
 					"notNull": false
 				},
+				"cart_id": {
+					"name": "cart_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
 				"order_number": {
 					"name": "order_number",
 					"type": "varchar(50)",
@@ -1387,6 +1393,13 @@
 					"type": "text",
 					"primaryKey": false,
 					"notNull": false
+				},
+				"attachments": {
+					"name": "attachments",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false,
+					"default": "'[]'::jsonb"
 				},
 				"created_at": {
 					"name": "created_at",
@@ -1499,6 +1512,11 @@
 			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {
+				"orders_cart_id_unique": {
+					"name": "orders_cart_id_unique",
+					"nullsNotDistinct": false,
+					"columns": ["cart_id"]
+				},
 				"orders_order_number_unique": {
 					"name": "orders_order_number_unique",
 					"nullsNotDistinct": false,

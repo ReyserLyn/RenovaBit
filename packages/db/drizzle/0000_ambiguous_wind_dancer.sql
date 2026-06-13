@@ -141,6 +141,7 @@ CREATE TABLE "order_items" (
 CREATE TABLE "orders" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"user_id" uuid,
+	"cart_id" uuid,
 	"order_number" varchar(50) NOT NULL,
 	"customer_name" varchar(255),
 	"customer_phone" varchar(20),
@@ -157,8 +158,10 @@ CREATE TABLE "orders" (
 	"confirmed_at" timestamp,
 	"cancelled_at" timestamp,
 	"cancel_reason" text,
+	"attachments" jsonb DEFAULT '[]'::jsonb,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "orders_cart_id_unique" UNIQUE("cart_id"),
 	CONSTRAINT "orders_order_number_unique" UNIQUE("order_number")
 );
 --> statement-breakpoint

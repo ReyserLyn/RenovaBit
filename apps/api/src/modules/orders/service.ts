@@ -3,18 +3,27 @@ import { db } from "@renovabit/db";
 import {
 	ORDER_STATUS_LABELS,
 	ORDER_STATUS_TRANSITIONS,
+	type OrderSource,
 	type OrderStatus,
+	type PaymentMethod,
 } from "@renovabit/db/orders";
 import { cartItems, carts, orderItems, orders, products, users } from "@renovabit/db/schema";
 import { type Static } from "@sinclair/typebox";
 import type { SQL } from "drizzle-orm";
-import { and, asc, count, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, lt, lte, or, sql } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { enqueueOrderAutoCancel, removeOrderAutoCancel } from "@/jobs/orders.queue";
 import { createNotification, getAdminIds } from "@/modules/notifications/notifications.service";
 import { broadcastToAdmins } from "@/plugins/websocket";
 import { logger } from "@/utils/logger";
 import { getAvailableStock } from "@/utils/stock";
+import {
+	deleteEntityAttachment,
+	extractKeyFromUrl,
+	getPublicUrl,
+	isPendingUrl,
+	moveObject,
+} from "@/utils/storage/helpers";
 import type { OrderListItem, OrderResponse } from "./model";
 import { OrderModel } from "./model";
 
@@ -55,6 +64,23 @@ function isOrderNumberUniqueViolation(error: unknown): boolean {
 	);
 }
 
+function isCartIdUniqueViolation(error: unknown): boolean {
+	if (!error || typeof error !== "object") return false;
+
+	const getString = (key: "code" | "constraint" | "message") => {
+		const value = Reflect.get(error, key);
+		return typeof value === "string" ? value : "";
+	};
+
+	const code = getString("code");
+	const constraint = getString("constraint");
+	const message = getString("message");
+	return (
+		code === "23505" &&
+		(constraint === "orders_cart_id_unique" || message.includes("orders_cart_id_unique"))
+	);
+}
+
 function sanitizePagination(
 	page: string | number | undefined = 0,
 	limit: string | number | undefined = DEFAULT_PAGE_SIZE,
@@ -75,12 +101,28 @@ function sanitizePagination(
 	return { safePage, safeLimit, offset: safePage * safeLimit };
 }
 
+function parseJsonArray(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	return value.filter((item): item is string => typeof item === "string");
+}
+
 type OrderRow = typeof orders.$inferSelect;
 
 async function buildOrderResponse(order: OrderRow): Promise<OrderResponse> {
 	const items = await db
-		.select()
+		.select({
+			id: orderItems.id,
+			productId: orderItems.productId,
+			productName: orderItems.productName,
+			productSku: orderItems.productSku,
+			quantity: orderItems.quantity,
+			unitPrice: orderItems.unitPrice,
+			finalPrice: orderItems.finalPrice,
+			createdAt: orderItems.createdAt,
+			productSlug: products.slug,
+		})
 		.from(orderItems)
+		.leftJoin(products, eq(orderItems.productId, products.id))
 		.where(eq(orderItems.orderId, order.id))
 		.orderBy(asc(orderItems.createdAt));
 
@@ -119,6 +161,7 @@ async function buildOrderResponse(order: OrderRow): Promise<OrderResponse> {
 			productId: i.productId ?? null,
 			productName: i.productName,
 			productSku: i.productSku,
+			productSlug: i.productSlug ?? null,
 			quantity: i.quantity,
 			unitPrice: i.unitPrice,
 			finalPrice: i.finalPrice,
@@ -127,6 +170,7 @@ async function buildOrderResponse(order: OrderRow): Promise<OrderResponse> {
 		confirmedAt: order.confirmedAt ? formatDate(order.confirmedAt) : null,
 		cancelledAt: order.cancelledAt ? formatDate(order.cancelledAt) : null,
 		cancelReason: order.cancelReason ?? null,
+		attachments: parseJsonArray(order.attachments),
 	};
 }
 
@@ -236,6 +280,19 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 		});
 	}
 
+	// ── Idempotency: return existing order for this cart ──
+	{
+		const [existingOrder] = await db
+			.select({ id: orders.id })
+			.from(orders)
+			.where(eq(orders.cartId, data.cartId))
+			.limit(1);
+		if (existingOrder) {
+			const order = await getById(existingOrder.id);
+			if (order) return order;
+		}
+	}
+
 	const productIds = cartItemsList.map((i) => i.productId);
 	const productRows = await db
 		.select({
@@ -329,6 +386,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 					.insert(orders)
 					.values({
 						userId: userId ?? null,
+						cartId: data.cartId,
 						orderNumber,
 						source: "web",
 						paymentMethod: data.paymentMethod,
@@ -361,6 +419,14 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 				order = created;
 				break;
 			} catch (err) {
+				if (isCartIdUniqueViolation(err)) {
+					throw createApiError({
+						code: BackendErrorCodes.CONFLICT,
+						message: "Ya existe un pedido para este carrito",
+						logLevel: "info",
+						doNotLog: true,
+					});
+				}
 				if (!isOrderNumberUniqueViolation(err) || attempt === 4) throw err;
 			}
 		}
@@ -378,6 +444,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			productId: string | null;
 			productName: string;
 			productSku: string;
+			productSlug: string;
 			quantity: number;
 			unitPrice: string;
 			finalPrice: string;
@@ -415,6 +482,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 				productId: item.productId,
 				productName: product.name,
 				productSku: product.sku,
+				productSlug: product.slug,
 				quantity: item.quantity,
 				unitPrice: item.addedAtPrice,
 				finalPrice: (unitPrice * item.quantity).toFixed(2),
@@ -479,6 +547,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 		notes: orderResult.order.notes ?? null,
 		adminNotes: null,
 		items: orderResult.items,
+		attachments: [],
 		createdAt: formatDate(orderResult.order.createdAt),
 		confirmedAt: null,
 		cancelledAt: null,
@@ -524,6 +593,8 @@ async function queryOrderList(
 	page: string | number | undefined,
 	limit: string | number | undefined,
 	context: string,
+	sortBy: "createdAt" | "total" | "orderNumber" | "status" | "customerName" = "createdAt",
+	sortOrder: "asc" | "desc" = "desc",
 ): Promise<{ orders: OrderListItem[]; total: number }> {
 	autoCancelExpiredPending().catch((err) =>
 		logger.withError(err).warn(`[Orders] autoCancel en ${context} falló`),
@@ -538,6 +609,23 @@ async function queryOrderList(
 
 	const total = Number(countRow?.total ?? 0);
 
+	const sortColumnMap = {
+		createdAt: orders.createdAt,
+		total: orders.total,
+		orderNumber: orders.orderNumber,
+		status: orders.status,
+		customerName: orders.customerName,
+	} as const;
+
+	const orderBy =
+		sortBy === "total"
+			? sortOrder === "asc"
+				? sql`${orders.total}::numeric asc`
+				: sql`${orders.total}::numeric desc`
+			: sortOrder === "asc"
+				? asc(sortColumnMap[sortBy])
+				: desc(sortColumnMap[sortBy]);
+
 	const rows = await db
 		.select({
 			id: orders.id,
@@ -551,7 +639,7 @@ async function queryOrderList(
 		.from(orders)
 		.leftJoin(users, eq(orders.userId, users.id))
 		.where(where)
-		.orderBy(desc(orders.createdAt))
+		.orderBy(orderBy)
 		.offset(offset)
 		.limit(safeLimit);
 
@@ -613,14 +701,45 @@ async function listByUser(
 async function listAdmin(
 	options: {
 		status?: OrderStatus;
+		source?: OrderSource;
+		paymentMethod?: PaymentMethod;
+		from?: string;
+		to?: string;
 		page?: string | number | undefined;
 		limit?: string | number | undefined;
 		search?: string | undefined;
+		sortBy?: "createdAt" | "total" | "orderNumber" | "status" | "customerName";
+		sortOrder?: "asc" | "desc";
 	} = {},
 ): Promise<{ orders: OrderListItem[]; total: number }> {
 	const conditions = [];
 	if (options.status) {
 		conditions.push(eq(orders.status, options.status));
+	}
+	if (options.source) {
+		conditions.push(eq(orders.source, options.source));
+	}
+	if (options.paymentMethod) {
+		conditions.push(eq(orders.paymentMethod, options.paymentMethod));
+	}
+	if (options.from) {
+		const fromDate = new Date(options.from);
+		if (!Number.isNaN(fromDate.getTime())) {
+			conditions.push(gte(orders.createdAt, fromDate));
+		}
+	}
+	if (options.to) {
+		const toDate = new Date(options.to);
+		if (!Number.isNaN(toDate.getTime())) {
+			if (
+				toDate.getUTCHours() === 0 &&
+				toDate.getUTCMinutes() === 0 &&
+				toDate.getUTCSeconds() === 0
+			) {
+				toDate.setHours(23, 59, 59, 999);
+			}
+			conditions.push(lte(orders.createdAt, toDate));
+		}
 	}
 	if (options.search) {
 		const term = `%${options.search}%`;
@@ -629,7 +748,14 @@ async function listAdmin(
 
 	const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-	return queryOrderList(where, options.page, options.limit, "listAdmin");
+	return queryOrderList(
+		where,
+		options.page,
+		options.limit,
+		"listAdmin",
+		options.sortBy,
+		options.sortOrder,
+	);
 }
 
 // ═══════════════════════════════════════════════════
@@ -677,7 +803,7 @@ async function updateStatus(orderId: string, data: AdminUpdateBody): Promise<Ord
 			updates.cancelReason = data.cancelReason ?? null;
 		}
 
-		const dateStr = now.toISOString().replace("T", " ").slice(0, 16);
+		const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 		const systemNote = `[${dateStr}] Sistema: Pedido ${(ORDER_STATUS_LABELS[data.status] ?? data.status).toLowerCase()}`;
 		const existingNotes = order.adminNotes ?? "";
 		const adminProvidedNotes = data.adminNotes !== undefined ? data.adminNotes : "";
@@ -759,6 +885,80 @@ async function updateStatus(orderId: string, data: AdminUpdateBody): Promise<Ord
 }
 
 // ═══════════════════════════════════════════════════
+//  USER CANCEL
+// ═══════════════════════════════════════════════════
+
+const USER_CANCEL_REASON = "Cancelado por el cliente";
+
+async function cancelByUser(orderId: string, userId: string): Promise<OrderResponse> {
+	const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+
+	if (!order) {
+		throw createApiError({
+			code: BackendErrorCodes.NOT_FOUND_ERROR,
+			message: "Pedido no encontrado",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+
+	if (order.userId !== userId) {
+		throw createApiError({
+			code: BackendErrorCodes.ACCESS_DENIED,
+			message: "Este pedido no te pertenece",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+
+	if (order.status !== "pending") {
+		throw createApiError({
+			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+			message: "Solo puedes cancelar pedidos pendientes",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+
+	if (Date.now() - order.createdAt.getTime() >= AUTO_CANCEL_MS) {
+		throw createApiError({
+			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+			message: "El pedido ya no puede cancelarse porque superó el plazo de 2 días",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+
+	const now = new Date();
+	await db
+		.update(orders)
+		.set({
+			status: "cancelled",
+			cancelledAt: now,
+			cancelReason: USER_CANCEL_REASON,
+			updatedAt: now,
+		})
+		.where(and(eq(orders.id, orderId), eq(orders.status, "pending")));
+
+	removeOrderAutoCancel(orderId).catch((err) =>
+		logger
+			.withMetadata({ orderId })
+			.withError(err)
+			.warn("[Orders] failed to remove auto-cancel job"),
+	);
+
+	const updated = await getById(orderId);
+	if (!updated) {
+		throw createApiError({
+			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
+			message: "Error al cancelar el pedido",
+		});
+	}
+
+	return updated;
+}
+
+// ═══════════════════════════════════════════════════
 //  AUTO-CANCEL
 // ═══════════════════════════════════════════════════
 
@@ -827,6 +1027,82 @@ async function autoCancelExpiredPending(): Promise<string[]> {
 	}
 
 	return staleIds;
+}
+
+// ═══════════════════════════════════════════════════
+//  ATTACHMENTS
+// ═══════════════════════════════════════════════════
+
+const MAX_ATTACHMENTS = 10;
+
+async function updateAttachments(orderId: string, urls: string[]): Promise<OrderResponse> {
+	const [order] = await db
+		.select({ id: orders.id, attachments: orders.attachments })
+		.from(orders)
+		.where(eq(orders.id, orderId))
+		.limit(1);
+
+	if (!order) {
+		throw createApiError({
+			code: BackendErrorCodes.NOT_FOUND_ERROR,
+			message: "Pedido no encontrado",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+
+	if (urls.length > MAX_ATTACHMENTS) {
+		throw createApiError({
+			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+			message: `Máximo ${MAX_ATTACHMENTS} adjuntos permitidos`,
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+
+	const current = parseJsonArray(order.attachments);
+	const uniqueUrls = [...new Set(urls)];
+	const removed = current.filter((url) => !uniqueUrls.includes(url));
+
+	const resolved = await Promise.all(
+		uniqueUrls.map(async (url) => {
+			if (!isPendingUrl(url)) return url;
+
+			const key = extractKeyFromUrl(url);
+			if (!key) return url;
+
+			const filename = key.split("/").pop() || key;
+			const permanentKey = `orders/${orderId}/${filename}`;
+
+			try {
+				await moveObject(key, permanentKey);
+				return getPublicUrl(permanentKey);
+			} catch (error) {
+				logger
+					.withError(error)
+					.withMetadata({ orderId, url })
+					.warn("[Orders] No se pudo resolver adjunto pendiente");
+				return url;
+			}
+		}),
+	);
+
+	await db
+		.update(orders)
+		.set({ attachments: resolved, updatedAt: new Date() })
+		.where(eq(orders.id, orderId));
+
+	await Promise.all(removed.map((url) => deleteEntityAttachment(url)));
+
+	const updated = await getById(orderId);
+	if (!updated) {
+		throw createApiError({
+			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
+			message: "Error al actualizar adjuntos",
+		});
+	}
+
+	return updated;
 }
 
 // ═══════════════════════════════════════════════════
@@ -932,6 +1208,8 @@ export const OrderService = {
 	listByUser,
 	listAdmin,
 	updateStatus,
+	updateAttachments,
+	cancelByUser,
 	batchUpdate,
 	cancelIfStillPending,
 	autoCancelExpiredPending,

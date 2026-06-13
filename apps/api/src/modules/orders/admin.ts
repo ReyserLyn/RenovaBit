@@ -15,9 +15,15 @@ export const adminOrdersRoute = new Elysia({ prefix: "/orders" })
 		async ({ query }) => {
 			return OrderService.listAdmin({
 				status: query.status,
+				source: query.source,
+				paymentMethod: query.paymentMethod,
+				from: query.from,
+				to: query.to,
 				page: query.page,
 				limit: query.limit,
 				search: query.search,
+				sortBy: query.sortBy,
+				sortOrder: query.sortOrder,
 			});
 		},
 		{
@@ -97,5 +103,27 @@ export const adminOrdersRoute = new Elysia({ prefix: "/orders" })
 				422: ErrorResponse,
 			},
 			detail: { summary: "Actualizar estado del pedido (admin)", tags: ["Orders"] },
+		},
+	)
+
+	// ── Update Attachments ──────────────────────
+	.patch(
+		"/:id/attachments",
+		async ({ params: { id }, body }) => {
+			return OrderService.updateAttachments(id, body.attachments);
+		},
+		{
+			isAdmin: true,
+			params: OrderModel.idParams,
+			body: OrderModel.adminUpdateAttachmentsBody,
+			response: {
+				200: OrderModel.orderResponse,
+				400: ErrorResponse,
+				401: ErrorResponse,
+				403: ErrorResponse,
+				404: ErrorResponse,
+				422: ErrorResponse,
+			},
+			detail: { summary: "Actualizar adjuntos del pedido (admin)", tags: ["Orders"] },
 		},
 	);

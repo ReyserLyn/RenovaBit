@@ -6,14 +6,10 @@ import { useCallback, useState } from "react";
 import { AddBlacklistDialog } from "@/features/blacklist/components/add-blacklist-dialog";
 import { BlacklistTable } from "@/features/blacklist/components/blacklist-table";
 import { RevertBlacklistDialog } from "@/features/blacklist/components/revert-blacklist-dialog";
-import { blacklistQueryOptions } from "@/features/blacklist/hooks";
 import type { BlacklistEntry } from "@/features/blacklist/model";
 import { PageHeader } from "@/shared/components/layout/page-header";
 
 export const Route = createFileRoute("/_authenticated/lista-negra")({
-	loader: ({ context }) => {
-		context.queryClient.ensureQueryData(blacklistQueryOptions);
-	},
 	component: ListaNegraPage,
 });
 

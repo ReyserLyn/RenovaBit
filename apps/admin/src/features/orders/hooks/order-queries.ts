@@ -1,4 +1,4 @@
-import type { OrderStatus } from "@renovabit/db/orders";
+import { type OrderSource, type OrderStatus, type PaymentMethod } from "@renovabit/db/orders";
 import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { ordersService } from "../service/orders.service";
 
@@ -9,8 +9,18 @@ export const orderKeys = {
 	lists: () => [...orderKeys.all, "list"] as const,
 	list: (filters?: Record<string, unknown>) =>
 		[...orderKeys.lists(), ...(filters ? [filters] : [])] as const,
-	paginated: (params: { page: number; pageSize: number; status?: OrderStatus; search?: string }) =>
-		[...orderKeys.lists(), "paginated", params] as const,
+	paginated: (params: {
+		page: number;
+		pageSize: number;
+		status?: OrderStatus;
+		source?: OrderSource;
+		paymentMethod?: PaymentMethod;
+		from?: string;
+		to?: string;
+		search?: string;
+		sortBy?: "createdAt" | "total" | "orderNumber" | "status" | "customerName";
+		sortOrder?: "asc" | "desc";
+	}) => [...orderKeys.lists(), "paginated", params] as const,
 	details: () => [...orderKeys.all, "detail"] as const,
 	detail: (id: string) => [...orderKeys.details(), id] as const,
 };
@@ -21,7 +31,13 @@ export function ordersPaginatedQueryOptions(params: {
 	page: number;
 	pageSize: number;
 	status?: OrderStatus;
+	source?: OrderSource;
+	paymentMethod?: PaymentMethod;
+	from?: string;
+	to?: string;
 	search?: string;
+	sortBy?: "createdAt" | "total" | "orderNumber" | "status" | "customerName";
+	sortOrder?: "asc" | "desc";
 }) {
 	return queryOptions({
 		queryKey: orderKeys.paginated(params),
@@ -30,7 +46,13 @@ export function ordersPaginatedQueryOptions(params: {
 				page: String(params.page),
 				limit: String(params.pageSize),
 				...(params.status ? { status: params.status } : {}),
+				...(params.source ? { source: params.source } : {}),
+				...(params.paymentMethod ? { paymentMethod: params.paymentMethod } : {}),
+				...(params.from ? { from: params.from } : {}),
+				...(params.to ? { to: params.to } : {}),
 				...(params.search ? { search: params.search } : {}),
+				...(params.sortBy ? { sortBy: params.sortBy } : {}),
+				...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
 			}),
 		placeholderData: keepPreviousData,
 		staleTime: 30_000,
@@ -43,7 +65,13 @@ export function usePaginatedOrders(params: {
 	page: number;
 	pageSize: number;
 	status?: OrderStatus;
+	source?: OrderSource;
+	paymentMethod?: PaymentMethod;
+	from?: string;
+	to?: string;
 	search?: string;
+	sortBy?: "createdAt" | "total" | "orderNumber" | "status" | "customerName";
+	sortOrder?: "asc" | "desc";
 }) {
 	return useQuery(ordersPaginatedQueryOptions(params));
 }

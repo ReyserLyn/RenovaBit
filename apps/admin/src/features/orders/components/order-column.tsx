@@ -84,7 +84,6 @@ export function getOrderColumns({
 			cell: ({ row }) => (
 				<span className="font-mono text-sm font-medium">{row.original.orderNumber}</span>
 			),
-			enableSorting: false,
 		},
 		{
 			accessorKey: "customerName",
@@ -97,7 +96,6 @@ export function getOrderColumns({
 				const name = row.original.customerName;
 				return <span className={name ? "" : "text-muted-foreground"}>{name || "—"}</span>;
 			},
-			enableSorting: false,
 		},
 		{
 			accessorKey: "status",
@@ -111,7 +109,6 @@ export function getOrderColumns({
 				const config = ORDER_STATUS_CONFIG[status];
 				return <Badge variant={config?.variant ?? "secondary"}>{config?.label ?? status}</Badge>;
 			},
-			enableSorting: false,
 		},
 		{
 			accessorKey: "itemsCount",
@@ -134,7 +131,6 @@ export function getOrderColumns({
 			cell: ({ row }) => (
 				<span className="tabular-nums font-medium">{formatCurrency(row.original.total)}</span>
 			),
-			enableSorting: false,
 		},
 		{
 			accessorKey: "source",
@@ -164,7 +160,6 @@ export function getOrderColumns({
 					{formatShortDate(row.original.createdAt)}
 				</span>
 			),
-			enableSorting: false,
 			size: 140,
 		},
 		{

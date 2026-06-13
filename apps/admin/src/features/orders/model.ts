@@ -47,6 +47,7 @@ export interface OrderItem {
 	productId: string | null;
 	productName: string;
 	productSku: string;
+	productSlug: string | null;
 	quantity: number;
 	unitPrice: string;
 	finalPrice: string;
@@ -89,6 +90,7 @@ export interface OrderDetail {
 	confirmedAt: string | null;
 	cancelledAt: string | null;
 	cancelReason: string | null;
+	attachments: string[];
 }
 
 // ── Zod Schemas ─────────────────────────────────────────

@@ -63,91 +63,102 @@ function DataGridPagination(props: DataGridPaginationProps): React.JSX.Element {
 	return (
 		<div
 			data-slot="data-grid-pagination"
-			className={cn("flex items-center justify-between px-4 py-2", mergedProps?.className)}
+			className={cn(
+				"flex flex-col gap-2 px-4 py-2 sm:flex-row sm:items-center sm:justify-between",
+				mergedProps?.className,
+			)}
 		>
-			{/* Selection info — izquierda */}
-			<div className="text-muted-foreground flex-1 text-sm">{mergedProps.selectionInfo}</div>
+			{/* Selection info */}
+			{mergedProps.selectionInfo && (
+				<div className="text-muted-foreground text-sm">{mergedProps.selectionInfo}</div>
+			)}
 
-			{/* Controles — derecha */}
-			<div className="flex items-center gap-2">
-				{isLoading ? (
-					mergedProps?.sizesSkeleton
-				) : (
-					<>
-						{/* Rows per page */}
-						<div className="flex items-center space-x-2">
-							<p className="text-sm font-medium">{mergedProps.rowsPerPageLabel}</p>
-							<Select
-								value={`${pageSize}`}
-								onValueChange={(value) => {
-									table.setPageSize(Number(value));
-								}}
-							>
-								<SelectTrigger className="h-8 w-[70px]">
-									<SelectValue placeholder={pageSize} />
-								</SelectTrigger>
-								<SelectContent side="top">
-									{mergedProps?.sizes?.map((size: number) => (
-										<SelectItem key={size} value={`${size}`}>
-											{size}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
+			{/* Controls */}
+			<div className="flex items-center justify-between gap-2 sm:justify-end">
+				<div className="flex items-center gap-2">
+					{isLoading ? (
+						mergedProps?.sizesSkeleton
+					) : (
+						<>
+							{/* Rows per page */}
+							<div className="flex items-center gap-2">
+								<span className="hidden text-sm font-medium sm:inline">
+									{mergedProps.rowsPerPageLabel}
+								</span>
+								<Select
+									value={`${pageSize}`}
+									onValueChange={(value) => {
+										table.setPageSize(Number(value));
+									}}
+								>
+									<SelectTrigger className="h-8 w-[70px]">
+										<SelectValue placeholder={pageSize} />
+									</SelectTrigger>
+									<SelectContent side="top">
+										{mergedProps?.sizes?.map((size: number) => (
+											<SelectItem key={size} value={`${size}`}>
+												{size}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
 
-						{/* Page info text */}
-						{isLoading ? (
-							mergedProps?.infoSkeleton
-						) : (
-							<span className="text-sm font-medium text-nowrap">{paginationInfo}</span>
-						)}
+							{/* Page info */}
+							{isLoading ? (
+								mergedProps?.infoSkeleton
+							) : (
+								<span className="text-muted-foreground text-sm font-medium text-nowrap">
+									{paginationInfo}
+								</span>
+							)}
+						</>
+					)}
+				</div>
 
-						{/* Navigation buttons */}
-						<div className="flex items-center space-x-1">
-							<Button
-								variant="outline"
-								size="icon"
-								className="hidden size-8 lg:flex"
-								onClick={() => table.setPageIndex(0)}
-								disabled={!canPrev}
-								aria-label="Primera página"
-							>
-								<HugeiconsIcon icon={ArrowLeftDoubleIcon} className="size-4" />
-							</Button>
-							<Button
-								variant="outline"
-								size="icon"
-								className="size-8"
-								onClick={() => table.previousPage()}
-								disabled={!canPrev}
-								aria-label="Página anterior"
-							>
-								<HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
-							</Button>
-							<Button
-								variant="outline"
-								size="icon"
-								className="size-8"
-								onClick={() => table.nextPage()}
-								disabled={!canNext}
-								aria-label="Siguiente página"
-							>
-								<HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
-							</Button>
-							<Button
-								variant="outline"
-								size="icon"
-								className="hidden size-8 lg:flex"
-								onClick={() => table.setPageIndex(pageCount - 1)}
-								disabled={!canNext}
-								aria-label="Última página"
-							>
-								<HugeiconsIcon icon={ArrowRightDoubleIcon} className="size-4" />
-							</Button>
-						</div>
-					</>
-				)}
+				{/* Navigation buttons */}
+				<div className="flex items-center gap-0.5 sm:gap-1">
+					<Button
+						variant="outline"
+						size="icon"
+						className="hidden size-8 lg:flex"
+						onClick={() => table.setPageIndex(0)}
+						disabled={!canPrev}
+						aria-label="Primera página"
+					>
+						<HugeiconsIcon icon={ArrowLeftDoubleIcon} className="size-4" />
+					</Button>
+					<Button
+						variant="outline"
+						size="icon"
+						className="size-8"
+						onClick={() => table.previousPage()}
+						disabled={!canPrev}
+						aria-label="Página anterior"
+					>
+						<HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
+					</Button>
+					<Button
+						variant="outline"
+						size="icon"
+						className="size-8"
+						onClick={() => table.nextPage()}
+						disabled={!canNext}
+						aria-label="Siguiente página"
+					>
+						<HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
+					</Button>
+					<Button
+						variant="outline"
+						size="icon"
+						className="hidden size-8 lg:flex"
+						onClick={() => table.setPageIndex(pageCount - 1)}
+						disabled={!canNext}
+						aria-label="Última página"
+					>
+						<HugeiconsIcon icon={ArrowRightDoubleIcon} className="size-4" />
+					</Button>
+				</div>
 			</div>
 		</div>
 	);

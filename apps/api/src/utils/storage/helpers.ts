@@ -264,6 +264,12 @@ export async function deleteEntityImage(imageUrl: string | null | undefined): Pr
 }
 
 /**
+ * Elimina un adjunto permanente de R2.
+ * Alias de {@link deleteEntityImage} con semántica de adjuntos.
+ */
+export const deleteEntityAttachment = deleteEntityImage;
+
+/**
  * Elimina todas las imágenes de una entidad (carpeta completa).
  */
 export async function deleteEntityFolder(entity: string, entityId: string): Promise<void> {

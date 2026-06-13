@@ -1,7 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { resolveErrorMessage } from "@/shared/lib/api/error-utils";
-import type { UpdateOrderStatusValues } from "../service/orders.service";
+import type {
+	UpdateOrderAttachmentsValues,
+	UpdateOrderStatusValues,
+} from "../service/orders.service";
 import { type BatchActionStatus, ordersService } from "../service/orders.service";
 import { orderKeys } from "./order-queries";
 
@@ -17,6 +20,23 @@ export function useUpdateOrderStatus() {
 			queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
 			queryClient.invalidateQueries({ queryKey: orderKeys.detail(id) });
 			toast.success("Estado del pedido actualizado correctamente");
+		},
+		onError: (error) => {
+			toast.error(resolveErrorMessage(error));
+		},
+	});
+}
+
+export function useUpdateOrderAttachments() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: ({ id, data }: { id: string; data: UpdateOrderAttachmentsValues }) =>
+			ordersService.updateAttachments(id, data),
+		onSuccess: (_data, { id }) => {
+			queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+			queryClient.invalidateQueries({ queryKey: orderKeys.detail(id) });
+			toast.success("Adjuntos actualizados correctamente");
 		},
 		onError: (error) => {
 			toast.error(resolveErrorMessage(error));

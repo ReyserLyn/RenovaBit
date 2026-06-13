@@ -1,4 +1,8 @@
-export { useBatchOrderStatus, useUpdateOrderStatus } from "./order-mutations";
+export {
+	useBatchOrderStatus,
+	useUpdateOrderAttachments,
+	useUpdateOrderStatus,
+} from "./order-mutations";
 export {
 	orderKeys,
 	orderQueryOptions,

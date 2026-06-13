@@ -31,6 +31,7 @@ export const orders = pgTable(
 		...primaryKey,
 
 		userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+		cartId: uuid("cart_id").unique(),
 
 		orderNumber: varchar("order_number", { length: 50 }).notNull().unique(),
 
@@ -54,6 +55,7 @@ export const orders = pgTable(
 		confirmedAt: timestamp("confirmed_at"),
 		cancelledAt: timestamp("cancelled_at"),
 		cancelReason: text("cancel_reason"),
+		attachments: jsonb("attachments").default([]),
 
 		...lifecycleDates,
 	},

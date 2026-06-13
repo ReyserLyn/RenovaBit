@@ -135,4 +135,34 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 			},
 			detail: { summary: "Detalle del pedido", tags: ["Orders"] },
 		},
+	)
+
+	// ── User Cancel Order ───────────────────────
+	.post(
+		"/:id/cancel",
+		async ({ params: { id }, request }) => {
+			const session = await auth.api.getSession({ headers: request.headers });
+			if (!session) {
+				throw createApiError({
+					code: BackendErrorCodes.INVALID_CREDENTIALS,
+					message: "Inicia sesión para cancelar el pedido",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+
+			return OrderService.cancelByUser(id, session.user.id);
+		},
+		{
+			params: OrderModel.idParams,
+			response: {
+				200: OrderModel.orderResponse,
+				400: ErrorResponse,
+				401: ErrorResponse,
+				403: ErrorResponse,
+				404: ErrorResponse,
+				422: ErrorResponse,
+			},
+			detail: { summary: "Cancelar pedido por el cliente", tags: ["Orders"] },
+		},
 	);

@@ -28,6 +28,7 @@ const OrderItemResponse = t.Object({
 	productId: t.Nullable(t.String({ format: "uuid" })),
 	productName: t.String(),
 	productSku: t.String(),
+	productSlug: t.Nullable(t.String()),
 	quantity: t.Integer({ minimum: 1 }),
 	unitPrice: t.String(),
 	finalPrice: t.String(),
@@ -59,6 +60,7 @@ const OrderResponse = t.Object({
 	confirmedAt: t.Nullable(t.String()),
 	cancelledAt: t.Nullable(t.String()),
 	cancelReason: t.Nullable(t.String()),
+	attachments: t.Array(t.String()),
 });
 
 const OrderListItem = t.Object({
@@ -94,6 +96,10 @@ const AdminUpdateOrderBody = t.Object({
 	cancelReason: t.Optional(t.Nullable(t.String({ maxLength: 500 }))),
 });
 
+const AdminUpdateAttachmentsBody = t.Object({
+	attachments: t.Array(t.String(), { maxItems: 10 }),
+});
+
 // ── Params ───────────────────────────────────
 
 const IdParams = t.Object({
@@ -124,9 +130,25 @@ const AdminOrdersListQuery = t.Object({
 			t.Literal("refunded"),
 		]),
 	),
+	source: t.Optional(t.Union([t.Literal("web"), t.Literal("whatsapp")])),
+	paymentMethod: t.Optional(
+		t.Union([t.Literal("cash"), t.Literal("transfer"), t.Literal("yape"), t.Literal("plin")]),
+	),
+	from: t.Optional(t.String({ format: "date" })),
+	to: t.Optional(t.String({ format: "date" })),
 	page: t.Optional(t.String()),
 	limit: t.Optional(t.String()),
 	search: t.Optional(t.String({ minLength: 1 })),
+	sortBy: t.Optional(
+		t.Union([
+			t.Literal("createdAt"),
+			t.Literal("total"),
+			t.Literal("orderNumber"),
+			t.Literal("status"),
+			t.Literal("customerName"),
+		]),
+	),
+	sortOrder: t.Optional(t.Union([t.Literal("asc"), t.Literal("desc")])),
 });
 
 // ── Batch ────────────────────────────────────
@@ -160,6 +182,7 @@ export const ErrorResponse = t.Object({
 type OrderModelShape = {
 	createBody: typeof CreateOrderBody;
 	adminUpdateBody: typeof AdminUpdateOrderBody;
+	adminUpdateAttachmentsBody: typeof AdminUpdateAttachmentsBody;
 	batchActionBody: typeof BatchActionBody;
 	idParams: typeof IdParams;
 	listQuery: typeof OrdersListQuery;
@@ -174,6 +197,7 @@ export const OrderModel: OrderModelShape = {
 	// Bodies
 	createBody: CreateOrderBody,
 	adminUpdateBody: AdminUpdateOrderBody,
+	adminUpdateAttachmentsBody: AdminUpdateAttachmentsBody,
 	batchActionBody: BatchActionBody,
 
 	// Params

@@ -8,19 +8,12 @@ import { CategoryDeleteDialog } from "@/features/categories/components/category-
 import { CategoryEditDialog } from "@/features/categories/components/category-edit-dialog";
 import { CategoryTable } from "@/features/categories/components/category-table";
 import { CategoryTreeView } from "@/features/categories/components/category-tree-view";
-import {
-	buildCategoryTree,
-	categoriesQueryOptions,
-	useCategories,
-} from "@/features/categories/hooks";
+import { buildCategoryTree, useCategories } from "@/features/categories/hooks";
 import type { Category } from "@/features/categories/model";
 import { PageHeader } from "@/shared/components/layout/page-header";
 import { useCategoriesUIStore } from "@/shared/lib/stores/tables/categories-ui";
 
 export const Route = createFileRoute("/_authenticated/categorias")({
-	loader: ({ context }) => {
-		context.queryClient.ensureQueryData(categoriesQueryOptions);
-	},
 	component: CategoriesPage,
 });
 

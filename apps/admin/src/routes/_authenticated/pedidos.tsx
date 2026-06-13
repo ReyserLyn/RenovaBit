@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { OrderDetailDialog } from "@/features/orders/components/order-detail-dialog";
 import { OrderTable } from "@/features/orders/components/order-table";
-import { ordersPaginatedQueryOptions } from "@/features/orders/hooks";
 import { PageHeader } from "@/shared/components/layout/page-header";
 
 function PedidosPage() {
@@ -33,11 +32,5 @@ function PedidosPage() {
 }
 
 export const Route = createFileRoute("/_authenticated/pedidos")({
-	loader: ({ context }) => {
-		if (import.meta.env.SSR) return;
-		return context.queryClient.ensureQueryData(
-			ordersPaginatedQueryOptions({ page: 0, pageSize: 10 }),
-		);
-	},
 	component: PedidosPage,
 });

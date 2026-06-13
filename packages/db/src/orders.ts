@@ -25,6 +25,14 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 	refunded: "Reembolsado",
 };
 
+/** Slugified ORDER_STATUS_LABELS for use in URLs (nuqs parseAsStringLiteral). */
+export const ORDER_STATUS_URL_VALUES = [
+	"pendiente",
+	"confirmado",
+	"cancelado",
+	"reembolsado",
+] as const;
+
 // ── Payment methods ──────────────────────────────────
 
 export type PaymentMethod = "cash" | "transfer" | "yape" | "plin";
@@ -45,6 +53,9 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 	plin: "Plin",
 };
 
+/** Slugified PAYMENT_METHOD_LABELS for use in URLs (nuqs parseAsStringLiteral). */
+export const PAYMENT_METHOD_URL_VALUES = ["efectivo", "transferencia", "yape", "plin"] as const;
+
 // ── Order sources ────────────────────────────────────
 
 export type OrderSource = "web" | "whatsapp";
@@ -56,6 +67,25 @@ export const ORDER_SOURCES: OrderSource[] = ORDER_SOURCE_TUPLE;
 export const SOURCE_LABELS: Record<OrderSource, string> = {
 	web: "Web",
 	whatsapp: "WhatsApp",
+};
+
+// ── URL slug mappings (nuqs-friendly, lowercase Spanish) ─
+
+type StatusUrl = (typeof ORDER_STATUS_URL_VALUES)[number];
+type PaymentUrl = (typeof PAYMENT_METHOD_URL_VALUES)[number];
+
+export const STATUS_URL_TO_API: Record<StatusUrl, OrderStatus> = {
+	pendiente: "pending",
+	confirmado: "confirmed",
+	cancelado: "cancelled",
+	reembolsado: "refunded",
+};
+
+export const PAYMENT_URL_TO_API: Record<PaymentUrl, PaymentMethod> = {
+	efectivo: "cash",
+	transferencia: "transfer",
+	yape: "yape",
+	plin: "plin",
 };
 
 // ── Stock reservation ────────────────────────────────

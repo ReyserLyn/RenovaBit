@@ -4,8 +4,6 @@ import { Button } from "@renovabit/ui/components/ui/button";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
 import { z } from "zod";
-import { brandsQueryOptions } from "@/features/brands/hooks";
-import { categoriesQueryOptions } from "@/features/categories/hooks";
 import { BlacklistProductDialog } from "@/features/products/components/blacklist-product-dialog";
 import { ProductCreateDialog } from "@/features/products/components/product-create-dialog";
 import { ProductDeleteDialog } from "@/features/products/components/product-delete-dialog";
@@ -24,10 +22,6 @@ const productosSearchSchema = z.object({
 export const Route = createFileRoute("/_authenticated/productos")({
 	validateSearch: productosSearchSchema,
 	loaderDeps: ({ search }) => ({ ...search }),
-	loader: ({ context }) => {
-		context.queryClient.ensureQueryData(brandsQueryOptions);
-		context.queryClient.ensureQueryData(categoriesQueryOptions);
-	},
 	component: ProductsPage,
 });
 

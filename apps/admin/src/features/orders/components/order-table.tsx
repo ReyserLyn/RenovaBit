@@ -1,6 +1,12 @@
-import { ReloadIcon, Search01Icon, Settings02Icon } from "@hugeicons/core-free-icons";
+import {
+	Calendar01Icon,
+	ReloadIcon,
+	Search01Icon,
+	Settings02Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@renovabit/ui/components/ui/button";
+import { Calendar } from "@renovabit/ui/components/ui/calendar";
 import { Card } from "@renovabit/ui/components/ui/card";
 import {
 	DropdownMenu,
@@ -9,6 +15,7 @@ import {
 	DropdownMenuTrigger,
 } from "@renovabit/ui/components/ui/dropdown-menu";
 import { Input } from "@renovabit/ui/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@renovabit/ui/components/ui/popover";
 import {
 	Select,
 	SelectContent,
@@ -21,18 +28,21 @@ import {
 	getCoreRowModel,
 	type PaginationState,
 	type RowSelectionState,
+	type SortingState,
 	useReactTable,
 } from "@tanstack/react-table";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import React, { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridColumnVisibility } from "@/shared/components/data-grid/data-grid-column-visibility";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
 import { ConfirmDialog } from "@/shared/components/dialog/confirm-dialog";
-import { useDebouncedValue } from "@/shared/lib/hooks/use-debounced-value";
 import { useOrdersTableStore } from "@/shared/lib/stores/tables/orders-table";
 import { orderKeys, useBatchOrderStatus, usePaginatedOrders, useUpdateOrderStatus } from "../hooks";
+import { sortFieldValues, useOrderFilters } from "../hooks/use-order-filters";
 import {
 	ORDER_STATUS_CONFIG,
 	type OrderListItem,
@@ -42,44 +52,115 @@ import {
 import type { BatchActionStatus } from "../service/orders.service";
 import { getOrderColumns } from "./order-column";
 
-// ── Constants ────────────────────────────────────────────
+function isSortField(v: string): v is (typeof sortFieldValues)[number] {
+	return (sortFieldValues as readonly string[]).includes(v);
+}
 
 const coreRowModel = getCoreRowModel();
 
 const statusFilterOptions = [
 	{ label: "Todos los estados", value: "all" },
-	...Object.entries(ORDER_STATUS_CONFIG).map(([key, config]) => ({
-		label: config.label,
-		value: key,
-	})),
+	{ label: "Pendiente", value: "pendiente" },
+	{ label: "Confirmado", value: "confirmado" },
+	{ label: "Cancelado", value: "cancelado" },
+	{ label: "Reembolsado", value: "reembolsado" },
 ];
 
-// ── Props ────────────────────────────────────────────────
+const sourceFilterOptions = [
+	{ label: "Todos los orígenes", value: "all" },
+	{ label: "Web", value: "web" },
+	{ label: "WhatsApp", value: "whatsapp" },
+];
+
+const paymentMethodFilterOptions = [
+	{ label: "Todos los métodos", value: "all" },
+	{ label: "Efectivo", value: "efectivo" },
+	{ label: "Transferencia", value: "transferencia" },
+	{ label: "Yape", value: "yape" },
+	{ label: "Plin", value: "plin" },
+];
 
 interface OrderTableProps {
 	onViewDetail: (orderId: string) => void;
 }
 
-// ── Component ────────────────────────────────────────────
-
 export const OrderTable = React.memo(function OrderTable({ onViewDetail }: OrderTableProps) {
 	const queryClient = useQueryClient();
-	const [statusFilter, setStatusFilter] = useState<OrderStatus | undefined>();
-	const [search, setSearch] = useState("");
-	const debouncedSearch = useDebouncedValue(search, 300);
+
+	const filters = useOrderFilters();
+
+	const fromDate = useMemo(
+		() => (filters.from ? new Date(`${filters.from}T00:00:00`) : undefined),
+		[filters.from],
+	);
+	const toDate = useMemo(
+		() => (filters.to ? new Date(`${filters.to}T00:00:00`) : undefined),
+		[filters.to],
+	);
+
+	const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+	const [localSearch, setLocalSearch] = useState(filters.search);
+
+	useEffect(() => {
+		setLocalSearch(filters.search);
+	}, [filters.search]);
+
+	const handleSearchChange = useCallback(
+		(value: string) => {
+			setLocalSearch(value);
+			clearTimeout(searchTimerRef.current);
+			searchTimerRef.current = setTimeout(() => {
+				startTransition(() => {
+					void filters.setSearch(value);
+				});
+			}, 300);
+		},
+		[filters.setSearch],
+	);
+
+	useEffect(() => {
+		return () => clearTimeout(searchTimerRef.current);
+	}, []);
+
+	const dateRangeValid = !fromDate || !toDate || fromDate <= toDate;
+	const fmtDateFrom = (d: Date | undefined) => (d ? format(d, "yyyy-MM-dd") : undefined);
+	const fmtDateTo = (d: Date | undefined) => (d ? format(d, "yyyy-MM-dd") : undefined);
 
 	const [pagination, setPagination] = useState<PaginationState>({
-		pageIndex: 0,
-		pageSize: 10,
+		pageIndex: filters.page,
+		pageSize: filters.pageSize,
 	});
 
-	// ── Server-side query ──
+	useEffect(() => {
+		startTransition(() => {
+			void filters.setPage(pagination.pageIndex);
+		});
+	}, [pagination.pageIndex, filters.setPage]);
+
+	useEffect(() => {
+		startTransition(() => {
+			void filters.setPageSize(pagination.pageSize);
+		});
+	}, [pagination.pageSize, filters.setPageSize]);
+
+	const sorting = useOrdersTableStore((s) => s.sorting);
+
+	const sortBy: (typeof sortFieldValues)[number] | undefined =
+		filters.sortBy ??
+		(sorting[0] && isSortField(sorting[0].id) ? sorting[0].id : undefined) ??
+		"createdAt";
 
 	const { data, isPending, isFetching, isError, error } = usePaginatedOrders({
 		page: pagination.pageIndex,
 		pageSize: pagination.pageSize,
-		status: statusFilter,
-		search: debouncedSearch,
+		status: filters.apiStatus,
+		source: filters.apiSource,
+		paymentMethod: filters.apiPayment,
+		from: dateRangeValid ? fmtDateFrom(fromDate) : undefined,
+		to: dateRangeValid ? fmtDateTo(toDate) : undefined,
+		search: filters.search || undefined,
+		sortBy,
+		sortOrder: filters.sortOrder ?? (sorting[0]?.desc ? "desc" : "asc"),
 	});
 
 	const orders = data?.orders ?? [];
@@ -88,7 +169,6 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 	const updateOrderStatus = useUpdateOrderStatus();
 	const batchUpdateStatus = useBatchOrderStatus();
 
-	// ── Status change confirmation state ──
 	const [confirmState, setConfirmState] = useState<{
 		order: OrderListItem;
 		newStatus: OrderStatus;
@@ -96,22 +176,25 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 	const isStatusChanging = updateOrderStatus.isPending;
 	const isBatchProcessing = batchUpdateStatus.isPending;
 
-	// ── Bulk state ──
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 	const [bulkConfirm, setBulkConfirm] = useState<{
 		action: BatchActionStatus;
 	} | null>(null);
 
-	// ── Reset page on filter change ──
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, [debouncedSearch, statusFilter]);
+	}, [
+		filters.search,
+		filters.status,
+		filters.source,
+		filters.paymentMethod,
+		filters.from,
+		filters.to,
+	]);
 
 	useEffect(() => {
 		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
 	}, [pagination.pageSize]);
-
-	// ── Handlers ──
 
 	const handleRefresh = useCallback(() => {
 		void queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
@@ -137,7 +220,7 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 				data: { status: newStatus },
 			});
 		} catch {
-			// mutation onError already shows toast
+			//
 		} finally {
 			setConfirmState(null);
 		}
@@ -150,14 +233,53 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 		try {
 			await batchUpdateStatus.mutateAsync({ ids, action: bulkConfirm.action });
 		} catch {
-			// handled by mutation
+			//
 		} finally {
 			setBulkConfirm(null);
 			setRowSelection({});
 		}
 	}, [bulkConfirm, rowSelection, batchUpdateStatus]);
 
-	// ── Columns ──
+	const hasActiveFilters =
+		filters.status !== "all" ||
+		filters.source !== "all" ||
+		filters.paymentMethod !== "all" ||
+		!!filters.search ||
+		!!filters.from ||
+		!!filters.to;
+
+	const handleClearFilters = useCallback(() => {
+		startTransition(() => {
+			void filters.setStatus("all");
+			void filters.setSource("all");
+			void filters.setPaymentMethod("all");
+			void filters.setSearch("");
+			void filters.setFrom(null);
+			void filters.setTo(null);
+		});
+	}, [
+		filters.setStatus,
+		filters.setSource,
+		filters.setPaymentMethod,
+		filters.setSearch,
+		filters.setFrom,
+		filters.setTo,
+	]);
+
+	const handleSortingChange = useCallback(
+		(updater: SortingState | ((prev: SortingState) => SortingState)) => {
+			const store = useOrdersTableStore.getState();
+			const next = typeof updater === "function" ? updater(store.sorting) : updater;
+			store.setSorting(next);
+
+			const col = next[0];
+			if (col && isSortField(col.id)) {
+				void filters.setSortBy(col.id);
+				void filters.setSortOrder(col.desc ? "desc" : "asc");
+			}
+		},
+		[filters.setSortBy, filters.setSortOrder],
+	);
 
 	const columns = useMemo(
 		() =>
@@ -168,10 +290,6 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 		[handleViewDetail, handleStatusChangeRequest],
 	);
 
-	// ── Table state ──
-
-	const sorting = useOrdersTableStore((s) => s.sorting);
-	const setSorting = useOrdersTableStore((s) => s.setSorting);
 	const columnVisibility = useOrdersTableStore((s) => s.columnVisibility);
 	const setColumnVisibility = useOrdersTableStore((s) => s.setColumnVisibility);
 
@@ -185,17 +303,16 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 			rowSelection,
 		},
 		onPaginationChange: setPagination,
-		onSortingChange: setSorting,
+		onSortingChange: handleSortingChange,
 		onColumnVisibilityChange: setColumnVisibility,
 		onRowSelectionChange: setRowSelection,
 		getCoreRowModel: coreRowModel,
 		manualPagination: true,
+		manualSorting: true,
 		rowCount: totalCount,
 		enableRowSelection: true,
 		getRowId: (row) => row.id,
 	});
-
-	// ── Render ──
 
 	return (
 		<>
@@ -219,37 +336,20 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 					</div>
 				) : null}
 
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-						<div className="relative w-full min-w-0 sm:max-w-xs">
-							<HugeiconsIcon
-								icon={Search01Icon}
-								className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-							/>
-							<Input
-								placeholder="Buscar por pedido o cliente…"
-								value={search}
-								onChange={(event) => setSearch(event.target.value)}
-								className="w-full min-w-0 bg-card pl-9"
-							/>
-						</div>
+				<div className="flex flex-wrap items-end gap-3">
+					<div className="flex flex-col gap-1.5">
+						<label className="text-muted-foreground text-xs font-medium">Estado</label>
 						<Select
 							items={statusFilterOptions}
-							value={statusFilter ?? "all"}
+							value={filters.status}
 							onValueChange={(value) => {
-								const validStatuses: readonly OrderStatus[] = [
-									"pending",
-									"confirmed",
-									"cancelled",
-									"refunded",
-								];
-								setStatusFilter(
-									value === "all" ? undefined : validStatuses.find((s) => s === value),
-								);
+								startTransition(() => {
+									void filters.setStatus(value);
+								});
 							}}
 						>
-							<SelectTrigger className="h-9 w-[180px] bg-card">
-								<SelectValue placeholder="Todos los estados" />
+							<SelectTrigger className="h-8 w-[150px] bg-card [&_[data-slot=select-value]]:truncate">
+								<SelectValue placeholder="Estado" />
 							</SelectTrigger>
 							<SelectContent>
 								{statusFilterOptions.map((item) => (
@@ -260,7 +360,179 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 							</SelectContent>
 						</Select>
 					</div>
-					<div className="flex shrink-0 flex-wrap items-center gap-2">
+					<div className="flex flex-col gap-1.5">
+						<label className="text-muted-foreground text-xs font-medium ">Origen</label>
+						<Select
+							items={sourceFilterOptions}
+							value={filters.source}
+							onValueChange={(value) =>
+								startTransition(() => {
+									void filters.setSource(value);
+								})
+							}
+						>
+							<SelectTrigger className="h-8 w-[140px] bg-card **:data-[slot=select-value]:truncate">
+								<SelectValue placeholder="Origen" />
+							</SelectTrigger>
+							<SelectContent>
+								{sourceFilterOptions.map((item) => (
+									<SelectItem key={item.value} value={item.value}>
+										{item.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					<div className="flex flex-col gap-1.5">
+						<label className="text-muted-foreground text-xs font-medium">Pago</label>
+						<Select
+							items={paymentMethodFilterOptions}
+							value={filters.paymentMethod}
+							onValueChange={(value) =>
+								startTransition(() => {
+									void filters.setPaymentMethod(value);
+								})
+							}
+						>
+							<SelectTrigger className="h-8 w-[155px] bg-card [&_[data-slot=select-value]]:truncate">
+								<SelectValue placeholder="Pago" />
+							</SelectTrigger>
+							<SelectContent>
+								{paymentMethodFilterOptions.map((item) => (
+									<SelectItem key={item.value} value={item.value}>
+										{item.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					<div className="flex flex-col gap-1.5">
+						<label className="text-muted-foreground text-xs font-medium">Desde</label>
+						<Popover>
+							<PopoverTrigger
+								render={
+									<Button
+										variant="outline"
+										size="sm"
+										data-empty={!fromDate}
+										className="h-8 w-[145px] justify-start gap-1.5 bg-card font-normal data-[empty=true]:text-muted-foreground"
+									>
+										<HugeiconsIcon icon={Calendar01Icon} className="size-3.5 shrink-0" />
+										{fromDate ? (
+											format(fromDate, "d MMM yyyy", { locale: es })
+										) : (
+											<span>Seleccionar</span>
+										)}
+									</Button>
+								}
+							/>
+							<PopoverContent className="w-auto p-0" align="start">
+								<Calendar
+									mode="single"
+									selected={fromDate}
+									onSelect={(date) => {
+										startTransition(() => {
+											void filters.setFrom(date ? format(date, "yyyy-MM-dd") : null);
+										});
+									}}
+									disabled={toDate ? { after: toDate } : undefined}
+								/>
+								{fromDate && (
+									<div className="border-t p-2">
+										<Button
+											variant="ghost"
+											size="sm"
+											className="w-full text-muted-foreground"
+											onClick={() => {
+												startTransition(() => {
+													void filters.setFrom(null);
+												});
+											}}
+										>
+											Limpiar
+										</Button>
+									</div>
+								)}
+							</PopoverContent>
+						</Popover>
+					</div>
+					<div className="flex flex-col gap-1.5">
+						<label className="text-muted-foreground text-xs font-medium">Hasta</label>
+						<Popover>
+							<PopoverTrigger
+								render={
+									<Button
+										variant="outline"
+										size="sm"
+										data-empty={!toDate}
+										className="h-8 w-[145px] justify-start gap-1.5 bg-card font-normal data-[empty=true]:text-muted-foreground"
+									>
+										<HugeiconsIcon icon={Calendar01Icon} className="size-3.5 shrink-0" />
+										{toDate ? (
+											format(toDate, "d MMM yyyy", { locale: es })
+										) : (
+											<span>Seleccionar</span>
+										)}
+									</Button>
+								}
+							/>
+							<PopoverContent className="w-auto p-0" align="start">
+								<Calendar
+									mode="single"
+									selected={toDate}
+									onSelect={(date) => {
+										startTransition(() => {
+											void filters.setTo(date ? format(date, "yyyy-MM-dd") : null);
+										});
+									}}
+									disabled={fromDate ? { before: fromDate } : undefined}
+								/>
+								{toDate && (
+									<div className="border-t p-2">
+										<Button
+											variant="ghost"
+											size="sm"
+											className="w-full text-muted-foreground"
+											onClick={() => {
+												startTransition(() => {
+													void filters.setTo(null);
+												});
+											}}
+										>
+											Limpiar
+										</Button>
+									</div>
+								)}
+							</PopoverContent>
+						</Popover>
+					</div>
+					{hasActiveFilters && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-8 text-xs"
+							onClick={handleClearFilters}
+						>
+							Limpiar filtros
+						</Button>
+					)}
+				</div>
+
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<div className="relative w-full min-w-0 sm:max-w-md">
+						<HugeiconsIcon
+							icon={Search01Icon}
+							className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+						/>
+						<Input
+							placeholder="Buscar por pedido o cliente…"
+							value={localSearch}
+							onChange={(event) => handleSearchChange(event.target.value)}
+							className="w-full min-w-0 bg-card pl-9"
+						/>
+					</div>
+					<div className="flex shrink-0 flex-wrap items-center gap-2 sm:ms-auto">
 						{Object.keys(rowSelection).length > 0 && (
 							<DropdownMenu>
 								<DropdownMenuTrigger

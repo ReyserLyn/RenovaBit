@@ -1,5 +1,7 @@
 // ── Types ──────────────────────────────────────────────
 
+import { getApiBaseUrl } from "@/shared/lib/env";
+
 interface PresignResponse {
 	uploadUrl: string;
 	publicUrl: string;
@@ -16,18 +18,12 @@ export class StorageError extends Error {
 	}
 }
 
-// ── Config ─────────────────────────────────────────────
-
-function getApiBaseUrl(): string {
-	return import.meta.env.VITE_API_URL ?? process.env.VITE_API_URL ?? "http://localhost:3001";
-}
-
 // ── Public API ─────────────────────────────────────────
 
 /**
  * Sube un archivo de imagen a Cloudflare R2 utilizando el flujo de presigned URLs.
  *
- * 1. Solicita una URL firmada a la API (`POST /api/v1/storage/presign`)
+ * 1. Solicita una URL firmada a la API (`POST /api/v1/admin/storage/presign`)
  * 2. Sube el archivo directamente a R2 vía `PUT`
  * 3. Devuelve la `publicUrl` para usar en el create/update de la entidad
  *
@@ -37,7 +33,7 @@ function getApiBaseUrl(): string {
  */
 export async function uploadImage(file: File): Promise<string> {
 	// 1. Obtener presigned URL de la API
-	const presignResponse = await fetch(`${getApiBaseUrl()}/api/v1/storage/presign`, {
+	const presignResponse = await fetch(`${getApiBaseUrl()}/api/v1/admin/storage/presign`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		credentials: "include",

@@ -41,6 +41,7 @@ import {
 	VALID_STATUS_TRANSITIONS,
 } from "../model";
 import type { UpdateOrderStatusValues } from "../service/orders.service";
+import { OrderAttachments } from "./order-attachments";
 
 // ── Constants ────────────────────────────────────────────
 
@@ -251,7 +252,11 @@ export function OrderDetailDialog({ orderId, open, onOpenChange }: OrderDetailDi
 														</td>
 														<td className="px-2 py-2.5">
 															<a
-																href={`${getSiteUrl()}/buscar?q=${encodeURIComponent(item.productSku)}`}
+																href={
+																	item.productSlug
+																		? `${getSiteUrl()}/producto/${encodeURIComponent(item.productSlug)}`
+																		: `${getSiteUrl()}/buscar?q=${encodeURIComponent(item.productSku)}`
+																}
 																target="_blank"
 																rel="noopener noreferrer"
 																aria-label={`Ver ${item.productName} en la tienda`}
@@ -298,6 +303,9 @@ export function OrderDetailDialog({ orderId, open, onOpenChange }: OrderDetailDi
 									order={order}
 									updateStatus={updateStatus}
 								/>
+
+								{/* ── Attachments ── */}
+								<OrderAttachments orderId={orderId} attachments={order.attachments} />
 
 								{/* ── Customer notes ── */}
 

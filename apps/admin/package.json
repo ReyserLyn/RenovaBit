@@ -39,6 +39,7 @@
 		"better-auth": "catalog:",
 		"better-themes": "catalog:",
 		"class-variance-authority": "catalog:",
+		"date-fns": "catalog:",
 		"nitro": "^3.0.260603-beta",
 		"nuqs": "^2.8.9",
 		"react": "catalog:",
