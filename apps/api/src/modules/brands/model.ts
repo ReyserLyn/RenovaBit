@@ -72,7 +72,8 @@ export const BrandModel = {
 
 	// Query
 	listQuery: t.Object({
-		categorySlug: t.Optional(t.String({ minLength: 1 })),
+		categorySlug: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
+		q: t.Optional(t.String({ minLength: 2, maxLength: 100 })),
 	}),
 
 	// Admin Responses

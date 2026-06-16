@@ -20,11 +20,13 @@ import {
 	sql,
 } from "drizzle-orm";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
+import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
 import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
 import type {
 	BulkDeleteResult,
 	ProductModel,
+	ProductSearchResult,
 	PublicProductDetail,
 	PublicProductListItem,
 } from "./model";
@@ -195,7 +197,8 @@ function buildWhere(options: ListOptions, isPublic: boolean, categoryIds?: strin
 		conditions.push(eq(products.isFeatured, options.isFeatured));
 	if (options.excludeSlug) conditions.push(ne(products.slug, options.excludeSlug));
 	if (options.search) {
-		const term = `%${options.search}%`;
+		const escaped = escapeLikePattern(options.search);
+		const term = `%${escaped}%`;
 		conditions.push(or(ilike(products.name, term), ilike(products.sku, term)) ?? undefined);
 	}
 	if (options.minPrice) {
@@ -211,18 +214,18 @@ function buildWhere(options: ListOptions, isPublic: boolean, categoryIds?: strin
 // ── OrderBy builder ──────────────────────────────
 
 const SORT_MAP = {
-	price_asc: asc(products.price),
-	price_desc: desc(products.price),
-	name_asc: asc(products.name),
-	name_desc: desc(products.name),
-	newest: desc(products.createdAt),
+	price_asc: [asc(products.price), asc(products.id)] as const,
+	price_desc: [desc(products.price), asc(products.id)] as const,
+	name_asc: [asc(products.name), asc(products.id)] as const,
+	name_desc: [desc(products.name), asc(products.id)] as const,
+	newest: [desc(products.createdAt), asc(products.id)] as const,
 } as const;
 
 function buildOrderBy(sortBy?: string) {
 	if (sortBy && sortBy in SORT_MAP) {
-		return SORT_MAP[sortBy as keyof typeof SORT_MAP];
+		return [...SORT_MAP[sortBy as keyof typeof SORT_MAP]];
 	}
-	return desc(products.createdAt);
+	return [desc(products.createdAt)];
 }
 
 // ═══════════════════════════════════════════════════
@@ -379,7 +382,7 @@ async function listPublic(
 		.leftJoin(brands, eq(products.brandId, brands.id))
 		.leftJoin(categories, eq(products.categoryId, categories.id))
 		.where(where)
-		.orderBy(buildOrderBy(resolvedOptions.sortBy))
+		.orderBy(...buildOrderBy(resolvedOptions.sortBy))
 		.offset(offset)
 		.limit(limit);
 
@@ -666,6 +669,241 @@ async function getChanges(productId: string) {
 		.orderBy(desc(productChanges.createdAt));
 }
 
+/**
+ * Check if a Postgres error is a tsquery syntax error (SQLSTATE 42601)
+ * or invalid text representation (SQLSTATE 22P02), which can happen
+ * when user input produces a malformed tsquery.
+ * Using SQLSTATE codes is precise — avoids swallowing legitimate DB errors
+ * like column type mismatches or function signature changes.
+ */
+function isTsqueryError(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		((error as { code?: string }).code === "42601" || (error as { code?: string }).code === "22P02")
+	);
+}
+
+/**
+ * Build search ORDER BY clause.
+ *
+ * In-stock is the PRIMARY sort: an out-of-stock product should never appear
+ * above an in-stock one in a search result list. Within each group, results
+ * are ordered by FTS relevance, then by SKU prefix match (exact prefix wins),
+ * then by id for a stable order.
+ *
+ * Without in-stock as the primary sort, a short product name like
+ * "Laptop HP Intel Core i5 1334U" would beat "Laptop HP 250 G10 Core i5 1334U
+ * 8GB DDR4 512GB NVMe 15.6\"" on FTS rank (shorter = denser match) and show
+ * "Agotado" first — a bad UX since the user is clearly looking for laptops
+ * they can buy.
+ */
+function buildSearchOrder(
+	sortBy: string | undefined,
+	searchVector: ReturnType<typeof sql.identifier>,
+	tsQuery: ReturnType<typeof sql>,
+	searchTerm: string,
+) {
+	if (!sortBy || sortBy === "relevance") {
+		return [
+			sql`(GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0)) > 0) DESC`,
+			sql`ts_rank_cd(${searchVector}, ${tsQuery}) DESC`,
+			sql`CASE WHEN ${products.sku} ILIKE ${`${escapeLikePattern(searchTerm)}%`} THEN 0 ELSE 1 END`,
+			asc(products.id),
+		];
+	}
+
+	const entry = SORT_MAP[sortBy as keyof typeof SORT_MAP];
+	return entry ?? [desc(products.createdAt)];
+}
+
+// ═══════════════════════════════════════════════════
+//  SEARCH (FTS + SKU prefix)
+// ═══════════════════════════════════════════════════
+
+async function search(
+	q: string,
+	pageLimit: number = 20,
+	pageOffset: number = 0,
+	brandFilter?: string,
+	minPrice?: string,
+	maxPrice?: string,
+	sortBy?: string,
+): Promise<{
+	data: ProductSearchResult[];
+	total: number;
+	limit: number;
+	offset: number;
+	hasMore: boolean;
+}> {
+	const searchTerm = q.trim();
+
+	// Guard against empty/whitespace-only queries (defense in depth — route also validates)
+	if (searchTerm.length < 2) {
+		return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
+	}
+
+	// Build a prefix-aware tsquery so "3200" matches "3200MHz", "3200DPI", etc.
+	const prefixQuery = buildPrefixTsQuery(searchTerm);
+	if (!prefixQuery) {
+		// All tokens stripped by sanitization — no FTS to run, fall through to SKU only
+		return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
+	}
+	const tsQuery = sql`to_tsquery('spanish', ${prefixQuery})`;
+
+	// search_vector is a GENERATED column from 0001_product_search.sql — not in Drizzle schema
+	const searchVector = sql.identifier("search_vector");
+
+	// ── Build WHERE conditions ──
+	const conditions: ReturnType<typeof and>[] = [
+		eq(products.isActive, true),
+		eq(products.needsReview, false),
+		or(
+			sql`${searchVector} @@ ${tsQuery}`,
+			ilike(products.sku, `${escapeLikePattern(searchTerm)}%`),
+		),
+	];
+
+	// Brand filter: resolve comma-separated slugs to IDs
+	if (brandFilter) {
+		const brandSlugs = brandFilter
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean);
+		if (brandSlugs.length > 0) {
+			const brandRows = await db
+				.select({ id: brands.id })
+				.from(brands)
+				.where(inArray(brands.slug, brandSlugs));
+			if (brandRows.length === 0) {
+				return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
+			}
+			conditions.push(
+				inArray(
+					products.brandId,
+					brandRows.map((r) => r.id),
+				),
+			);
+		}
+	}
+
+	// Price range filters
+	if (minPrice) {
+		conditions.push(gte(products.price, minPrice));
+	}
+	if (maxPrice) {
+		conditions.push(lte(products.price, maxPrice));
+	}
+
+	const where = and(...conditions);
+
+	// ── Count total ──
+	let total = 0;
+	try {
+		const [countRow] = await db
+			.select({ total: count(products.id) })
+			.from(products)
+			.where(where);
+		total = Number(countRow?.total ?? 0);
+	} catch (error) {
+		if (isTsqueryError(error)) {
+			return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
+		}
+		throw error;
+	}
+
+	// ── Query paginada ──
+	let rows: Array<{
+		id: string;
+		name: string;
+		slug: string;
+		sku: string;
+		price: string;
+		isFeatured: boolean;
+		stock: number;
+		isInStock: boolean;
+		primaryImageUrl: string | null;
+		primaryImageAlt: string | null;
+		brandName: string | null;
+		brandSlug: string | null;
+		categoryName: string | null;
+		categorySlug: string | null;
+		headline: string | null;
+	}> = [];
+
+	try {
+		rows = await db
+			.select({
+				id: products.id,
+				name: products.name,
+				slug: products.slug,
+				sku: products.sku,
+				price: sql<string>`${products.price}::text`,
+				isFeatured: products.isFeatured,
+				stock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
+				isInStock: sql<boolean>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0)) > 0`,
+				primaryImageUrl: sql<string | null>`(
+				SELECT pi.url FROM product_images pi
+				WHERE pi.product_id = ${products.id}
+				ORDER BY pi.is_primary DESC, pi.sort_order ASC NULLS LAST
+				LIMIT 1
+			)`,
+				primaryImageAlt: sql<string | null>`(
+				SELECT pi.alt FROM product_images pi
+				WHERE pi.product_id = ${products.id}
+				ORDER BY pi.is_primary DESC, pi.sort_order ASC NULLS LAST
+				LIMIT 1
+			)`,
+				brandName: brands.name,
+				brandSlug: brands.slug,
+				categoryName: categories.name,
+				categorySlug: categories.slug,
+				headline: sql<
+					string | null
+				>`ts_headline('spanish', ${products.name}, ${tsQuery}, 'MaxFragments=1,MaxWords=15,MinWords=5,StartSel=\u0001,StopSel=\u0002')`,
+			})
+			.from(products)
+			.leftJoin(brands, eq(products.brandId, brands.id))
+			.leftJoin(categories, eq(products.categoryId, categories.id))
+			.where(where)
+			.orderBy(...buildSearchOrder(sortBy, searchVector, tsQuery, searchTerm))
+			.offset(pageOffset)
+			.limit(pageLimit);
+	} catch (error) {
+		if (isTsqueryError(error)) {
+			return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
+		}
+		throw error;
+	}
+
+	const data = rows.map(
+		(row): ProductSearchResult => ({
+			id: row.id,
+			name: row.name,
+			slug: row.slug,
+			sku: row.sku,
+			price: row.price,
+			isInStock: row.isInStock,
+			isFeatured: row.isFeatured,
+			stock: row.stock,
+			primaryImage: row.primaryImageUrl
+				? { url: row.primaryImageUrl, alt: row.primaryImageAlt }
+				: null,
+			brand: row.brandName ? { name: row.brandName, slug: row.brandSlug! } : null,
+			category: row.categoryName ? { name: row.categoryName, slug: row.categorySlug! } : null,
+			headline: row.headline,
+		}),
+	);
+
+	return {
+		data,
+		total,
+		limit: pageLimit,
+		offset: pageOffset,
+		hasMore: pageOffset + data.length < total,
+	};
+}
+
 // ── Public API ─────────────────────────────────────
 
 export const ProductService = {
@@ -682,4 +920,7 @@ export const ProductService = {
 	// Public
 	listPublic,
 	getBySlugPublic,
+
+	// Search
+	search,
 };

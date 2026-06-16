@@ -1,9 +1,11 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { brands, categories, products } from "@renovabit/db/schema";
-import { and, asc, count, desc, eq, gt, inArray, like, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, like, or, sql } from "drizzle-orm";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
+import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
+import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
 import type { BrandModel, PublicBrandDetail, PublicBrandListItem } from "./model";
 
@@ -14,7 +16,7 @@ const MAX_BULK_DELETE = 50;
 const PUBLIC_PRODUCT_CONDITIONS = [
 	eq(products.isActive, true),
 	eq(products.needsReview, false),
-	gt(products.stock, 0),
+	sql`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0)) > 0`,
 ] as const;
 
 // ═══════════════════════════════════════════════════
@@ -43,9 +45,14 @@ async function getByIdAdmin(id: string) {
 //  PUBLIC QUERIES
 // ═══════════════════════════════════════════════════
 
-async function listPublic(categorySlug?: string): Promise<PublicBrandListItem[]> {
+async function listPublic(
+	categorySlug?: string,
+	searchTerm?: string,
+): Promise<PublicBrandListItem[]> {
 	const productConditions = [...PUBLIC_PRODUCT_CONDITIONS];
 	const useCategoryFilter = !!categorySlug;
+	const useSearchFilter = !!searchTerm;
+	const searchVector = sql.identifier("search_vector");
 
 	if (categorySlug) {
 		const [category] = await db
@@ -67,6 +74,22 @@ async function listPublic(categorySlug?: string): Promise<PublicBrandListItem[]>
 		productConditions.push(inArray(products.categoryId, categoryIds));
 	}
 
+	if (searchTerm) {
+		const prefixQuery = buildPrefixTsQuery(searchTerm);
+		if (prefixQuery) {
+			const tsQuery = sql`to_tsquery('spanish', ${prefixQuery})`;
+			const ftsCondition = or(
+				sql`${searchVector} @@ ${tsQuery}`,
+				ilike(products.sku, `${escapeLikePattern(searchTerm)}%`),
+			);
+			// or() returns SQL<unknown> | undefined; if it's undefined (e.g., no
+			// conditions), skip pushing to avoid type mismatch with the readonly array
+			if (ftsCondition) {
+				productConditions.push(ftsCondition);
+			}
+		}
+	}
+
 	const rows = await db
 		.select({
 			id: brands.id,
@@ -79,8 +102,11 @@ async function listPublic(categorySlug?: string): Promise<PublicBrandListItem[]>
 		.leftJoin(products, and(eq(products.brandId, brands.id), ...productConditions))
 		.where(eq(brands.isActive, true))
 		.groupBy(brands.id)
-		.having(useCategoryFilter ? sql`count(${products.id}) > 0` : undefined)
-		.orderBy(asc(brands.name));
+		.having(useCategoryFilter || useSearchFilter ? sql`count(${products.id}) > 0` : undefined)
+		.orderBy(
+			useSearchFilter ? desc(sql`count(${products.id})`) : asc(brands.name),
+			asc(brands.name),
+		);
 
 	return rows.map((row) => ({
 		id: row.id,

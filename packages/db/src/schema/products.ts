@@ -20,6 +20,8 @@ export type ProductSpecification = {
 	value: string;
 };
 
+// NOTE: search_vector is a generated column added in 0001_product_search.sql
+// It is NOT defined in this Drizzle schema because PostgreSQL manages it.
 export const products = pgTable(
 	"products",
 	{

@@ -42,6 +42,35 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 		},
 	)
 
+	// ── Search (FTS) ──────────────────────────────
+	.get(
+		"/search",
+		async ({ query, set }) => {
+			set.headers["Cache-Control"] = "no-store";
+			return ProductService.search(
+				query.q,
+				query.limit,
+				query.offset,
+				query.brands,
+				query.minPrice,
+				query.maxPrice,
+				query.sortBy,
+			);
+		},
+		{
+			query: ProductModel.searchQuery,
+			response: {
+				200: ProductModel.searchResponse,
+			},
+			detail: {
+				summary: "Buscar productos",
+				description:
+					"Búsqueda full-text en español sobre nombres de productos. También busca por prefijo de SKU. Ordenado por relevancia, disponibilidad y nombre.",
+				tags: ["Products"],
+			},
+		},
+	)
+
 	// ── Detail by slug ────────────────────────────
 	.get(
 		"/:slug",

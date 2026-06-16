@@ -6,7 +6,8 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./schema": "./src/schema/index.ts",
-		"./orders": "./src/orders.ts"
+		"./orders": "./src/orders.ts",
+		"./constants": "./src/constants.ts"
 	},
 	"scripts": {
 		"check": "biome check --write",

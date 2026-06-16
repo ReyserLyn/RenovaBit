@@ -13,7 +13,7 @@ export const brandsRoute = new Elysia({ prefix: "/brands" })
 	.get(
 		"/",
 		async ({ query }) => {
-			return BrandService.listPublic(query.categorySlug);
+			return BrandService.listPublic(query.categorySlug, query.q);
 		},
 		{
 			query: BrandModel.listQuery,

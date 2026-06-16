@@ -121,12 +121,54 @@ const PaginatedProductListResponse = t.Object({
 	limit: t.Integer({ minimum: 1 }),
 });
 
+// ── Search Types ────────────────────────────────────
+
+const SearchBrandRef = t.Object({
+	name: t.String(),
+	slug: t.String(),
+});
+
+const SearchCategoryRef = t.Object({
+	name: t.String(),
+	slug: t.String(),
+});
+
+const SearchPrimaryImage = t.Object({
+	url: t.String(),
+	alt: t.Nullable(t.String()),
+});
+
+const ProductSearchResult = t.Object({
+	id: t.String({ format: "uuid" }),
+	name: t.String(),
+	slug: t.String(),
+	sku: t.String(),
+	price: t.String(),
+	isInStock: t.Boolean(),
+	isFeatured: t.Boolean(),
+	stock: t.Integer({ minimum: 0 }),
+	primaryImage: t.Nullable(SearchPrimaryImage),
+	brand: t.Nullable(SearchBrandRef),
+	category: t.Nullable(SearchCategoryRef),
+	headline: t.Nullable(t.String()),
+});
+
+const SearchResponse = t.Object({
+	data: t.Array(ProductSearchResult),
+	total: t.Integer({ minimum: 0 }),
+	limit: t.Integer({ minimum: 1 }),
+	offset: t.Integer({ minimum: 0 }),
+	hasMore: t.Boolean(),
+});
+
 // ── Tipos derivados de schemas ──
 
 export type PaginatedProductListResponse = typeof PaginatedProductListResponse.static;
 export type PublicProductListItem = typeof PublicProductListItem.static;
 export type PublicProductDetail = typeof PublicProductDetail.static;
 export type BulkDeleteResult = typeof BulkDeleteResult.static;
+export type ProductSearchResult = typeof ProductSearchResult.static;
+export type SearchResponse = typeof SearchResponse.static;
 
 // ── Error ──────────────────────────────────────────
 
@@ -151,11 +193,11 @@ export const ProductModel = {
 	// Query
 	listQuery: t.Object({
 		brandId: t.Optional(t.String({ format: "uuid" })),
-		brands: t.Optional(t.String({ minLength: 1 })),
+		brands: t.Optional(t.String({ minLength: 1, maxLength: 500 })),
 		categoryId: t.Optional(t.String({ format: "uuid" })),
-		categorySlug: t.Optional(t.String({ minLength: 1 })),
+		categorySlug: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
 		isFeatured: t.Optional(t.Boolean()),
-		search: t.Optional(t.String()),
+		search: t.Optional(t.String({ minLength: 1, maxLength: 200 })),
 		sortBy: t.Optional(
 			t.String({
 				minLength: 1,
@@ -174,9 +216,9 @@ export const ProductModel = {
 				pattern: "^\\d+(\\.\\d{1,2})?$",
 			}),
 		),
-		offset: t.Optional(t.Integer({ minimum: 0, default: 0 })),
+		offset: t.Optional(t.Integer({ minimum: 0, maximum: 10000, default: 0 })),
 		limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
-		excludeSlug: t.Optional(t.String({ minLength: 1 })),
+		excludeSlug: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
 	}),
 
 	// Batch
@@ -188,6 +230,33 @@ export const ProductModel = {
 	adminProductResponse: AdminProductResponse,
 	adminProductListResponse: t.Array(AdminProductListResponse),
 	bulkDeleteResponse: BulkDeleteResult,
+
+	// Search
+	searchQuery: t.Object({
+		q: t.String({ minLength: 2, maxLength: 100 }),
+		brands: t.Optional(t.String({ minLength: 1, maxLength: 500 })),
+		minPrice: t.Optional(
+			t.String({
+				minLength: 1,
+				pattern: "^\\d+(\\.\\d{1,2})?$",
+			}),
+		),
+		maxPrice: t.Optional(
+			t.String({
+				minLength: 1,
+				pattern: "^\\d+(\\.\\d{1,2})?$",
+			}),
+		),
+		sortBy: t.Optional(
+			t.String({
+				minLength: 1,
+				pattern: "^(price_asc|price_desc|name_asc|name_desc|newest)$",
+			}),
+		),
+		limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
+		offset: t.Optional(t.Integer({ minimum: 0, default: 0 })),
+	}),
+	searchResponse: SearchResponse,
 
 	// Public Responses
 	publicProductListItem: PublicProductListItem,
