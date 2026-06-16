@@ -88,6 +88,9 @@ export default function ButtonCart() {
 	const hasItems = itemCount > 0;
 	const subtotal = total?.subtotal ?? "0";
 
+	// For guests, hide cart counter until client hydration to avoid flashing "0"
+	const showGuestCounter = isLoggedIn || mounted;
+
 	return (
 		<Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
 			<Button
@@ -97,7 +100,7 @@ export default function ButtonCart() {
 				onClick={() => setDrawerOpen(true)}
 			>
 				<HugeiconsIcon icon={ShoppingCartIcon} size={16} />
-				{hasItems && (
+				{showGuestCounter && hasItems && (
 					<Badge
 						className="-translate-y-1/2 -translate-x-1/2 absolute start-full top-0"
 						radius="full"
@@ -116,7 +119,7 @@ export default function ButtonCart() {
 			>
 				<HugeiconsIcon icon={ShoppingCartIcon} size={16} />
 				{hasItems ? formatPrice(subtotal) : "Carrito"}
-				{hasItems && (
+				{showGuestCounter && hasItems && (
 					<Badge radius="full" size="sm">
 						{displayCount}
 					</Badge>

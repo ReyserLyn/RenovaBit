@@ -1,6 +1,8 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
+import { AUTO_CANCEL_MS } from "@renovabit/db/constants";
 import {
+	ORDER_RESERVATION_STATUSES,
 	ORDER_STATUS_LABELS,
 	ORDER_STATUS_TRANSITIONS,
 	type OrderSource,
@@ -34,8 +36,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 const ORDER_SUFFIX = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 10);
 
-/** Pedidos `pending` más antiguos que esto se cancelan automáticamente. */
-export const AUTO_CANCEL_MS = 2 * 24 * 60 * 60 * 1000; // 2 días
+const MAX_PENDING_ORDERS = 10;
 const AUTO_CANCEL_REASON = "Cancelado automáticamente por falta de confirmación";
 
 function formatDate(date: Date): string {
@@ -261,6 +262,22 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 		}
 	}
 
+	// Cap pending orders per user (abuse prevention)
+	if (userId) {
+		const [countRow] = await db
+			.select({ pending: sql<number>`count(*)::int` })
+			.from(orders)
+			.where(and(eq(orders.userId, userId), eq(orders.status, "pending")));
+		if ((countRow?.pending ?? 0) >= MAX_PENDING_ORDERS) {
+			throw createApiError({
+				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+				message: `Tienes demasiados pedidos pendientes (máximo ${MAX_PENDING_ORDERS}). Espera a que sean procesados.`,
+				logLevel: "info",
+				doNotLog: true,
+			});
+		}
+	}
+
 	const cartItemsList = await db
 		.select({
 			itemId: cartItems.id,
@@ -328,16 +345,8 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 				doNotLog: true,
 			});
 		}
-		const availableStock = await getAvailableStock(item.productId);
-		if (availableStock < item.quantity) {
-			throw createApiError({
-				code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
-				message: `Stock insuficiente para "${product.name}". Disponible: ${availableStock}`,
-				logLevel: "info",
-				doNotLog: true,
-			});
-		}
 	}
+	// NOTE: stock re-validation moved INSIDE transaction below
 
 	const now = new Date();
 	let customerName =
@@ -361,6 +370,53 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 	const normalizedNotes = typeof data.notes === "string" ? data.notes.trim() || null : null;
 
 	const orderResult = await db.transaction(async (tx) => {
+		// ── Stock re-validation inside transaction with FOR UPDATE ──
+		const uniqueProductIds = [...new Set(cartItemsList.map((i) => i.productId))].sort();
+		for (const productId of uniqueProductIds) {
+			const [locked] = await tx
+				.select({ id: products.id, stock: products.stock })
+				.from(products)
+				.where(eq(products.id, productId))
+				.for("update")
+				.limit(1);
+
+			if (!locked) {
+				throw createApiError({
+					code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
+					message: "Uno o más productos ya no existen",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+
+			const [reserved] = await tx
+				.select({ reserved: sql<number>`COALESCE(SUM(${orderItems.quantity})::int, 0)` })
+				.from(orderItems)
+				.innerJoin(orders, eq(orders.id, orderItems.orderId))
+				.where(
+					and(
+						eq(orderItems.productId, productId),
+						inArray(orders.status, ORDER_RESERVATION_STATUSES),
+					),
+				);
+
+			const availableStock = locked.stock - (reserved?.reserved ?? 0);
+			const required = cartItemsList
+				.filter((i) => i.productId === productId)
+				.reduce((sum, i) => sum + i.quantity, 0);
+
+			if (availableStock < required) {
+				const product = productMap.get(productId);
+				const name = product?.name ?? "Producto";
+				throw createApiError({
+					code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
+					message: `Stock insuficiente para "${name}". Disponible: ${availableStock}`,
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+		}
+
 		let order:
 			| {
 					id: string;
@@ -438,7 +494,6 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			});
 		}
 
-		let subtotal = 0;
 		const createdItems: Array<{
 			id: string;
 			productId: string | null;
@@ -450,12 +505,21 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			finalPrice: string;
 		}> = [];
 
+		// Compute subtotal via SQL numeric(12,2) to avoid float drift
+		const [subtotalRow] = await tx
+			.select({
+				subtotal: sql<string>`COALESCE(SUM(${cartItems.addedAtPrice} * ${cartItems.quantity})::text, '0')`,
+			})
+			.from(cartItems)
+			.where(eq(cartItems.cartId, data.cartId));
+
+		const computedSubtotal = parseFloat(subtotalRow?.subtotal ?? "0").toFixed(2);
+
 		for (const item of cartItemsList) {
 			const product = productMap.get(item.productId)!;
 			const qty = item.quantity;
 			const unitPrice = parseFloat(item.addedAtPrice);
 			const finalPrice = unitPrice * qty;
-			subtotal += finalPrice;
 
 			const [insertedItem] = await tx
 				.insert(orderItems)
@@ -489,7 +553,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			});
 		}
 
-		const total = subtotal.toFixed(2);
+		const total = computedSubtotal;
 
 		await tx.update(orders).set({ subtotal: total, total }).where(eq(orders.id, order.id));
 		const deletedCartItems = await tx
@@ -530,29 +594,21 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			.warn("[Order] auto-cancel schedule failed"),
 	);
 
-	return {
-		id: orderResult.order.id,
-		userId: orderResult.order.userId ?? null,
-		orderNumber: orderResult.order.orderNumber,
-		status: orderResult.order.status,
-		source: orderResult.order.source,
-		paymentMethod: orderResult.order.paymentMethod ?? null,
-		paymentProofUrl: null, // TODO: populate when payment proof upload supported
-		customerName: orderResult.order.customerName ?? null,
-		customerPhone: orderResult.order.customerPhone ?? null,
-		customerEmail: null, // will be available after buildOrderResponse
-		subtotal: orderResult.order.subtotal,
-		discountTotal: orderResult.order.discountTotal,
-		total: orderResult.order.total,
-		notes: orderResult.order.notes ?? null,
-		adminNotes: null,
-		items: orderResult.items,
-		attachments: [],
-		createdAt: formatDate(orderResult.order.createdAt),
-		confirmedAt: null,
-		cancelledAt: null,
-		cancelReason: null,
-	};
+	// Re-fetch using SSOT response builder
+	const [finalOrder] = await db
+		.select()
+		.from(orders)
+		.where(eq(orders.id, orderResult.order.id))
+		.limit(1);
+
+	if (!finalOrder) {
+		throw createApiError({
+			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
+			message: "Error al recuperar el pedido creado",
+		});
+	}
+
+	return buildOrderResponse(finalOrder);
 }
 
 // ═══════════════════════════════════════════════════
@@ -596,10 +652,6 @@ async function queryOrderList(
 	sortBy: "createdAt" | "total" | "orderNumber" | "status" | "customerName" = "createdAt",
 	sortOrder: "asc" | "desc" = "desc",
 ): Promise<{ orders: OrderListItem[]; total: number }> {
-	autoCancelExpiredPending().catch((err) =>
-		logger.withError(err).warn(`[Orders] autoCancel en ${context} falló`),
-	);
-
 	const { safeLimit, offset } = sanitizePagination(page, limit);
 
 	const [countRow] = await db
@@ -930,7 +982,7 @@ async function cancelByUser(orderId: string, userId: string): Promise<OrderRespo
 	}
 
 	const now = new Date();
-	await db
+	const [updated] = await db
 		.update(orders)
 		.set({
 			status: "cancelled",
@@ -938,7 +990,19 @@ async function cancelByUser(orderId: string, userId: string): Promise<OrderRespo
 			cancelReason: USER_CANCEL_REASON,
 			updatedAt: now,
 		})
-		.where(and(eq(orders.id, orderId), eq(orders.status, "pending")));
+		.where(and(eq(orders.id, orderId), eq(orders.status, "pending")))
+		.returning({ id: orders.id });
+
+	if (!updated) {
+		// Already cancelled (admin or auto-cancel) between read and write.
+		// Return current state truthfully instead of pretending user cancelled it.
+		const current = await getById(orderId);
+		if (current) return current;
+		throw createApiError({
+			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
+			message: "Error al cancelar el pedido",
+		});
+	}
 
 	removeOrderAutoCancel(orderId).catch((err) =>
 		logger
@@ -947,15 +1011,15 @@ async function cancelByUser(orderId: string, userId: string): Promise<OrderRespo
 			.warn("[Orders] failed to remove auto-cancel job"),
 	);
 
-	const updated = await getById(orderId);
-	if (!updated) {
+	const refreshed = await getById(orderId);
+	if (!refreshed) {
 		throw createApiError({
 			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
 			message: "Error al cancelar el pedido",
 		});
 	}
 
-	return updated;
+	return refreshed;
 }
 
 // ═══════════════════════════════════════════════════
@@ -1064,6 +1128,16 @@ async function updateAttachments(orderId: string, urls: string[]): Promise<Order
 	const uniqueUrls = [...new Set(urls)];
 	const removed = current.filter((url) => !uniqueUrls.includes(url));
 
+	// Step 1: persist the new list first (with pending URLs still in place).
+	// If this fails, no objects have been moved yet — no orphaned storage.
+	await db
+		.update(orders)
+		.set({ attachments: uniqueUrls, updatedAt: new Date() })
+		.where(eq(orders.id, orderId));
+
+	// Step 2: move pending objects to permanent location. Errors here are
+	// non-fatal: the DB already has the pending URLs, which are still valid
+	// references to the temporary objects.
 	const resolved = await Promise.all(
 		uniqueUrls.map(async (url) => {
 			if (!isPendingUrl(url)) return url;
@@ -1087,11 +1161,14 @@ async function updateAttachments(orderId: string, urls: string[]): Promise<Order
 		}),
 	);
 
+	// Step 3: update DB with resolved permanent URLs. The objects are now
+	// safely in their permanent location regardless of this update outcome.
 	await db
 		.update(orders)
 		.set({ attachments: resolved, updatedAt: new Date() })
 		.where(eq(orders.id, orderId));
 
+	// Step 4: clean up removed attachments.
 	await Promise.all(removed.map((url) => deleteEntityAttachment(url)));
 
 	const updated = await getById(orderId);

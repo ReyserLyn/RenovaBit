@@ -1,3 +1,4 @@
+import { AUTO_CANCEL_MS } from "@renovabit/db/constants";
 import { PAYMENT_METHOD_OPTIONS } from "./payment-methods";
 
 /**
@@ -22,18 +23,6 @@ export function getOrderStatusInfo(status: string) {
 		}
 	);
 }
-
-/**
- * Días que un pedido `pending` permanece antes de auto-cancelarse.
- * Debe coincidir con `AUTO_CANCEL_MS` en el backend.
- */
-export const AUTO_CANCEL_DAYS = 2;
-
-/**
- * Milisegundos que un pedido `pending` permanece antes de auto-cancelarse.
- * Debe coincidir con `AUTO_CANCEL_MS` en el backend.
- */
-export const AUTO_CANCEL_MS = AUTO_CANCEL_DAYS * 24 * 60 * 60 * 1000;
 
 /**
  * Mapa de método de pago → label en español.

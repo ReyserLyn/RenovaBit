@@ -1,9 +1,17 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { cartItems, carts, productImages, products } from "@renovabit/db/schema";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { ORDER_RESERVATION_STATUSES } from "@renovabit/db/orders";
+import {
+	cartItems,
+	carts,
+	orderItems,
+	orders,
+	productImages,
+	products,
+} from "@renovabit/db/schema";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { getAvailableStock } from "@/utils/stock";
+import { getReservedStockSubquery } from "@/utils/stock";
 import type { CartItemResponse, CartModel, CartResponse, CartTotalResponse } from "./model";
 
 type AddToCartBody = CartModel["addToCartBody"];
@@ -61,9 +69,14 @@ async function createCart(
 			itemsCount: 0,
 			lastActivityAt: now(),
 		})
+		.onConflictDoNothing()
 		.returning({ id: carts.id, guestToken: carts.guestToken });
 
 	if (!row) {
+		// Concurrent request beat us to it — re-fetch the existing cart
+		const existing = await findCart(userId, token);
+		if (existing) return { id: existing.id, guestToken: existing.guestToken };
+
 		throw createApiError({
 			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
 			message: "Error al crear el carrito",
@@ -99,12 +112,14 @@ async function refreshCartItems(cartId: string): Promise<void> {
 			productPrice: products.price,
 			productIsActive: products.isActive,
 			productNeedsReview: products.needsReview,
+			productStock: products.stock,
+			reserved: sql<number>`(${getReservedStockSubquery(cartItems.productId)})`,
 		})
 		.from(cartItems)
 		.leftJoin(products, eq(cartItems.productId, products.id))
 		.where(eq(cartItems.cartId, cartId));
 
-	for (const item of items) {
+	const updates = items.map((item) => {
 		let status: "available" | "out_of_stock" | "price_changed" | "unavailable";
 		let statusMessage: string | null = null;
 
@@ -115,7 +130,7 @@ async function refreshCartItems(cartId: string): Promise<void> {
 			status = "unavailable";
 			statusMessage = "Producto no disponible";
 		} else {
-			const availableStock = await getAvailableStock(item.productId);
+			const availableStock = (item.productStock ?? 0) - (item.reserved ?? 0);
 			if (availableStock <= 0) {
 				status = "out_of_stock";
 				statusMessage = "Producto agotado";
@@ -127,14 +142,16 @@ async function refreshCartItems(cartId: string): Promise<void> {
 			}
 		}
 
-		await db
+		return db
 			.update(cartItems)
 			.set({
 				status,
 				statusMessage,
 			})
 			.where(eq(cartItems.id, item.itemId));
-	}
+	});
+
+	await Promise.all(updates);
 }
 
 async function getCartWithItems(cartId: string): Promise<CartResponse> {
@@ -188,9 +205,15 @@ async function getCartWithItems(cartId: string): Promise<CartResponse> {
 	}));
 
 	const itemsCount = items.reduce((sum, i) => sum + i.quantity, 0);
-	const subtotal = items
-		.reduce((sum, i) => sum + parseNumeric(i.addedAtPrice) * i.quantity, 0)
-		.toFixed(2);
+
+	const [subtotalRow] = await db
+		.select({
+			subtotal: sql<string>`COALESCE(SUM(${cartItems.addedAtPrice} * ${cartItems.quantity})::text, '0')`,
+		})
+		.from(cartItems)
+		.where(eq(cartItems.cartId, cartId));
+
+	const subtotal = parseNumeric(subtotalRow?.subtotal).toFixed(2);
 
 	const [cart] = await db
 		.select({ lastActivityAt: carts.lastActivityAt, guestToken: carts.guestToken })
@@ -247,82 +270,96 @@ async function requireCart(
 }
 
 async function addItem(cartId: string, data: AddToCartBody): Promise<CartResponse> {
-	const [product] = await db
-		.select({
-			id: products.id,
-			price: products.price,
-			stock: products.stock,
-			isActive: products.isActive,
-			needsReview: products.needsReview,
-		})
-		.from(products)
-		.where(eq(products.id, data.productId))
-		.limit(1);
-
-	if (!product) {
-		throw createApiError({
-			code: BackendErrorCodes.NOT_FOUND_ERROR,
-			message: "Producto no encontrado",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-
-	if (!product.isActive || product.needsReview) {
-		throw createApiError({
-			code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
-			message: "Este producto no está disponible actualmente",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-
-	const availableStock = await getAvailableStock(product.id);
-
-	if (availableStock <= 0) {
-		throw createApiError({
-			code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
-			message: "Este producto está agotado",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-
 	const quantity = data.quantity ?? 1;
 
-	const [existingItem] = await db
-		.select({ id: cartItems.id, quantity: cartItems.quantity })
-		.from(cartItems)
-		.where(and(eq(cartItems.cartId, cartId), eq(cartItems.productId, data.productId)))
-		.limit(1);
+	await db.transaction(async (tx) => {
+		const [product] = await tx
+			.select({
+				id: products.id,
+				price: products.price,
+				stock: products.stock,
+				isActive: products.isActive,
+				needsReview: products.needsReview,
+			})
+			.from(products)
+			.where(eq(products.id, data.productId))
+			.for("update")
+			.limit(1);
 
-	if (existingItem) {
-		const newQty = existingItem.quantity + quantity;
-		if (newQty > availableStock) {
+		if (!product) {
 			throw createApiError({
-				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-				message: `Solo hay ${availableStock} unidades disponibles de este producto`,
+				code: BackendErrorCodes.NOT_FOUND_ERROR,
+				message: "Producto no encontrado",
 				logLevel: "info",
 				doNotLog: true,
 			});
 		}
-		await db.update(cartItems).set({ quantity: newQty }).where(eq(cartItems.id, existingItem.id));
-	} else {
-		if (availableStock < quantity) {
+
+		if (!product.isActive || product.needsReview) {
 			throw createApiError({
-				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-				message: `Solo hay ${availableStock} unidades disponibles de este producto`,
+				code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
+				message: "Este producto no está disponible actualmente",
 				logLevel: "info",
 				doNotLog: true,
 			});
 		}
-		await db.insert(cartItems).values({
-			cartId,
-			productId: data.productId,
-			quantity,
-			addedAtPrice: product.price,
-		});
-	}
+
+		const [reserved] = await tx
+			.select({ reserved: sql<number>`COALESCE(SUM(${orderItems.quantity})::int, 0)` })
+			.from(orderItems)
+			.innerJoin(orders, eq(orders.id, orderItems.orderId))
+			.where(
+				and(
+					eq(orderItems.productId, data.productId),
+					inArray(orders.status, ORDER_RESERVATION_STATUSES),
+				),
+			);
+
+		const availableStock = product.stock - (reserved?.reserved ?? 0);
+
+		if (availableStock <= 0) {
+			throw createApiError({
+				code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
+				message: "Este producto está agotado",
+				logLevel: "info",
+				doNotLog: true,
+			});
+		}
+
+		const [existingItem] = await tx
+			.select({ id: cartItems.id, quantity: cartItems.quantity })
+			.from(cartItems)
+			.where(and(eq(cartItems.cartId, cartId), eq(cartItems.productId, data.productId)))
+			.limit(1);
+
+		if (existingItem) {
+			const newQty = existingItem.quantity + quantity;
+			if (newQty > availableStock) {
+				throw createApiError({
+					code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+					message: `Solo hay ${availableStock} unidades disponibles de este producto`,
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+			await tx.update(cartItems).set({ quantity: newQty }).where(eq(cartItems.id, existingItem.id));
+		} else {
+			if (availableStock < quantity) {
+				throw createApiError({
+					code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+					message: `Solo hay ${availableStock} unidades disponibles de este producto`,
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+			await tx.insert(cartItems).values({
+				cartId,
+				productId: data.productId,
+				quantity,
+				addedAtPrice: product.price,
+			});
+		}
+	});
 
 	await syncCartSummary(cartId);
 
@@ -368,36 +405,50 @@ async function updateQuantity(
 		});
 	}
 
-	const [product] = await db
-		.select({ stock: products.stock })
-		.from(products)
-		.where(eq(products.id, item.productId))
-		.limit(1);
+	await db.transaction(async (tx) => {
+		const [product] = await tx
+			.select({ stock: products.stock })
+			.from(products)
+			.where(eq(products.id, item.productId))
+			.for("update")
+			.limit(1);
 
-	if (!product) {
-		throw createApiError({
-			code: BackendErrorCodes.NOT_FOUND_ERROR,
-			message: "Producto no encontrado",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
+		if (!product) {
+			throw createApiError({
+				code: BackendErrorCodes.NOT_FOUND_ERROR,
+				message: "Producto no encontrado",
+				logLevel: "info",
+				doNotLog: true,
+			});
+		}
 
-	const availableStock = await getAvailableStock(item.productId);
+		const [reserved] = await tx
+			.select({ reserved: sql<number>`COALESCE(SUM(${orderItems.quantity})::int, 0)` })
+			.from(orderItems)
+			.innerJoin(orders, eq(orders.id, orderItems.orderId))
+			.where(
+				and(
+					eq(orderItems.productId, item.productId),
+					inArray(orders.status, ORDER_RESERVATION_STATUSES),
+				),
+			);
 
-	if (data.quantity > availableStock) {
-		throw createApiError({
-			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-			message: `Solo hay ${availableStock} unidades disponibles de este producto`,
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
+		const availableStock = product.stock - (reserved?.reserved ?? 0);
 
-	await db
-		.update(cartItems)
-		.set({ quantity: data.quantity })
-		.where(and(eq(cartItems.id, itemId), eq(cartItems.cartId, cartId)));
+		if (data.quantity > availableStock) {
+			throw createApiError({
+				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+				message: `Solo hay ${availableStock} unidades disponibles de este producto`,
+				logLevel: "info",
+				doNotLog: true,
+			});
+		}
+
+		await tx
+			.update(cartItems)
+			.set({ quantity: data.quantity })
+			.where(and(eq(cartItems.id, itemId), eq(cartItems.cartId, cartId)));
+	});
 
 	await syncCartSummary(cartId);
 
@@ -453,21 +504,42 @@ async function mergeGuestCart(userId: string, guestToken: string): Promise<CartR
 		: [];
 	const existingQtyByProduct = new Map(existingItems.map((i) => [i.productId, i.quantity]));
 
-	for (const item of guestItems) {
-		const existingQty = existingQtyByProduct.get(item.productId) ?? 0;
-		const availableStock = await getAvailableStock(item.productId);
-		const finalQty = existingQty + item.quantity;
-		if (finalQty > availableStock) {
-			throw createApiError({
-				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-				message: `Solo hay ${availableStock} unidades disponibles de este producto`,
-				logLevel: "info",
-				doNotLog: true,
-			});
-		}
-	}
-
 	const targetCartId = await db.transaction(async (tx) => {
+		// ── Stock validation inside transaction with row locks ──
+		for (const item of guestItems) {
+			const [locked] = await tx
+				.select({ id: products.id, stock: products.stock })
+				.from(products)
+				.where(eq(products.id, item.productId))
+				.for("update")
+				.limit(1);
+
+			if (!locked) continue; // product deleted — skip (cascade handle)
+
+			const [reserved] = await tx
+				.select({ reserved: sql<number>`COALESCE(SUM(${orderItems.quantity})::int, 0)` })
+				.from(orderItems)
+				.innerJoin(orders, eq(orders.id, orderItems.orderId))
+				.where(
+					and(
+						eq(orderItems.productId, item.productId),
+						inArray(orders.status, ORDER_RESERVATION_STATUSES),
+					),
+				);
+
+			const availableStock = locked.stock - (reserved?.reserved ?? 0);
+			const existingQty = existingQtyByProduct.get(item.productId) ?? 0;
+			const finalQty = existingQty + item.quantity;
+
+			if (finalQty > availableStock) {
+				throw createApiError({
+					code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+					message: `Solo hay ${availableStock} unidades disponibles de este producto`,
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+		}
 		if (userCart) {
 			for (const item of guestItems) {
 				const [existing] = await tx

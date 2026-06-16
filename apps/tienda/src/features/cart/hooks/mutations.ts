@@ -118,6 +118,19 @@ export function useClearCart() {
 				query: { guestToken: getGuestToken() ?? undefined },
 			}),
 		onSuccess: () => {
+			const scopeKey = toCartScopeKey(useCartGuestStore.getState().guestToken);
+			queryClient.setQueryData([...cartKeys.detail(), scopeKey], {
+				id: "",
+				guestToken: null,
+				items: [],
+				itemsCount: 0,
+				subtotal: "0",
+				lastActivityAt: "",
+			});
+			queryClient.setQueryData([...cartKeys.total(), scopeKey], {
+				itemsCount: 0,
+				subtotal: "0.00",
+			});
 			invalidateCartQueries(queryClient);
 			toast.success("Carrito vaciado");
 		},

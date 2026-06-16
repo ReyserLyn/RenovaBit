@@ -9,6 +9,7 @@ import {
 	UserIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { AUTO_CANCEL_DAYS, AUTO_CANCEL_MS } from "@renovabit/db/constants";
 import {
 	Alert,
 	AlertContent,
@@ -57,8 +58,6 @@ import { useCancelOrder } from "@/features/orders/hooks/mutations";
 import { orderQueries } from "@/features/orders/hooks/queries";
 import { getOrderDetailServerFn } from "@/features/orders/hooks/server";
 import {
-	AUTO_CANCEL_DAYS,
-	AUTO_CANCEL_MS,
 	getOrderStatusInfo,
 	getPaymentMethodLabel,
 	getSourceLabel,
