@@ -215,7 +215,13 @@ export default function SearchAutocomplete({
 						</div>
 					)}
 
-					<AutocompleteList>
+					<AutocompleteList
+						aria-label={
+							results.length > 0
+								? `${results.length} ${results.length === 1 ? "resultado" : "resultados"}`
+								: undefined
+						}
+					>
 						{!isLoading &&
 							results.map((product) => (
 								<AutocompleteItem key={product.id} value={product.slug}>
@@ -253,10 +259,14 @@ export default function SearchAutocomplete({
 								</AutocompleteItem>
 							))}
 
-						{hasError && <AutocompleteEmpty>Error al buscar. Intenta de nuevo.</AutocompleteEmpty>}
+						{hasError && (
+							<AutocompleteEmpty role="status">
+								Error al buscar. Intenta de nuevo.
+							</AutocompleteEmpty>
+						)}
 
 						{hasNoResults && (
-							<AutocompleteEmpty>
+							<AutocompleteEmpty role="status">
 								Sin resultados para &ldquo;{trimmedInput}&rdquo;
 							</AutocompleteEmpty>
 						)}

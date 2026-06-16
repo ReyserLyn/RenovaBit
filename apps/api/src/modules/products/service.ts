@@ -20,6 +20,7 @@ import {
 	sql,
 } from "drizzle-orm";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
+import { logger } from "@/utils/logger";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
 import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
@@ -749,6 +750,23 @@ async function search(
 		// All tokens stripped by sanitization — no FTS to run, fall through to SKU only
 		return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
 	}
+
+	const start = performance.now();
+	// Sanitize the user query for logging: strip control/format chars, redact PII, cap length.
+	// This is independent of the SQL-level sanitization (buildPrefixTsQuery / escapeLikePattern).
+	const controlCharsRegex =
+		// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional — strips control chars from user input
+		/[\u0000-\u001F\u007F\u0085\u200B-\u200D\u2028\u2029\u202E\u2066-\u2069\uFEFF]/g;
+	const safeQuery = searchTerm
+		.replace(controlCharsRegex, " ")
+		.replace(/\s+/g, " ")
+		.trim()
+		// Redact common PII shapes before they hit the log
+		.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]")
+		.replace(/\+?\d[\d\s-]{7,}/g, "[phone]")
+		// Bound log payload size; schema already caps q at 100 chars, this is defense in depth
+		.slice(0, 256);
+
 	const tsQuery = sql`to_tsquery('spanish', ${prefixQuery})`;
 
 	// search_vector is a GENERATED column from 0001_product_search.sql — not in Drizzle schema
@@ -806,6 +824,14 @@ async function search(
 			.where(where);
 		total = Number(countRow?.total ?? 0);
 	} catch (error) {
+		logger
+			.withMetadata({
+				event: "search.tsquery.malformed",
+				query: safeQuery,
+				stage: "count",
+				durationMs: Math.round(performance.now() - start),
+			})
+			.warn("search received malformed tsquery input");
 		if (isTsqueryError(error)) {
 			return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
 		}
@@ -870,6 +896,14 @@ async function search(
 			.offset(pageOffset)
 			.limit(pageLimit);
 	} catch (error) {
+		logger
+			.withMetadata({
+				event: "search.tsquery.malformed",
+				query: safeQuery,
+				stage: "data",
+				durationMs: Math.round(performance.now() - start),
+			})
+			.warn("search received malformed tsquery input");
 		if (isTsqueryError(error)) {
 			return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
 		}
@@ -894,6 +928,22 @@ async function search(
 			headline: row.headline,
 		}),
 	);
+
+	const durationMs = Math.round(performance.now() - start);
+
+	// Slow query → warn (actionable: investigate query plan, index, or pagination)
+	if (durationMs > 200) {
+		logger
+			.withMetadata({ event: "search.slow", query: safeQuery, resultCount: total, durationMs })
+			.warn("search exceeded 200ms threshold");
+	}
+	// Zero-result → debug (catalog gap signal; high volume, low urgency).
+	// Enable via LOG_LEVEL=debug to investigate.
+	if (total === 0) {
+		logger
+			.withMetadata({ event: "search.empty", query: safeQuery, durationMs })
+			.debug("search returned zero results");
+	}
 
 	return {
 		data,

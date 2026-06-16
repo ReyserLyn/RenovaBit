@@ -235,12 +235,27 @@ function SearchResults({ q, search }: { q: string; search: BuscarSearch }) {
 		})),
 	};
 
+	const resultsLabel =
+		products.length > 0
+			? `${totalProducts} ${totalProducts === 1 ? "producto" : "productos"} encontrados`
+			: `No hay resultados para ${q}`;
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 py-6">
 			<div className="space-y-2">
 				<h1 className="text-3xl font-bold tracking-tight">Resultados para: {q}</h1>
-				<p className="text-muted-foreground text-sm">
-					{totalProducts} {totalProducts === 1 ? "producto" : "productos"} encontrados
+				{/*
+				 * aria-live is scoped to the count paragraph only. Wrapping the entire results
+				 * section (filter sidebar + product grid + infinite-scroll sentinel) would cause
+				 * the whole panel to re-announce on every filter change or page fetch.
+				 */}
+				<p
+					role="status"
+					aria-live="polite"
+					aria-atomic="true"
+					className="text-muted-foreground text-sm"
+				>
+					{resultsLabel}
 				</p>
 			</div>
 
