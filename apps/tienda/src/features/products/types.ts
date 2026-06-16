@@ -30,4 +30,8 @@ export interface ProductListItem {
 	primaryImage: ProductPrimaryImage | null;
 	brand: ProductBrandRef | null;
 	category: ProductCategoryRef | null;
+	/** Texto destacado con marcadores &lt;b&gt; de ts_headline (solo búsqueda FTS) */
+	headline?: string | null;
+	/** Disponibilidad considerando reservas (solo búsqueda FTS) */
+	isInStock?: boolean;
 }

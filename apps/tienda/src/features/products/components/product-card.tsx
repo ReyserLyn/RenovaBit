@@ -5,6 +5,7 @@ import { Button } from "@renovabit/ui/components/ui/button";
 import { cn } from "@renovabit/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { useAddToCart } from "@/features/cart/hooks/mutations";
+import { HighlightedText } from "@/features/search/components/highlighted-text";
 import { FavoriteButton } from "@/shared/components/favorites/favorite-button";
 import { formatPrice } from "@/shared/lib/format";
 import type { ProductListItem } from "../types";
@@ -15,6 +16,8 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
 	const addToCart = useAddToCart();
+	// isInStock from search results overrides stock-based calculation
+	const isAvailable = product.isInStock !== undefined ? product.isInStock : product.stock > 0;
 
 	return (
 		<div className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs transition-all duration-200 hover:shadow-md">
@@ -46,6 +49,14 @@ export function ProductCard({ product }: ProductCardProps) {
 						Oferta
 					</Badge>
 				)}
+
+				{/* Badge agotado */}
+				{(product.isInStock === false ||
+					(product.isInStock === undefined && product.stock <= 0)) && (
+					<Badge variant="destructive" size="sm" radius="full" className="absolute right-2 top-2">
+						Agotado
+					</Badge>
+				)}
 			</Link>
 
 			{/* ── Botón favorito ─────────────────── */}
@@ -63,10 +74,10 @@ export function ProductCard({ product }: ProductCardProps) {
 					<p
 						className={cn(
 							"shrink-0 text-[0.7rem]",
-							product.stock > 0 ? "text-muted-foreground" : "text-destructive font-medium",
+							isAvailable ? "text-muted-foreground" : "text-destructive font-medium",
 						)}
 					>
-						{product.stock > 0 ? `Stock: ${product.stock}` : "Agotado"}
+						{isAvailable ? `Stock: ${product.stock}` : "Agotado"}
 					</p>
 				</div>
 
@@ -77,7 +88,7 @@ export function ProductCard({ product }: ProductCardProps) {
 						params={{ slug: product.slug }}
 						className="hover:text-primary transition-colors"
 					>
-						{product.name}
+						{product.headline ? <HighlightedText text={product.headline} /> : product.name}
 					</Link>
 				</h3>
 
@@ -102,7 +113,7 @@ export function ProductCard({ product }: ProductCardProps) {
 					<Button
 						variant="outline"
 						size="xl"
-						disabled={addToCart.isPending || product.stock <= 0}
+						disabled={addToCart.isPending || !isAvailable}
 						onClick={() => addToCart.mutate({ productId: product.id })}
 					>
 						<HugeiconsIcon icon={ShoppingCartIcon} size={16} />

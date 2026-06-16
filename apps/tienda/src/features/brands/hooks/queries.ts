@@ -31,6 +31,18 @@ export const brandQueries = {
 			staleTime: 1000 * 60 * 10,
 		}),
 
+	bySearchTerm: ({ q, categorySlug }: { q: string; categorySlug?: string }) =>
+		queryOptions({
+			queryKey: [...brandKeys.lists(), "search", q, categorySlug ?? ""] as const,
+			queryFn: () =>
+				unwrapResponse(
+					api.api.v1.brands.get({
+						query: { q, ...(categorySlug ? { categorySlug } : {}) },
+					}),
+				),
+			staleTime: 1000 * 60 * 5,
+		}),
+
 	bySlug: (slug: string) =>
 		queryOptions({
 			queryKey: brandKeys.detail(slug),

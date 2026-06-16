@@ -57,6 +57,9 @@ export function FilterSidebar({ brands = [], className }: FilterSidebarProps) {
 		setLocalMaxPrice(filters.precio_max);
 	}, [filters.precio_min, filters.precio_max]);
 
+	const hasPriceError =
+		localMinPrice !== "" && localMaxPrice !== "" && Number(localMinPrice) > Number(localMaxPrice);
+
 	const debouncedMin = useDebouncedValue(localMinPrice, 400);
 	const debouncedMax = useDebouncedValue(localMaxPrice, 400);
 
@@ -181,7 +184,7 @@ export function FilterSidebar({ brands = [], className }: FilterSidebarProps) {
 						type="text"
 						inputMode="decimal"
 						placeholder="S/ 0"
-						className="h-8 text-xs"
+						className={cn("h-8 text-xs", hasPriceError && "border-destructive")}
 						value={localMinPrice}
 						onChange={(e) => handleMinPriceChange(e.target.value)}
 					/>
@@ -190,11 +193,16 @@ export function FilterSidebar({ brands = [], className }: FilterSidebarProps) {
 						type="text"
 						inputMode="decimal"
 						placeholder="S/ 9999"
-						className="h-8 text-xs"
+						className={cn("h-8 text-xs", hasPriceError && "border-destructive")}
 						value={localMaxPrice}
 						onChange={(e) => handleMaxPriceChange(e.target.value)}
 					/>
 				</div>
+				{hasPriceError && (
+					<p className="text-destructive text-xs">
+						El precio m\u00ednimo no puede ser mayor al m\u00e1ximo
+					</p>
+				)}
 			</div>
 
 			{brands.length > 0 && (
