@@ -2,19 +2,19 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiClientError, api, unwrapResponse } from "@/shared/lib/api";
 import { resolveErrorMessage } from "@/shared/lib/api/error-utils";
-import { useCartGuestStore } from "@/shared/lib/stores/cart";
+import { useGuestTokenStore } from "@/shared/lib/stores/guest-token";
 import type { CartResponse } from "./queries";
 import { cartKeys } from "./queries";
 
 // ── Helpers ──────────────────────────────────────────────────
 
 function getGuestToken(): string | null {
-	return useCartGuestStore.getState().guestToken;
+	return useGuestTokenStore.getState().guestToken;
 }
 
 function syncGuestToken(guestToken: string | null | undefined) {
 	if (guestToken) {
-		useCartGuestStore.getState().setGuestToken(guestToken);
+		useGuestTokenStore.getState().setGuestToken(guestToken);
 	}
 }
 
@@ -118,7 +118,7 @@ export function useClearCart() {
 				query: { guestToken: getGuestToken() ?? undefined },
 			}),
 		onSuccess: () => {
-			const scopeKey = toCartScopeKey(useCartGuestStore.getState().guestToken);
+			const scopeKey = toCartScopeKey(useGuestTokenStore.getState().guestToken);
 			queryClient.setQueryData([...cartKeys.detail(), scopeKey], {
 				id: "",
 				guestToken: null,
@@ -149,12 +149,12 @@ export function useMergeCart() {
 		mutationFn: (guestToken: string) => unwrapResponse(api.api.v1.cart.merge.post({ guestToken })),
 		onSuccess: (data) => {
 			updateCartCache(queryClient, data);
-			useCartGuestStore.getState().clearGuestToken();
+			useGuestTokenStore.getState().clearGuestToken();
 			invalidateCartQueries(queryClient);
 		},
 		onError: (error) => {
 			if (error instanceof ApiClientError && error.code === "NOT_FOUND_ERROR") {
-				useCartGuestStore.getState().clearGuestToken();
+				useGuestTokenStore.getState().clearGuestToken();
 				invalidateCartQueries(queryClient);
 				return;
 			}

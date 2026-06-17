@@ -1,5 +1,7 @@
+import { SQL, sql } from "drizzle-orm";
 import {
 	boolean,
+	customType,
 	index,
 	integer,
 	jsonb,
@@ -20,8 +22,12 @@ export type ProductSpecification = {
 	value: string;
 };
 
-// NOTE: search_vector is a generated column added in 0001_product_search.sql
-// It is NOT defined in this Drizzle schema because PostgreSQL manages it.
+const tsvector = customType<{ data: string }>({
+	dataType() {
+		return "tsvector";
+	},
+});
+
 export const products = pgTable(
 	"products",
 	{
@@ -54,6 +60,10 @@ export const products = pgTable(
 
 		...seoFields,
 		...lifecycleDates,
+
+		searchVector: tsvector("search_vector").generatedAlwaysAs(
+			(): SQL => sql`to_tsvector('spanish', ${products.name})`,
+		),
 	},
 	(table) => [
 		index("products_slug_idx").on(table.slug),
@@ -62,6 +72,7 @@ export const products = pgTable(
 		index("products_category_id_idx").on(table.categoryId),
 		index("products_is_active_idx").on(table.isActive),
 		index("products_featured_idx").on(table.isFeatured),
+		index("products_search_vector_idx").using("gin", table.searchVector),
 	],
 );
 

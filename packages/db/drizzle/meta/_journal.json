@@ -5,15 +5,8 @@
 		{
 			"idx": 0,
 			"version": "7",
-			"when": 1781331474401,
-			"tag": "0000_ambiguous_wind_dancer",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "7",
-			"when": 1781539238000,
-			"tag": "0001_product_search",
+			"when": 1781655871222,
+			"tag": "0000_milky_boomerang",
 			"breakpoints": true
 		}
 	]

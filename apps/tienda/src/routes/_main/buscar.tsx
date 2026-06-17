@@ -70,9 +70,9 @@ export const Route = createFileRoute("/_main/buscar")({
 			return {
 				meta: [
 					...seo({
-						title: "Buscar productos \u00b7 Renovabit",
+						title: "Buscar productos · Renovabit",
 						description:
-							"Encuentra componentes de PC en Renovabit. Explora nuestro cat\u00e1logo de productos con env\u00edos a todo Per\u00fa.",
+							"Encuentra componentes de PC en Renovabit. Explora nuestro catálogo de productos con envíos a todo Perú.",
 					}),
 					{ name: "robots", content: "noindex, follow" },
 					{ property: "og:locale", content: "es_PE" },
@@ -82,7 +82,7 @@ export const Route = createFileRoute("/_main/buscar")({
 		}
 
 		const title = `Resultados para '${q}' | Renovabit`;
-		const description = `Busca "${q}" en Renovabit. Encuentra componentes de PC al mejor precio con env\u00edos a todo Per\u00fa.`;
+		const description = `Busca "${q}" en Renovabit. Encuentra componentes de PC al mejor precio con envíos a todo Perú.`;
 		const robots = "noindex, follow";
 
 		return {
@@ -104,15 +104,13 @@ export const Route = createFileRoute("/_main/buscar")({
 	component: BuscarPage,
 
 	errorComponent: ({ error, reset }) => {
-		const errorMessage = isApiClientError(error)
-			? error.message
-			: "Ocurri\u00f3 un error inesperado";
+		const errorMessage = isApiClientError(error) ? error.message : "Ocurrió un error inesperado";
 		if (!isApiClientError(error)) {
 			console.error("[buscar] Unexpected error:", error);
 		}
 		return (
 			<div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
-				<h1 className="text-2xl font-bold tracking-tight">Error en la b\u00fasqueda</h1>
+				<h1 className="text-2xl font-bold tracking-tight">Error en la búsqueda</h1>
 				<p className="text-muted-foreground mt-2">{errorMessage}</p>
 				<button
 					type="button"
@@ -135,7 +133,7 @@ function BuscarPage() {
 	if (loaderError) {
 		return (
 			<div className="flex flex-1 flex-col items-center justify-center p-4">
-				<h1 className="text-2xl font-bold tracking-tight">Error en la b\u00fasqueda</h1>
+				<h1 className="text-2xl font-bold tracking-tight">Error en la búsqueda</h1>
 				<p className="text-muted-foreground mt-2">{loaderError}</p>
 			</div>
 		);
@@ -156,7 +154,7 @@ function BuscarPage() {
 		return (
 			<div className="flex flex-1 flex-col items-center justify-center p-4">
 				<h1 className="text-2xl font-bold tracking-tight">Buscar productos</h1>
-				<p className="text-muted-foreground mt-2">Ingresa un t\u00e9rmino de b\u00fasqueda</p>
+				<p className="text-muted-foreground mt-2">Ingresa un término de búsqueda</p>
 			</div>
 		);
 	}

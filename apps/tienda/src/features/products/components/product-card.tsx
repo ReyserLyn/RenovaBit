@@ -53,14 +53,29 @@ export function ProductCard({ product }: ProductCardProps) {
 				{/* Badge agotado */}
 				{(product.isInStock === false ||
 					(product.isInStock === undefined && product.stock <= 0)) && (
-					<Badge variant="destructive" size="sm" radius="full" className="absolute right-2 top-2">
+					<Badge variant="destructive" size="sm" radius="full" className="absolute left-2 top-10">
 						Agotado
 					</Badge>
 				)}
 			</Link>
 
 			{/* ── Botón favorito ─────────────────── */}
-			<FavoriteButton slug={product.slug} className="absolute right-2 top-2 z-10 size-8" />
+			<FavoriteButton
+				productId={product.id}
+				snapshot={{
+					productId: product.id,
+					productName: product.name,
+					productSlug: product.slug,
+					productSku: product.sku,
+					price: product.price,
+					stock: product.stock,
+					isInStock: product.isInStock ?? product.stock > 0,
+					primaryImage: product.primaryImage,
+					brand: product.brand,
+					category: product.category,
+				}}
+				className="absolute right-2 top-2 z-10 size-8"
+			/>
 
 			{/* ── Info ───────────────────────────── */}
 			<div className="flex flex-1 flex-col gap-1.5 p-4">

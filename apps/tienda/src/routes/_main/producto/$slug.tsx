@@ -137,7 +137,29 @@ function ProductPage() {
 
 						{/* Favorito */}
 						<FavoriteButton
-							slug={product.slug}
+							productId={product.id}
+							snapshot={{
+								productId: product.id,
+								productName: product.name,
+								productSlug: product.slug,
+								productSku: product.sku,
+								price: String(product.price),
+								stock: product.stock,
+								isInStock: product.stock > 0,
+								primaryImage: product.images[0]
+									? { url: product.images[0].url, alt: product.images[0].alt ?? null }
+									: null,
+								brand: product.brand
+									? { id: product.brand.slug, name: product.brand.name, slug: product.brand.slug }
+									: null,
+								category: product.category
+									? {
+											id: product.category.slug,
+											name: product.category.name,
+											slug: product.category.slug,
+										}
+									: null,
+							}}
 							className="absolute right-3 top-3 z-10 size-9"
 							size={20}
 						/>

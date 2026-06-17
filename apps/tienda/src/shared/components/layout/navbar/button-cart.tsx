@@ -10,8 +10,8 @@ import { useMergeCart } from "@/features/cart/hooks/mutations";
 import { type CartResponse, cartKeys, cartQueries } from "@/features/cart/hooks/queries";
 import { authSessionQueryOptions } from "@/shared/lib/auth/auth-session";
 import { formatPrice } from "@/shared/lib/format";
-import { useCartGuestStore } from "@/shared/lib/stores/cart";
 import { useCartSsr } from "@/shared/lib/stores/cart-ssr-context";
+import { useGuestTokenStore } from "@/shared/lib/stores/guest-token";
 
 const EMPTY_CART: CartResponse = {
 	id: "",
@@ -23,8 +23,8 @@ const EMPTY_CART: CartResponse = {
 };
 
 export default function ButtonCart() {
-	const guestToken = useCartGuestStore((s) => s.guestToken);
-	const setGuestToken = useCartGuestStore((s) => s.setGuestToken);
+	const guestToken = useGuestTokenStore((s) => s.guestToken);
+	const setGuestToken = useGuestTokenStore((s) => s.setGuestToken);
 	const ssr = useCartSsr();
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [mounted, setMounted] = useState(false);

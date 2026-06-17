@@ -23,7 +23,7 @@ import { useCreateOrder } from "@/features/orders/hooks/mutations";
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from "@/features/orders/lib/payment-methods";
 import { authSessionQueryOptions } from "@/shared/lib/auth/auth-session";
 import { formatPrice } from "@/shared/lib/format";
-import { useCartGuestStore } from "@/shared/lib/stores/cart";
+import { useGuestTokenStore } from "@/shared/lib/stores/guest-token";
 
 export const Route = createFileRoute("/_main/carrito")({
 	loader: async ({ context: { queryClient } }) => {
@@ -39,8 +39,8 @@ export const Route = createFileRoute("/_main/carrito")({
 
 function CartPage() {
 	const { preloadedSession, preloadedCart } = Route.useLoaderData();
-	const guestToken = useCartGuestStore((s) => s.guestToken);
-	const setGuestToken = useCartGuestStore((s) => s.setGuestToken);
+	const guestToken = useGuestTokenStore((s) => s.guestToken);
+	const setGuestToken = useGuestTokenStore((s) => s.setGuestToken);
 	const [mounted, setMounted] = useState(false);
 	const { data: session } = useQuery({
 		...authSessionQueryOptions(),

@@ -5,6 +5,7 @@ import { AuthModule } from "./auth";
 import { brandsRoute } from "./brands";
 import { cartRoute } from "./cart";
 import { categoriesRoute } from "./categories";
+import { favoritesRoute } from "./favorites";
 import { homeRoute } from "./home";
 import { ordersRoute } from "./orders";
 import { productsRoute } from "./products";
@@ -15,6 +16,7 @@ const ApiV1Modules = new Elysia({ prefix: "/api/v1" })
 	.use(categoriesRoute)
 	.use(brandsRoute)
 	.use(cartRoute)
+	.use(favoritesRoute)
 	.use(ordersRoute)
 	.use(adminRouter)
 	.use(WebSocketPlugin);

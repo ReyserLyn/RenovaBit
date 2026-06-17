@@ -2,6 +2,7 @@ export * from "./auth";
 export * from "./brands";
 export * from "./cart";
 export * from "./categories";
+export * from "./favorites";
 export * from "./orders";
 export * from "./products";
 export * from "./providers";
