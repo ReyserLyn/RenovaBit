@@ -83,7 +83,10 @@ export function getHistoryColumns(): ColumnDef<ProductChange>[] {
 	return [
 		{
 			accessorKey: "changeType",
-			meta: { headerTitle: "Tipo", skeleton: <Skeleton className="h-5 w-20 rounded-full" /> },
+			meta: {
+				headerTitle: "Tipo",
+				skeleton: <Skeleton className="h-5 w-20 rounded-full" />,
+			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Tipo" />,
 			cell: ({ row }) => {
 				const info = CHANGE_LABELS[row.original.changeType] ?? {
@@ -100,7 +103,10 @@ export function getHistoryColumns(): ColumnDef<ProductChange>[] {
 		},
 		{
 			id: "details",
-			meta: { headerTitle: "Detalle", skeleton: <Skeleton className="h-4 w-48" /> },
+			meta: {
+				headerTitle: "Detalle",
+				skeleton: <Skeleton className="h-4 w-48" />,
+			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Detalle" />,
 			cell: ({ row }) => {
 				const c = row.original;
@@ -121,7 +127,10 @@ export function getHistoryColumns(): ColumnDef<ProductChange>[] {
 		},
 		{
 			id: "change",
-			meta: { headerTitle: "Cambio", skeleton: <Skeleton className="h-4 w-32" /> },
+			meta: {
+				headerTitle: "Cambio",
+				skeleton: <Skeleton className="h-4 w-32" />,
+			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Cambio" />,
 			cell: ({ row }) => {
 				const c = row.original;
@@ -147,14 +156,20 @@ export function getHistoryColumns(): ColumnDef<ProductChange>[] {
 		},
 		{
 			id: "report",
-			meta: { headerTitle: "Reporte", skeleton: <Skeleton className="h-4 w-28" /> },
+			meta: {
+				headerTitle: "Reporte",
+				skeleton: <Skeleton className="h-4 w-28" />,
+			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Reporte" />,
 			cell: ({ row }) => <ReportIdCell id={row.original.syncReportId} />,
 			size: 260,
 		},
 		{
 			accessorKey: "createdAt",
-			meta: { headerTitle: "Fecha", skeleton: <Skeleton className="h-4 w-32" /> },
+			meta: {
+				headerTitle: "Fecha",
+				skeleton: <Skeleton className="h-4 w-32" />,
+			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Fecha" />,
 			cell: ({ row }) => (
 				<span className="text-muted-foreground text-sm whitespace-nowrap tabular-nums">
@@ -171,7 +186,10 @@ export function getRecentChangesColumns(): ColumnDef<RecentChange>[] {
 	return [
 		{
 			id: "product",
-			meta: { headerTitle: "Producto", skeleton: <Skeleton className="h-4 w-40" /> },
+			meta: {
+				headerTitle: "Producto",
+				skeleton: <Skeleton className="h-4 w-40" />,
+			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Producto" />,
 			cell: ({ row }) => (
 				<div className="flex flex-col min-w-0">
@@ -183,7 +201,10 @@ export function getRecentChangesColumns(): ColumnDef<RecentChange>[] {
 		},
 		{
 			accessorKey: "changeType",
-			meta: { headerTitle: "Tipo", skeleton: <Skeleton className="h-5 w-20 rounded-full" /> },
+			meta: {
+				headerTitle: "Tipo",
+				skeleton: <Skeleton className="h-5 w-20 rounded-full" />,
+			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Tipo" />,
 			cell: ({ row }) => {
 				const info = CHANGE_LABELS[row.original.changeType] ?? {
@@ -200,7 +221,10 @@ export function getRecentChangesColumns(): ColumnDef<RecentChange>[] {
 		},
 		{
 			id: "change",
-			meta: { headerTitle: "Cambio", skeleton: <Skeleton className="h-4 w-32" /> },
+			meta: {
+				headerTitle: "Cambio",
+				skeleton: <Skeleton className="h-4 w-32" />,
+			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Cambio" />,
 			cell: ({ row }) => {
 				const c = row.original;
@@ -226,14 +250,20 @@ export function getRecentChangesColumns(): ColumnDef<RecentChange>[] {
 		},
 		{
 			id: "report",
-			meta: { headerTitle: "Reporte", skeleton: <Skeleton className="h-4 w-28" /> },
+			meta: {
+				headerTitle: "Reporte",
+				skeleton: <Skeleton className="h-4 w-28" />,
+			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Reporte" />,
 			cell: ({ row }) => <ReportIdCell id={row.original.syncReportId} />,
 			size: 260,
 		},
 		{
 			accessorKey: "createdAt",
-			meta: { headerTitle: "Fecha", skeleton: <Skeleton className="h-4 w-32" /> },
+			meta: {
+				headerTitle: "Fecha",
+				skeleton: <Skeleton className="h-4 w-32" />,
+			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Fecha" />,
 			cell: ({ row }) => (
 				<span className="text-muted-foreground text-sm whitespace-nowrap tabular-nums">

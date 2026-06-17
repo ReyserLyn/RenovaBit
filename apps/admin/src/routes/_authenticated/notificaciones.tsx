@@ -30,7 +30,9 @@ function NotificacionesPage() {
 				setSelectedNotification(null);
 				return;
 			}
-			const queries = queryClient.getQueriesData<{ notifications: AppNotification[] }>({
+			const queries = queryClient.getQueriesData<{
+				notifications: AppNotification[];
+			}>({
 				queryKey: notificationKeys.lists(),
 			});
 			for (const [, qData] of queries) {

@@ -24,7 +24,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 				title: "Renovabit · Tienda oficial de repuestos y accesorios",
 				description:
 					"Encuentra repuestos, accesorios y equipos para tu negocio. Envíos a todo Perú.",
-			}),
+			}).meta,
 			{ name: "og:site_name", content: "Renovabit" },
 			{ name: "og:locale", content: "es_PE" },
 		],

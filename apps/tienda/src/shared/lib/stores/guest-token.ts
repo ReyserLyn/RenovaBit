@@ -19,7 +19,9 @@ function readLegacyToken(): string | null {
 		const raw = localStorage.getItem(LEGACY_KEY);
 		if (!raw) return null;
 
-		const parsed = JSON.parse(raw) as { state?: { guestToken?: string | null } };
+		const parsed = JSON.parse(raw) as {
+			state?: { guestToken?: string | null };
+		};
 		const token = parsed?.state?.guestToken ?? null;
 
 		if (token && typeof token === "string") {

@@ -125,6 +125,9 @@ function OrderDetailPage() {
 		initialData: initialOrder,
 	});
 
+	const cancelOrder = useCancelOrder();
+	const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+
 	if (!order) {
 		const code = isApiClientError(error) ? error.code : null;
 		if (code === "INVALID_CREDENTIALS") {
@@ -160,8 +163,6 @@ function OrderDetailPage() {
 
 	const canCancel =
 		order.status === "pending" && Date.now() - new Date(order.createdAt).getTime() < AUTO_CANCEL_MS;
-	const cancelOrder = useCancelOrder();
-	const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
 
 	function handleCopy(kind: "order" | "link") {
 		const text = kind === "order" ? orderNumber : orderDetailUrl;

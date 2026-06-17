@@ -15,7 +15,8 @@ import {
 } from "@renovabit/ui/components/ui/select";
 import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import { cn } from "@renovabit/ui/lib/utils";
-import React, { ReactNode } from "react";
+import type React from "react";
+import type { ReactNode } from "react";
 import { useDataGrid } from "./data-grid";
 
 interface DataGridPaginationProps {

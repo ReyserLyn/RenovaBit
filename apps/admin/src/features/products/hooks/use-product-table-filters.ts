@@ -1,4 +1,4 @@
-import { type ColumnFiltersState } from "@tanstack/react-table";
+import type { ColumnFiltersState } from "@tanstack/react-table";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import type { Brand } from "@/features/brands/model";
 import type { Category } from "@/features/categories/model";

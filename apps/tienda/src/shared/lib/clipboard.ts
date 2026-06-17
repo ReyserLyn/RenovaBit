@@ -13,7 +13,9 @@ export async function copyText(text: string, options: CopyTextOptions = {}): Pro
 
 	try {
 		await navigator.clipboard.writeText(text);
-		toast.success(options.label ? `${options.label} copiado` : "Copiado", { duration: 2000 });
+		toast.success(options.label ? `${options.label} copiado` : "Copiado", {
+			duration: 2000,
+		});
 		options.onSuccess?.();
 		return true;
 	} catch {

@@ -15,7 +15,7 @@ import { Spinner } from "@renovabit/ui/components/ui/spinner";
 import { useForm } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import * as React from "react";
+import type * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -324,7 +324,7 @@ function ActiveSessionsCard({ sessionsKey }: { sessionsKey: number }) {
 	useEffect(() => {
 		void loadSessions();
 		void loadAccounts();
-	}, [loadSessions, loadAccounts, sessionsKey]);
+	}, [loadSessions, loadAccounts]);
 
 	const handleRevoke = useCallback(
 		async (sessionToken: string) => {

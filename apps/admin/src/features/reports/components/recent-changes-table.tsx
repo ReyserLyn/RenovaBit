@@ -39,7 +39,10 @@ const sortedRowModel = getSortedRowModel();
 export const RecentChangesTable = React.memo(function RecentChangesTable({
 	onProductClick,
 }: RecentChangesTableProps) {
-	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 15 });
+	const [pagination, setPagination] = useState<PaginationState>({
+		pageIndex: 0,
+		pageSize: 15,
+	});
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [typeFilter, setTypeFilter] = useState<string>("all");
 	const [search, setSearch] = useState("");
@@ -62,12 +65,12 @@ export const RecentChangesTable = React.memo(function RecentChangesTable({
 	// Resetear a página 1 cuando cambian filtros
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, [debouncedSearch, typeFilter]);
+	}, []);
 
 	// Resetear a página 1 cuando cambia el pageSize
 	useEffect(() => {
 		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-	}, [pagination.pageSize]);
+	}, []);
 
 	const columns = useMemo(() => getRecentChangesColumns(), []);
 

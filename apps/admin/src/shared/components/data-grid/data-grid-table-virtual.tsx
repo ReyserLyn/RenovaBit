@@ -1,13 +1,13 @@
 import { Spinner } from "@renovabit/ui/components/ui/spinner";
 import { cn } from "@renovabit/ui/lib/utils";
-import { flexRender, HeaderGroup, Row, Table } from "@tanstack/react-table";
+import { flexRender, type HeaderGroup, type Row, type Table } from "@tanstack/react-table";
 import {
 	useVirtualizer,
-	VirtualItem,
-	Virtualizer,
-	VirtualizerOptions,
+	type VirtualItem,
+	type Virtualizer,
+	type VirtualizerOptions,
 } from "@tanstack/react-virtual";
-import { memo, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { useDataGrid } from "@/shared/components/data-grid/data-grid";
 import {
 	DataGridTableBase,

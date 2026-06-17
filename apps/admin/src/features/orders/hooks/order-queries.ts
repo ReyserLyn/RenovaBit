@@ -1,4 +1,4 @@
-import { type OrderSource, type OrderStatus, type PaymentMethod } from "@renovabit/db/orders";
+import type { OrderSource, OrderStatus, PaymentMethod } from "@renovabit/db/orders";
 import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { ordersService } from "../service/orders.service";
 

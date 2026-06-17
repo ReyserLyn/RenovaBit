@@ -9,8 +9,9 @@ import {
 	varchar,
 } from "drizzle-orm/pg-core";
 import { lifecycleDates, primaryKey } from "./_utils";
+import { ROLES } from "./roles";
 
-export const userRoleEnum = pgEnum("user_role", ["admin", "customer", "distributor"]);
+export const userRoleEnum = pgEnum("user_role", [...ROLES]);
 
 export const users = pgTable(
 	"users",

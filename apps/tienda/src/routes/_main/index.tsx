@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_main/")({
 				title: "Renovabit · Tienda oficial de repuestos y accesorios",
 				description:
 					"Encuentra repuestos, accesorios y equipos para tu negocio. Envíos a todo Perú.",
-			}),
+			}).meta,
 		],
 	}),
 	component: HomePage,

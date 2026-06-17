@@ -11,7 +11,7 @@ import { NavMain } from "@/shared/components/sidebar/nav-main";
 import { NavSecondary } from "@/shared/components/sidebar/nav-secondary";
 import { NavUser } from "@/shared/components/sidebar/nav-user";
 import { sidebarNavigation } from "@/shared/config/sidebar-nav";
-import { User } from "@/shared/lib/auth/auth-client";
+import type { User } from "@/shared/lib/auth/auth-client";
 
 type AppSidebarProps = ComponentProps<typeof Sidebar> & {
 	user: User;

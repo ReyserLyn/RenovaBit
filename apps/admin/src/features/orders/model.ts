@@ -6,7 +6,7 @@ import {
 	type OrderSource,
 	type OrderStatus,
 	PAYMENT_METHOD_LABELS,
-	PAYMENT_METHODS,
+	type PAYMENT_METHODS,
 	SOURCE_LABELS,
 } from "@renovabit/db/orders";
 import { z } from "zod";
@@ -15,7 +15,10 @@ import { z } from "zod";
 
 type OrderStatusConfig = Record<
 	OrderStatus,
-	{ label: string; variant: "invert-light" | "success" | "destructive" | "info" }
+	{
+		label: string;
+		variant: "invert-light" | "success" | "destructive" | "info";
+	}
 >;
 
 export const ORDER_STATUS_CONFIG: OrderStatusConfig = {

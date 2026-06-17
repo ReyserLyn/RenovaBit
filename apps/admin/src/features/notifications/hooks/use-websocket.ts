@@ -10,7 +10,12 @@ import type {
 
 type WsMessage =
 	| ({ type: "sync:progress" } & SyncProgress)
-	| { type: "sync:completed"; reportId: string; stats: SyncStats; trigger: string }
+	| {
+			type: "sync:completed";
+			reportId: string;
+			stats: SyncStats;
+			trigger: string;
+	  }
 	| ({ type: "order:created" } & OrderCreatedEvent)
 	| ({ type: "order:auto-cancelled" } & OrderAutoCancelledEvent);
 

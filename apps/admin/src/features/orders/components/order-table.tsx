@@ -183,18 +183,11 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, [
-		filters.search,
-		filters.status,
-		filters.source,
-		filters.paymentMethod,
-		filters.from,
-		filters.to,
-	]);
+	}, []);
 
 	useEffect(() => {
 		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-	}, [pagination.pageSize]);
+	}, []);
 
 	const handleRefresh = useCallback(() => {
 		void queryClient.invalidateQueries({ queryKey: orderKeys.lists() });

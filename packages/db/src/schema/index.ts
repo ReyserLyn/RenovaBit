@@ -6,5 +6,6 @@ export * from "./favorites";
 export * from "./orders";
 export * from "./products";
 export * from "./providers";
+export * from "./roles";
 export * from "./scraping-blacklist";
 export * from "./sync";

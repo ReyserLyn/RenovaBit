@@ -31,7 +31,10 @@ export const NotificationTable = React.memo(function NotificationTable({
 	onRowClick,
 	selectedId,
 }: NotificationTableProps) {
-	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 15 });
+	const [pagination, setPagination] = useState<PaginationState>({
+		pageIndex: 0,
+		pageSize: 15,
+	});
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search, 300);
 	const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
@@ -63,12 +66,12 @@ export const NotificationTable = React.memo(function NotificationTable({
 	// Resetear a página 1 cuando cambia la búsqueda
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, [debouncedSearch]);
+	}, []);
 
 	// Resetear a página 1 cuando cambia el pageSize
 	useEffect(() => {
 		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-	}, [pagination.pageSize]);
+	}, []);
 
 	// Sincronizar selección visual con selectedId
 	useEffect(() => {
@@ -79,7 +82,7 @@ export const NotificationTable = React.memo(function NotificationTable({
 		if (!rowSelection[selectedId]) {
 			setRowSelection({ [selectedId]: true });
 		}
-	}, [selectedId]);
+	}, [selectedId, rowSelection]);
 
 	const columns = useMemo(() => getNotificationColumns(), []);
 

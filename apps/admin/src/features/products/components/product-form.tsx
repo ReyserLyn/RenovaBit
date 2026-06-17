@@ -282,12 +282,12 @@ export function ProductForm(props: ProductFormProps) {
 	}, [isSubmitting, onSubmittingChange]);
 
 	// Cargar imágenes existentes en modo edición
+	const editProductId = isEdit ? props.product.id : null;
 	useEffect(() => {
-		if (!isEdit) return;
-		const productId = props.product.id;
+		if (editProductId === null) return;
 
 		productImagesService
-			.listByProduct(productId)
+			.listByProduct(editProductId)
 			.then((images) => {
 				setExistingImages(images);
 				setImageOrder(images.map((img) => img.id));
@@ -295,7 +295,7 @@ export function ProductForm(props: ProductFormProps) {
 			.catch(() => {
 				// Error silencioso — las imágenes existentes no son críticas
 			});
-	}, [isEdit ? props.product.id : null]);
+	}, [editProductId]);
 
 	const form = useForm({
 		defaultValues,
@@ -394,7 +394,9 @@ export function ProductForm(props: ProductFormProps) {
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-		useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
 	);
 
 	function handleDragEnd(event: DragEndEvent) {
@@ -500,7 +502,11 @@ export function ProductForm(props: ProductFormProps) {
 
 	function addSpecification() {
 		const current = form.getFieldValue("specifications");
-		const newSpec: ProductSpecification = { id: crypto.randomUUID(), key: "", value: "" };
+		const newSpec: ProductSpecification = {
+			id: crypto.randomUUID(),
+			key: "",
+			value: "",
+		};
 		form.setFieldValue("specifications", [...current, newSpec]);
 	}
 

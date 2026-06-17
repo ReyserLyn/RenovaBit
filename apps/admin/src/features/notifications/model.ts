@@ -59,7 +59,11 @@ export type NotificationData = z.infer<typeof notificationDataSchema>;
 export type UserInfo = z.infer<typeof userInfoSchema>;
 
 export type SyncProgress = SyncStats & { total: number; reportId: string };
-export type SyncCompletedEvent = { reportId: string; stats: SyncStats; trigger: string };
+export type SyncCompletedEvent = {
+	reportId: string;
+	stats: SyncStats;
+	trigger: string;
+};
 
 export type OrderCreatedEvent = {
 	orderId: string;

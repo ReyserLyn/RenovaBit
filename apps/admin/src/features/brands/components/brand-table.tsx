@@ -69,7 +69,10 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 
 	const handleToggleFeatured = useCallback(
 		async (brand: Brand, isFeatured: boolean) => {
-			await toggleBrandField.mutateAsync({ id: brand.id, data: { isFeatured } });
+			await toggleBrandField.mutateAsync({
+				id: brand.id,
+				data: { isFeatured },
+			});
 		},
 		[toggleBrandField],
 	);
@@ -141,7 +144,7 @@ export const BrandTable = React.memo(function BrandTable({ onEdit, onDelete }: B
 
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, [columnFilters]);
+	}, []);
 
 	const filteredCount = table.getFilteredRowModel().rows.length;
 	const selectedRows = table.getFilteredSelectedRowModel().rows;

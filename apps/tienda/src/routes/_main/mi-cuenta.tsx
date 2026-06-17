@@ -27,7 +27,11 @@ interface NavItem {
 const navItems: NavItem[] = [
 	{ to: "/mi-cuenta", label: "Perfil", icon: UserIcon },
 	{ to: "/mi-cuenta/seguridad", label: "Seguridad", icon: Shield01Icon },
-	{ to: "/mi-cuenta/configuracion", label: "Configuración", icon: Setting06Icon },
+	{
+		to: "/mi-cuenta/configuracion",
+		label: "Configuración",
+		icon: Setting06Icon,
+	},
 ];
 
 // ── Layout component ───────────────────────────────
@@ -42,8 +46,12 @@ function MiCuentaLayout() {
 						<Link
 							key={item.to}
 							to={item.to}
-							activeOptions={{ exact: item.to === "/mi-cuenta" ? true : undefined }}
-							activeProps={{ className: "bg-muted font-medium border-l-2 border-foreground" }}
+							activeOptions={{
+								exact: item.to === "/mi-cuenta" ? true : undefined,
+							}}
+							activeProps={{
+								className: "bg-muted font-medium border-l-2 border-foreground",
+							}}
 							className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-muted transition-colors border-l-2 border-transparent"
 						>
 							<HugeiconsIcon icon={item.icon} className="size-4 shrink-0" />

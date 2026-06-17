@@ -3,7 +3,7 @@ import {
 	DndContext,
 	type DragEndEvent,
 	KeyboardSensor,
-	Modifier,
+	type Modifier,
 	MouseSensor,
 	TouchSensor,
 	useSensor,
@@ -14,8 +14,22 @@ import { CSS } from "@dnd-kit/utilities";
 import { DragDropVerticalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@renovabit/ui/components/ui/button";
-import { Cell, flexRender, Header, HeaderGroup, Row } from "@tanstack/react-table";
-import { CSSProperties, Fragment, ReactNode, useEffect, useId, useRef, useState } from "react";
+import {
+	type Cell,
+	flexRender,
+	type Header,
+	type HeaderGroup,
+	type Row,
+} from "@tanstack/react-table";
+import {
+	type CSSProperties,
+	Fragment,
+	type ReactNode,
+	useEffect,
+	useId,
+	useRef,
+	useState,
+} from "react";
 import {
 	DataGridTableBase,
 	DataGridTableBody,

@@ -1,6 +1,12 @@
 import { cn } from "@renovabit/ui/lib/utils";
-import { Column, ColumnFiltersState, RowData, SortingState, Table } from "@tanstack/react-table";
-import { createContext, ReactNode, useContext, useMemo } from "react";
+import type {
+	Column,
+	ColumnFiltersState,
+	RowData,
+	SortingState,
+	Table,
+} from "@tanstack/react-table";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
 
 declare module "@tanstack/react-table" {
 	interface ColumnMeta<TData extends RowData, TValue> {
@@ -113,7 +119,7 @@ function DataGridProvider<TData extends object>({
 	table,
 	...props
 }: DataGridProps<TData> & { table: Table<TData> }) {
-	const tableState = table.getState();
+	const _tableState = table.getState();
 	const resolvedColumnsResizeMode = props.tableLayout?.columnsResizeMode ?? "onEnd";
 
 	// Keep resize mode aligned with the DataGrid contract every render so
@@ -122,41 +128,60 @@ function DataGridProvider<TData extends object>({
 		table.options.columnResizeMode = resolvedColumnsResizeMode;
 	}
 
+	const {
+		recordCount,
+		isLoading: stableIsLoading,
+		loadingMode,
+		loadingMessage,
+		fetchingMoreMessage,
+		allRowsLoadedMessage,
+		emptyMessage,
+		onRowClick,
+		className,
+		tableLayout,
+		tableClassNames,
+	} = props;
+
+	const stableProps = useMemo(
+		() => ({
+			recordCount,
+			isLoading: stableIsLoading,
+			loadingMode,
+			loadingMessage,
+			fetchingMoreMessage,
+			allRowsLoadedMessage,
+			emptyMessage,
+			onRowClick,
+			className,
+			tableLayout,
+			tableClassNames,
+		}),
+		[
+			recordCount,
+			stableIsLoading,
+			loadingMode,
+			loadingMessage,
+			fetchingMoreMessage,
+			allRowsLoadedMessage,
+			emptyMessage,
+			onRowClick,
+			className,
+			tableLayout,
+			tableClassNames,
+		],
+	);
+
 	// Memoize context value so consumers don't re-render during column resize.
 	// Column sizing state is intentionally excluded from deps -- CSS variables
 	// on the <table> element handle width updates without React re-renders.
 	const value = useMemo(
 		() => ({
-			props,
+			props: stableProps,
 			table,
-			recordCount: props.recordCount,
-			isLoading: props.isLoading || false,
+			recordCount,
+			isLoading: stableIsLoading ?? false,
 		}),
-		[
-			table,
-			props.recordCount,
-			props.isLoading,
-			props.loadingMode,
-			props.loadingMessage,
-			props.fetchingMoreMessage,
-			props.allRowsLoadedMessage,
-			props.emptyMessage,
-			props.onRowClick,
-			props.className,
-			// eslint-disable-next-line react-hooks/exhaustive-deps
-			JSON.stringify(props.tableLayout),
-			// eslint-disable-next-line react-hooks/exhaustive-deps
-			JSON.stringify(props.tableClassNames),
-			tableState.sorting,
-			tableState.pagination,
-			tableState.columnFilters,
-			tableState.rowSelection,
-			tableState.expanded,
-			tableState.columnVisibility,
-			tableState.columnOrder,
-			tableState.columnPinning,
-			tableState.globalFilter,
-		],
+		[table, stableProps, recordCount, stableIsLoading],
 	);
 
 	return <DataGridContext.Provider value={value}>{children}</DataGridContext.Provider>;

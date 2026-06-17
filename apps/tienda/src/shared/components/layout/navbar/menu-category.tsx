@@ -62,6 +62,9 @@ function toNavGroup(node: {
 }): NavGroup {
 	return {
 		name: node.name,
-		children: node.children.map((child) => ({ slug: child.slug, name: child.name })),
+		children: node.children.map((child) => ({
+			slug: child.slug,
+			name: child.name,
+		})),
 	};
 }

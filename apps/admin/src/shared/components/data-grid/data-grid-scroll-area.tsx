@@ -1,6 +1,6 @@
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 import { cn } from "@renovabit/ui/lib/utils";
-import { PointerEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type PointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useDataGrid } from "./data-grid";
 
 const MIN_THUMB_SIZE = 24;

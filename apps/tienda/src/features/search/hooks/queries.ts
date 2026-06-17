@@ -57,7 +57,15 @@ export const searchQueries = {
 			queryFn: async ({ pageParam }) => {
 				const result = await unwrapResponse(
 					api.api.v1.products.search.get({
-						query: { q, brands, minPrice, maxPrice, sortBy, limit, offset: pageParam },
+						query: {
+							q,
+							brands,
+							minPrice,
+							maxPrice,
+							sortBy,
+							limit,
+							offset: pageParam,
+						},
 					}),
 				);
 				return result;

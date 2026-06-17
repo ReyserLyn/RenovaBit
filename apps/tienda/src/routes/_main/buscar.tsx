@@ -11,7 +11,7 @@ import { isApiClientError } from "@/shared/lib/api";
 import { getSiteUrl } from "@/shared/lib/env";
 import { mapSortToApi } from "@/shared/lib/filters/parsers";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
-import { seo } from "@/shared/lib/seo";
+import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
 
 type BuscarSearch = CatalogSearch & {
 	q: string;
@@ -67,36 +67,40 @@ export const Route = createFileRoute("/_main/buscar")({
 		const hasQuery = q.length > 0;
 
 		if (!hasQuery) {
+			const buscaUrl = `${getSiteUrl()}/buscar`;
+			const seoTags = seo({
+				title: "Buscar productos · Renovabit",
+				description:
+					"Encuentra componentes de PC en Renovabit. Explora nuestro catálogo de productos con envíos a todo Perú.",
+				url: buscaUrl,
+			});
 			return {
 				meta: [
-					...seo({
-						title: "Buscar productos · Renovabit",
-						description:
-							"Encuentra componentes de PC en Renovabit. Explora nuestro catálogo de productos con envíos a todo Perú.",
-					}),
+					...seoTags.meta,
 					{ name: "robots", content: "noindex, follow" },
 					{ property: "og:locale", content: "es_PE" },
 				],
-				links: [{ rel: "canonical", href: `${getSiteUrl()}/buscar` }],
+				links: [{ rel: "canonical", href: buscaUrl }, ...seoTags.links],
+				scripts: [breadcrumbJsonLd([{ name: "Home", url: getSiteUrl() }, { name: "Buscar" }])],
 			};
 		}
 
 		const title = `Resultados para '${q}' | Renovabit`;
 		const description = `Busca "${q}" en Renovabit. Encuentra componentes de PC al mejor precio con envíos a todo Perú.`;
 		const robots = "noindex, follow";
+		const searchUrl = `${getSiteUrl()}/buscar?q=${encodeURIComponent(q)}`;
+		const seoTags = seo({ title, description, url: searchUrl });
 
 		return {
 			meta: [
-				...seo({ title, description }),
+				...seoTags.meta,
 				{ name: "robots", content: robots },
 				{ property: "og:locale", content: "es_PE" },
-				{ property: "og:url", content: `${getSiteUrl()}/buscar?q=${encodeURIComponent(q)}` },
+				{ property: "og:url", content: searchUrl },
 			],
-			links: [
-				{
-					rel: "canonical",
-					href: `${getSiteUrl()}/buscar?q=${encodeURIComponent(q)}`,
-				},
+			links: [{ rel: "canonical", href: searchUrl }, ...seoTags.links],
+			scripts: [
+				breadcrumbJsonLd([{ name: "Home", url: getSiteUrl() }, { name: "Buscar" }, { name: q }]),
 			],
 		};
 	},
@@ -165,7 +169,7 @@ function BuscarPage() {
 function SearchResults({ q, search }: { q: string; search: BuscarSearch }) {
 	const filters = useMemo<SearchFilters>(
 		() => buildSearchFilters(q, search),
-		[q, search.marcas, search.orden, search.precio_min, search.precio_max],
+		[q, search.marcas, search.orden, search.precio_min, search.precio_max, search],
 	);
 
 	// SSR: both queries are awaited in the loader (products AND brands) and consumed
@@ -199,7 +203,11 @@ function SearchResults({ q, search }: { q: string; search: BuscarSearch }) {
 				primaryImage: p.primaryImage,
 				brand: p.brand ? { id: p.brand.slug, name: p.brand.name, slug: p.brand.slug } : null,
 				category: p.category
-					? { id: p.category.slug, name: p.category.name, slug: p.category.slug }
+					? {
+							id: p.category.slug,
+							name: p.category.name,
+							slug: p.category.slug,
+						}
 					: null,
 				headline: p.headline,
 				isInStock: p.isInStock,

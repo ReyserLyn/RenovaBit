@@ -46,7 +46,9 @@ export const addBlacklistSchema = z.object({
 	productName: z
 		.string()
 		.trim()
-		.max(255, { error: "El nombre del producto no puede superar 255 caracteres" })
+		.max(255, {
+			error: "El nombre del producto no puede superar 255 caracteres",
+		})
 		.optional(),
 });
 

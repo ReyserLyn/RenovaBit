@@ -24,8 +24,8 @@ import {
 	DropdownMenuTrigger,
 } from "@renovabit/ui/components/ui/dropdown-menu";
 import { cn } from "@renovabit/ui/lib/utils";
-import { Column } from "@tanstack/react-table";
-import { HTMLAttributes, memo, ReactNode, useMemo } from "react";
+import type { Column } from "@tanstack/react-table";
+import { type HTMLAttributes, memo, type ReactNode, useMemo } from "react";
 import { getColumnHeaderLabel, useDataGrid } from "./data-grid";
 
 interface DataGridColumnHeaderProps<TData, TValue> extends HTMLAttributes<HTMLDivElement> {
@@ -50,7 +50,7 @@ function DataGridColumnHeaderInner<TData, TValue>({
 	const resolvedTitle = title ?? getColumnHeaderLabel(column);
 
 	const columnOrder = table.getState().columnOrder;
-	const columnVisibilityKey = JSON.stringify(table.getState().columnVisibility);
+	const _columnVisibilityKey = JSON.stringify(table.getState().columnVisibility);
 	const isSorted = column.getIsSorted();
 	const isPinned = column.getIsPinned();
 	const canSort = column.getCanSort();
@@ -273,7 +273,6 @@ function DataGridColumnHeaderInner<TData, TValue>({
 		table,
 		columnIndex,
 		columnOrder,
-		columnVisibilityKey, // Needed to update checkbox states when visibility changes
 	]);
 
 	if (hasControls) {

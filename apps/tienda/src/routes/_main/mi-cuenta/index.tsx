@@ -17,7 +17,7 @@ import { Suspense, useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { AvatarUpload } from "@/shared/components/profile/avatar-upload";
-import { type Session } from "@/shared/lib/auth/auth-client";
+import type { Session } from "@/shared/lib/auth/auth-client";
 import {
 	authKeys,
 	authSessionQueryOptions,

@@ -12,7 +12,7 @@ import { isApiClientError } from "@/shared/lib/api";
 import { getSiteUrl } from "@/shared/lib/env";
 import { mapSortToApi, productFilterParsers } from "@/shared/lib/filters/parsers";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
-import { seo } from "@/shared/lib/seo";
+import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
 
 const serializeCatalogSearch = createSerializer(productFilterParsers, {
 	processUrlSearchParams: (params) => {
@@ -69,14 +69,18 @@ export const Route = createFileRoute("/_main/marca/$slug")({
 	head: ({ loaderData }) => {
 		if (!loaderData?.brand) return {};
 
-		const title = `${loaderData.brand.name} · Comprar online | Renovabit`;
+		const { brand, canonicalUrl } = loaderData;
+		const title = `${brand.name} · Comprar online | Renovabit`;
 		const description =
-			loaderData.brand.description ??
-			`Explora productos de ${loaderData.brand.name} en Renovabit con envíos a todo Perú.`;
+			brand.description ??
+			`Explora productos de ${brand.name} en Renovabit con envíos a todo Perú.`;
+
+		const seoTags = seo({ title, description, url: canonicalUrl });
 
 		return {
-			meta: [...seo({ title, description })],
-			links: [{ rel: "canonical", href: loaderData.canonicalUrl }],
+			meta: [...seoTags.meta],
+			links: [{ rel: "canonical", href: canonicalUrl }, ...seoTags.links],
+			scripts: [breadcrumbJsonLd([{ name: "Home", url: getSiteUrl() }, { name: brand.name }])],
 		};
 	},
 

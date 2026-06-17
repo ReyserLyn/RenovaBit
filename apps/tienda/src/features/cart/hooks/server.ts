@@ -7,7 +7,9 @@ export const getCartServerFn = createServerFn({ method: "GET" }).handler(async (
 		const reqHeaders = getRequestHeaders();
 		const cookie = reqHeaders.get("cookie") ?? "";
 
-		const { data, error } = await api.api.v1.cart.get({ headers: { cookie } });
+		const { data, error } = await api.api.v1.cart.get({
+			headers: { cookie },
+		});
 
 		if (error || !data) return null;
 		return data;
@@ -21,7 +23,9 @@ export const getCartTotalServerFn = createServerFn({ method: "GET" }).handler(as
 		const reqHeaders = getRequestHeaders();
 		const cookie = reqHeaders.get("cookie") ?? "";
 
-		const { data, error } = await api.api.v1.cart.total.get({ headers: { cookie } });
+		const { data, error } = await api.api.v1.cart.total.get({
+			headers: { cookie },
+		});
 
 		if (error || !data) return null;
 		return data;

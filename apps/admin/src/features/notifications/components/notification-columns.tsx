@@ -13,7 +13,10 @@ export function getNotificationColumns(): ColumnDef<
 	return [
 		{
 			id: "status",
-			meta: { headerTitle: "Estado", skeleton: <Skeleton className="size-2 rounded-full" /> },
+			meta: {
+				headerTitle: "Estado",
+				skeleton: <Skeleton className="size-2 rounded-full" />,
+			},
 			header: () => <span className="sr-only">Estado</span>,
 			cell: ({ row }) =>
 				!row.original.isRead ? (

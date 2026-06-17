@@ -5,4 +5,9 @@ export {
 	useToggleBrandField,
 	useUpdateBrand,
 } from "./brand-mutations";
-export { brandKeys, brandsQueryOptions, useBrand, useBrands } from "./brand-queries";
+export {
+	brandKeys,
+	brandsQueryOptions,
+	useBrand,
+	useBrands,
+} from "./brand-queries";

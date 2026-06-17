@@ -1,6 +1,7 @@
 import { redisStorage } from "@better-auth/redis-storage";
 import { db } from "@renovabit/db";
 import * as schema from "@renovabit/db/schema";
+import { ROLES } from "@renovabit/db/schema";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { betterAuth } from "better-auth/minimal";
 import { admin, openAPI, username } from "better-auth/plugins";
@@ -104,7 +105,7 @@ export const auth = betterAuth({
 				input: true,
 			},
 			role: {
-				type: ["admin", "customer", "distributor"],
+				type: [...ROLES],
 				required: true,
 				index: true,
 				defaultValue: "customer",

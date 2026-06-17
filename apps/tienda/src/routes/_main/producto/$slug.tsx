@@ -22,7 +22,7 @@ import {
 import { isApiClientError } from "@/shared/lib/api";
 import { getSiteUrl } from "@/shared/lib/env";
 import { formatPrice } from "@/shared/lib/format";
-import { seo } from "@/shared/lib/seo";
+import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
 
 export const Route = createFileRoute("/_main/producto/$slug")({
 	loader: async ({ params, context: { queryClient } }) => {
@@ -40,15 +40,39 @@ export const Route = createFileRoute("/_main/producto/$slug")({
 	head: ({ loaderData }) => {
 		if (!loaderData?.product) return {};
 		const { product } = loaderData;
+		const ogImage = product.images[0]?.url ?? `${getSiteUrl()}/og-default.png`;
+		const productUrl = `${getSiteUrl()}/producto/${product.slug}`;
+		const seoTags = seo({
+			title: `${product.name} — Comprar online | Renovabit`,
+			description:
+				product.description?.slice(0, 160) ??
+				`Compra ${product.name} al mejor precio en Renovabit. SKU: ${product.sku}. Envíos a todo Perú.`,
+			image: ogImage,
+			url: productUrl,
+		});
+		const breadcrumbItems: Array<{ name: string; url?: string }> = [
+			...(product.category
+				? [
+						{
+							name: product.category.name,
+							url: `${getSiteUrl()}/categoria/${product.category.slug}`,
+						},
+					]
+				: []),
+			...(product.brand
+				? [
+						{
+							name: product.brand.name,
+							url: `${getSiteUrl()}/marca/${product.brand.slug}`,
+						},
+					]
+				: []),
+			{ name: product.name },
+		];
 		return {
-			meta: [
-				...seo({
-					title: `${product.name} — Comprar online | Renovabit`,
-					description:
-						product.description?.slice(0, 160) ??
-						`Compra ${product.name} al mejor precio en Renovabit. SKU: ${product.sku}. Envíos a todo Perú.`,
-				}),
-			],
+			meta: [...seoTags.meta],
+			links: [...seoTags.links],
+			scripts: [breadcrumbJsonLd(breadcrumbItems)],
 		};
 	},
 
@@ -147,10 +171,17 @@ function ProductPage() {
 								stock: product.stock,
 								isInStock: product.stock > 0,
 								primaryImage: product.images[0]
-									? { url: product.images[0].url, alt: product.images[0].alt ?? null }
+									? {
+											url: product.images[0].url,
+											alt: product.images[0].alt ?? null,
+										}
 									: null,
 								brand: product.brand
-									? { id: product.brand.slug, name: product.brand.name, slug: product.brand.slug }
+									? {
+											id: product.brand.slug,
+											name: product.brand.name,
+											slug: product.brand.slug,
+										}
 									: null,
 								category: product.category
 									? {

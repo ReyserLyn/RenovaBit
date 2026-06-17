@@ -19,7 +19,10 @@ const contactItems = [
 		label: "Email",
 		values: [
 			{ value: "info@renovabit.com", href: "mailto:info@renovabit.com" },
-			{ value: "contacto@renovabit.com", href: "mailto:contacto@renovabit.com" },
+			{
+				value: "contacto@renovabit.com",
+				href: "mailto:contacto@renovabit.com",
+			},
 			{ value: "soporte@renovabit.com", href: "mailto:soporte@renovabit.com" },
 		],
 	},
@@ -66,11 +69,27 @@ const infoLinks = [
 ] as const;
 
 const socialLinks = [
-	{ icon: FacebookIcon, name: "Facebook", href: "https://www.facebook.com/RenovaBitPE" },
-	{ icon: InstagramIcon, name: "Instagram", href: "https://www.instagram.com/renovabit" },
-	{ icon: TikTokIcon, name: "TikTok", href: "https://www.tiktok.com/@renovabit" },
+	{
+		icon: FacebookIcon,
+		name: "Facebook",
+		href: "https://www.facebook.com/RenovaBitPE",
+	},
+	{
+		icon: InstagramIcon,
+		name: "Instagram",
+		href: "https://www.instagram.com/renovabit",
+	},
+	{
+		icon: TikTokIcon,
+		name: "TikTok",
+		href: "https://www.tiktok.com/@renovabit",
+	},
 	{ icon: WhatsAppIcon, name: "WhatsApp", href: "https://wa.me/51987471074" },
-	{ icon: GitHubIcon, name: "GitHub", href: "https://github.com/ReyserLyn/renovabit" },
+	{
+		icon: GitHubIcon,
+		name: "GitHub",
+		href: "https://github.com/ReyserLyn/renovabit",
+	},
 ] as const;
 
 // ── Sub-components ──────────────────────────────────────

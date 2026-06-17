@@ -11,7 +11,7 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "@renovabit/ui/components/ui/alert-dialog";
-import { type ReactElement } from "react";
+import type { ReactElement } from "react";
 import { useLogout } from "@/features/auth/hooks/use-logout";
 
 interface LogoutDialogProps {

@@ -74,7 +74,10 @@ export function CartItem({ item }: CartItemProps) {
 								variant="outline"
 								disabled={updateMutation.isPending || item.quantity <= 1}
 								onClick={() =>
-									updateMutation.mutate({ itemId: item.id, quantity: item.quantity - 1 })
+									updateMutation.mutate({
+										itemId: item.id,
+										quantity: item.quantity - 1,
+									})
 								}
 							>
 								–
@@ -87,7 +90,10 @@ export function CartItem({ item }: CartItemProps) {
 								variant="outline"
 								disabled={updateMutation.isPending}
 								onClick={() =>
-									updateMutation.mutate({ itemId: item.id, quantity: item.quantity + 1 })
+									updateMutation.mutate({
+										itemId: item.id,
+										quantity: item.quantity + 1,
+									})
 								}
 							>
 								+

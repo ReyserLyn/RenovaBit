@@ -7,7 +7,11 @@ async function list(params: {
 	limit?: number;
 	unreadOnly?: boolean;
 	search?: string;
-}): Promise<{ notifications: AppNotification[]; total: number; unreadCount: number }> {
+}): Promise<{
+	notifications: AppNotification[];
+	total: number;
+	unreadCount: number;
+}> {
 	const query: Record<string, string> = {};
 	if (params.page) query.page = String(params.page);
 	if (params.limit) query.limit = String(params.limit);

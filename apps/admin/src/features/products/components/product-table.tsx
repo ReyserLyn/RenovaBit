@@ -114,14 +114,20 @@ export const ProductTable = function ProductTable({
 
 	const handleToggleStatus = useCallback(
 		async (product: Product, isActive: boolean) => {
-			await toggleProductField.mutateAsync({ id: product.id, data: { isActive } });
+			await toggleProductField.mutateAsync({
+				id: product.id,
+				data: { isActive },
+			});
 		},
 		[toggleProductField],
 	);
 
 	const handleToggleFeatured = useCallback(
 		async (product: Product, isFeatured: boolean) => {
-			await toggleProductField.mutateAsync({ id: product.id, data: { isFeatured } });
+			await toggleProductField.mutateAsync({
+				id: product.id,
+				data: { isFeatured },
+			});
 		},
 		[toggleProductField],
 	);
@@ -225,7 +231,7 @@ export const ProductTable = function ProductTable({
 	// Reset pagination when filters change
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, [columnFilters]);
+	}, []);
 
 	// ── Derived values (rerender-derived-state-no-effect) ──
 

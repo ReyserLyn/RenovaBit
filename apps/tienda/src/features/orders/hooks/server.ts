@@ -19,7 +19,10 @@ export const getOrderDetailServerFn = createServerFn({ method: "GET" })
 		});
 
 		if (error || !data)
-			return { order: null, errorCode: error?.status ? String(error.status) : undefined };
+			return {
+				order: null,
+				errorCode: error?.status ? String(error.status) : undefined,
+			};
 		return { order: data, errorCode: undefined };
 	});
 
@@ -43,6 +46,9 @@ export const getOrderListServerFn = createServerFn({ method: "GET" })
 		});
 
 		if (error || !data)
-			return { data: null, errorCode: error?.status ? String(error.status) : undefined };
+			return {
+				data: null,
+				errorCode: error?.status ? String(error.status) : undefined,
+			};
 		return { data, errorCode: undefined };
 	});

@@ -71,7 +71,10 @@ export function useMarkAllAsRead() {
 
 				queryClient.setQueryData(queryKey, {
 					...queryData,
-					notifications: queryData.notifications.map((n) => ({ ...n, isRead: true })),
+					notifications: queryData.notifications.map((n) => ({
+						...n,
+						isRead: true,
+					})),
 					unreadCount: 0,
 				});
 			}

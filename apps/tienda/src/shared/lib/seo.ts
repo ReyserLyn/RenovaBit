@@ -1,62 +1,71 @@
-/**
- * Helper de meta tags SEO estándar de TanStack Start.
- *
- * Basado en el utility que usan todos los ejemplos oficiales:
- * https://github.com/TanStack/router/tree/main/examples/react
- *
- * Uso en una ruta:
- * ```ts
- * head: () => ({
- *   meta: [
- *     { charSet: "utf-8" },
- *     { name: "viewport", content: "width=device-width, initial-scale=1" },
- *     ...seo({ title: "Mi página", description: "...", image: "..." }),
- *   ],
- * })
- * ```
- */
 export function seo({
 	title,
 	description,
 	image,
 	keywords,
+	url,
 }: {
 	title: string;
 	description?: string;
 	image?: string;
 	keywords?: string;
+	url?: string;
 }) {
-	const tags: Array<{ title?: string; name?: string; content?: string; property?: string }> = [
-		{ title },
-	];
+	const meta: Array<{
+		title?: string;
+		name?: string;
+		content?: string;
+		property?: string;
+	}> = [{ title }];
 
 	if (description) {
-		tags.push({ name: "description", content: description });
+		meta.push({ name: "description", content: description });
 	}
 
 	if (keywords) {
-		tags.push({ name: "keywords", content: keywords });
+		meta.push({ name: "keywords", content: keywords });
 	}
 
-	// Open Graph
-	tags.push({ property: "og:title", content: title });
+	meta.push({ property: "og:title", content: title });
 	if (description) {
-		tags.push({ property: "og:description", content: description });
+		meta.push({ property: "og:description", content: description });
 	}
-	tags.push({ property: "og:type", content: "website" });
+	meta.push({ property: "og:type", content: "website" });
 
-	// Twitter Card
-	tags.push({ name: "twitter:title", content: title });
+	meta.push({ name: "twitter:title", content: title });
 	if (description) {
-		tags.push({ name: "twitter:description", content: description });
+		meta.push({ name: "twitter:description", content: description });
 	}
-	tags.push({ name: "twitter:card", content: "summary_large_image" });
+	meta.push({ name: "twitter:card", content: "summary_large_image" });
 
 	if (image) {
-		tags.push({ name: "twitter:image", content: image });
-		tags.push({ name: "twitter:card", content: "summary_large_image" });
-		tags.push({ property: "og:image", content: image });
+		meta.push({ name: "twitter:image", content: image });
+		meta.push({ name: "twitter:card", content: "summary_large_image" });
+		meta.push({ property: "og:image", content: image });
 	}
 
-	return tags;
+	const links: Array<{ rel: string; hreflang: string; href: string }> = [];
+
+	if (url) {
+		links.push({ rel: "alternate", hreflang: "es-PE", href: url });
+		links.push({ rel: "alternate", hreflang: "x-default", href: url });
+	}
+
+	return { meta, links };
+}
+
+export function breadcrumbJsonLd(items: Array<{ name: string; url?: string }>) {
+	return {
+		type: "application/ld+json",
+		children: JSON.stringify({
+			"@context": "https://schema.org",
+			"@type": "BreadcrumbList",
+			itemListElement: items.map((item, i) => ({
+				"@type": "ListItem",
+				position: i + 1,
+				name: item.name,
+				...(item.url ? { item: item.url } : {}),
+			})),
+		}),
+	};
 }

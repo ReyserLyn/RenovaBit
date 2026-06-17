@@ -43,48 +43,54 @@ function OrderAttachmentsContent({
 	const isBusy = updateAttachments.isPending || uploadingCount > 0;
 	const hasRoom = localAttachments.length < MAX_ATTACHMENTS;
 
-	async function uploadFiles(files: File[]) {
-		if (isBusy) return;
+	const uploadFiles = useCallback(
+		async (files: File[]) => {
+			if (isBusy) return;
 
-		const remaining = MAX_ATTACHMENTS - localAttachments.length;
-		if (remaining <= 0) return;
+			const remaining = MAX_ATTACHMENTS - localAttachments.length;
+			if (remaining <= 0) return;
 
-		const toUpload = files.slice(0, remaining);
+			const toUpload = files.slice(0, remaining);
 
-		const firstError = toUpload
-			.map((f) => validateImageFile(f, MAX_FILE_BYTES))
-			.find((err): err is string => err !== null);
+			const firstError = toUpload
+				.map((f) => validateImageFile(f, MAX_FILE_BYTES))
+				.find((err): err is string => err !== null);
 
-		if (firstError) {
-			setUploadError(firstError);
-			return;
-		}
-
-		setUploadError(null);
-		const uploadedUrls: string[] = [];
-
-		for (const file of toUpload) {
-			setUploadingCount((c) => c + 1);
-			try {
-				uploadedUrls.push(await uploadImage(file));
-			} catch {
-				setUploadError("Error al subir una imagen. Intenta de nuevo.");
+			if (firstError) {
+				setUploadError(firstError);
 				return;
-			} finally {
-				setUploadingCount((c) => Math.max(0, c - 1));
 			}
-		}
 
-		const next = [...localAttachments, ...uploadedUrls];
-		const previous = localAttachments;
-		setLocalAttachments(next);
+			setUploadError(null);
+			const uploadedUrls: string[] = [];
 
-		try {
-			await updateAttachments.mutateAsync({ id: orderId, data: { attachments: next } });
-		} catch {
-			setLocalAttachments(previous);
-		}
-	}
+			for (const file of toUpload) {
+				setUploadingCount((c) => c + 1);
+				try {
+					uploadedUrls.push(await uploadImage(file));
+				} catch {
+					setUploadError("Error al subir una imagen. Intenta de nuevo.");
+					return;
+				} finally {
+					setUploadingCount((c) => Math.max(0, c - 1));
+				}
+			}
+
+			const next = [...localAttachments, ...uploadedUrls];
+			const previous = localAttachments;
+			setLocalAttachments(next);
+
+			try {
+				await updateAttachments.mutateAsync({
+					id: orderId,
+					data: { attachments: next },
+				});
+			} catch {
+				setLocalAttachments(previous);
+			}
+		},
+		[isBusy, localAttachments, orderId, updateAttachments],
+	);
 
 	const handleFileDrop = useCallback(
 		(e: React.DragEvent) => {
@@ -93,7 +99,7 @@ function OrderAttachmentsContent({
 			const files = e.dataTransfer.files;
 			if (files.length > 0) void uploadFiles(Array.from(files));
 		},
-		[uploadFiles, isBusy],
+		[uploadFiles],
 	);
 
 	const handleFileSelect = useCallback(
@@ -102,14 +108,17 @@ function OrderAttachmentsContent({
 			if (files && files.length > 0) void uploadFiles(Array.from(files));
 			e.target.value = "";
 		},
-		[uploadFiles, isBusy],
+		[uploadFiles],
 	);
 
 	async function handleRemove(url: string) {
 		if (isBusy) return;
 		const next = localAttachments.filter((item) => item !== url);
 		setLocalAttachments(next);
-		await updateAttachments.mutateAsync({ id: orderId, data: { attachments: next } });
+		await updateAttachments.mutateAsync({
+			id: orderId,
+			data: { attachments: next },
+		});
 	}
 
 	return (

@@ -1,7 +1,7 @@
 /** biome-ignore-all lint/suspicious/noExplicitAny: Documentation Elysia */
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
-import { ItemInstance } from "@headless-tree/core";
+import type { ItemInstance } from "@headless-tree/core";
 import { Add01Icon, ArrowDown01Icon, MinusSignIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { cn } from "@renovabit/ui/lib/utils";

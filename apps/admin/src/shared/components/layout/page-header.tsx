@@ -1,5 +1,5 @@
 import { cn } from "@renovabit/ui/lib/utils";
-import * as React from "react";
+import type * as React from "react";
 
 interface PageHeaderProps {
 	title: string;

@@ -81,7 +81,7 @@ export default function ButtonCart() {
 		if (mergeAttemptedToken.current === guestToken) return;
 		mergeAttemptedToken.current = guestToken;
 		mergeCart.mutate(guestToken);
-	}, [session?.user?.id, guestToken, mergeCart]);
+	}, [session?.user?.id, guestToken, mergeCart, session?.user]);
 
 	const itemCount = total?.itemsCount ?? 0;
 	const displayCount = itemCount > 99 ? "99+" : itemCount.toString();

@@ -6,7 +6,7 @@ import { Input } from "@renovabit/ui/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@renovabit/ui/components/ui/popover";
 import { Separator } from "@renovabit/ui/components/ui/separator";
 import { cn } from "@renovabit/ui/lib/utils";
-import { Column } from "@tanstack/react-table";
+import type { Column } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 
 interface DataGridColumnFilterProps<TData, TValue> {

@@ -233,6 +233,7 @@
       "dependencies": {
         "drizzle-orm": "catalog:",
         "postgres": "^3.4.5",
+        "zod": "catalog:",
       },
       "devDependencies": {
         "@renovabit/biome-config": "*",
@@ -307,6 +308,7 @@
     "slugify": "^1.6.9",
     "sonner": "^2.0.7",
     "typescript": "6.0.3",
+    "zod": "^4.4.3",
   },
   "packages": {
     "@ai-sdk/gateway": ["@ai-sdk/gateway@3.0.126", "", { "dependencies": { "@ai-sdk/provider": "3.0.10", "@ai-sdk/provider-utils": "4.0.27", "@vercel/oidc": "3.2.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-OHwcwdVkzLo7Rx4eeFyyH3e/vlsYg11HIgKPf5yH6jkptI1Kzq8BX9xZPIBq4BrLBTF2p6pgvWqRfy6AvARGkQ=="],

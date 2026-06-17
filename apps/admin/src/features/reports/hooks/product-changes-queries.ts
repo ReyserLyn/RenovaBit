@@ -11,9 +11,10 @@ export const productChangesQueryOptions = (productId: string) =>
 	queryOptions({
 		queryKey: productChangeKeys.byProduct(productId),
 		queryFn: async () => {
-			const data = await unwrapResponse<{ changes: ProductChange[]; total: number }>(
-				api.api.v1.admin.products({ id: productId }).changes.get(),
-			);
+			const data = await unwrapResponse<{
+				changes: ProductChange[];
+				total: number;
+			}>(api.api.v1.admin.products({ id: productId }).changes.get());
 			return data.changes;
 		},
 		enabled: productId.length > 0,

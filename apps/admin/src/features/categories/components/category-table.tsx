@@ -69,21 +69,30 @@ export const CategoryTable = React.memo(function CategoryTable({
 	// Stable toggle handlers
 	const handleToggleStatus = useCallback(
 		async (category: Category, isActive: boolean) => {
-			await toggleCategoryField.mutateAsync({ id: category.id, data: { isActive } });
+			await toggleCategoryField.mutateAsync({
+				id: category.id,
+				data: { isActive },
+			});
 		},
 		[toggleCategoryField],
 	);
 
 	const handleToggleFeatured = useCallback(
 		async (category: Category, isFeatured: boolean) => {
-			await toggleCategoryField.mutateAsync({ id: category.id, data: { isFeatured } });
+			await toggleCategoryField.mutateAsync({
+				id: category.id,
+				data: { isFeatured },
+			});
 		},
 		[toggleCategoryField],
 	);
 
 	const handleToggleNavVisibility = useCallback(
 		async (category: Category, isVisibleInNav: boolean) => {
-			await toggleCategoryField.mutateAsync({ id: category.id, data: { isVisibleInNav } });
+			await toggleCategoryField.mutateAsync({
+				id: category.id,
+				data: { isVisibleInNav },
+			});
 		},
 		[toggleCategoryField],
 	);
@@ -164,7 +173,7 @@ export const CategoryTable = React.memo(function CategoryTable({
 
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, [columnFilters]);
+	}, []);
 
 	const filteredCount = table.getFilteredRowModel().rows.length;
 	const selectedRows = table.getFilteredSelectedRowModel().rows;

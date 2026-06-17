@@ -5,6 +5,11 @@ export {
 	useToggleProductField,
 	useUpdateProduct,
 } from "./products-mutations";
-export { productKeys, productsQueryOptions, useProduct, useProducts } from "./products-queries";
+export {
+	productKeys,
+	productsQueryOptions,
+	useProduct,
+	useProducts,
+} from "./products-queries";
 export { useProductFilters } from "./use-product-filters";
 export { useProductTableFilters } from "./use-product-table-filters";

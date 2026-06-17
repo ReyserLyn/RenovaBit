@@ -120,6 +120,35 @@ export function NotificationDetail({
 		hasStats && ((parsedData.stats?.created ?? 0) > 0 || (parsedData.stats?.updated ?? 0) > 0);
 	const rawChanges = changesData?.changes ?? [];
 
+	const changes = useMemo(() => {
+		const sorted: ReportChange[] = [...rawChanges];
+		const cmpStr = (a: string, b: string) => String(a).localeCompare(String(b));
+		switch (sortBy) {
+			case "name-asc":
+				sorted.sort(
+					(a, b) => cmpStr(a.productName, b.productName) || cmpStr(b.createdAt, a.createdAt),
+				);
+				break;
+			case "name-desc":
+				sorted.sort(
+					(a, b) => cmpStr(b.productName, a.productName) || cmpStr(b.createdAt, a.createdAt),
+				);
+				break;
+			case "type":
+				sorted.sort(
+					(a, b) =>
+						String(a.changeType).localeCompare(String(b.changeType)) ||
+						cmpStr(a.productName, b.productName),
+				);
+				break;
+			case "newest":
+			default:
+				sorted.sort((a, b) => cmpStr(b.createdAt, a.createdAt));
+				break;
+		}
+		return sorted;
+	}, [rawChanges, sortBy]);
+
 	// ── Vista específica para notificaciones de pedidos ──
 
 	if (parsedData.orderId) {
@@ -164,35 +193,6 @@ export function NotificationDetail({
 			</Card>
 		);
 	}
-
-	const changes = useMemo(() => {
-		const sorted: ReportChange[] = [...rawChanges];
-		const cmpStr = (a: string, b: string) => String(a).localeCompare(String(b));
-		switch (sortBy) {
-			case "name-asc":
-				sorted.sort(
-					(a, b) => cmpStr(a.productName, b.productName) || cmpStr(b.createdAt, a.createdAt),
-				);
-				break;
-			case "name-desc":
-				sorted.sort(
-					(a, b) => cmpStr(b.productName, a.productName) || cmpStr(b.createdAt, a.createdAt),
-				);
-				break;
-			case "type":
-				sorted.sort(
-					(a, b) =>
-						String(a.changeType).localeCompare(String(b.changeType)) ||
-						cmpStr(a.productName, b.productName),
-				);
-				break;
-			case "newest":
-			default:
-				sorted.sort((a, b) => cmpStr(b.createdAt, a.createdAt));
-				break;
-		}
-		return sorted;
-	}, [rawChanges, sortBy]);
 
 	return (
 		<Card className={showChanges ? "pb-0" : ""}>

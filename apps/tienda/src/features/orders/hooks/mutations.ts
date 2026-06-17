@@ -15,7 +15,9 @@ export function useCreateOrder() {
 		onSuccess: (order) => {
 			queryClient.invalidateQueries({ queryKey: cartKeys.all });
 			queryClient.invalidateQueries({ queryKey: orderKeys.all });
-			toast.success(`Pedido ${order.orderNumber} creado con éxito`, { duration: 5000 });
+			toast.success(`Pedido ${order.orderNumber} creado con éxito`, {
+				duration: 5000,
+			});
 		},
 		onError: (error) => {
 			toast.error(resolveErrorMessage(error));

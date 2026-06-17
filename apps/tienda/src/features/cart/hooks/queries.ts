@@ -6,7 +6,11 @@ type _CartResponseOrNull =
 export type CartResponse = NonNullable<_CartResponseOrNull>;
 
 export type CartTotalResponse =
-	Awaited<ReturnType<typeof api.api.v1.cart.total.get>> extends { data: infer T } ? T : never;
+	Awaited<ReturnType<typeof api.api.v1.cart.total.get>> extends {
+		data: infer T;
+	}
+		? T
+		: never;
 
 // ── Query Keys Factory ───────────────────────────────────────
 

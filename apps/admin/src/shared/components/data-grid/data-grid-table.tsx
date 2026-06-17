@@ -1,16 +1,24 @@
 import { Checkbox } from "@renovabit/ui/components/ui/checkbox";
 import { Spinner } from "@renovabit/ui/components/ui/spinner";
 import { cn } from "@renovabit/ui/lib/utils";
-import { Cell, Column, flexRender, Header, HeaderGroup, Row, Table } from "@tanstack/react-table";
+import {
+	type Cell,
+	type Column,
+	flexRender,
+	type Header,
+	type HeaderGroup,
+	type Row,
+	type Table,
+} from "@tanstack/react-table";
 import { cva } from "class-variance-authority";
 import {
-	CSSProperties,
+	type CSSProperties,
 	Fragment,
 	memo,
-	MouseEvent as ReactMouseEvent,
-	ReactNode,
-	TouchEvent as ReactTouchEvent,
-	Ref,
+	type MouseEvent as ReactMouseEvent,
+	type ReactNode,
+	type TouchEvent as ReactTouchEvent,
+	type Ref,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -360,7 +368,7 @@ function DataGridTableBase({ children }: { children: ReactNode }) {
 			colSizes[`--col-${header.column.id}-size`] = header.column.getSize();
 		}
 		return colSizes;
-	}, [props.tableLayout?.columnsResizable, table.getState().columnSizing]);
+	}, [props.tableLayout?.columnsResizable, table.getFlatHeaders]);
 
 	return (
 		<table

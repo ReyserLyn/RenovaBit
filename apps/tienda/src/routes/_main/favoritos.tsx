@@ -71,7 +71,7 @@ export const Route = createFileRoute("/_main/favoritos")({
 				title: "Mis Favoritos · Renovabit",
 				description:
 					"Tu lista de productos favoritos en Renovabit. Encuentra componentes de PC al mejor precio con envíos a todo Perú.",
-			}),
+			}).meta,
 			{ name: "robots", content: "noindex, follow" },
 			{ property: "og:locale", content: "es_PE" },
 			{ property: "og:url", content: `${getSiteUrl()}/favoritos` },
@@ -133,7 +133,7 @@ function FavoritesLoginPrompt() {
 function FavoritesContent({ search }: { search: FavoritosSearch }) {
 	const filters = useMemo<ReturnType<typeof buildFavoritesFilters>>(
 		() => buildFavoritesFilters(search),
-		[search.marcas, search.orden, search.precio_min, search.precio_max],
+		[search.marcas, search.orden, search.precio_min, search.precio_max, search],
 	);
 
 	const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage } =
@@ -225,7 +225,9 @@ function FavoritesContent({ search }: { search: FavoritosSearch }) {
 									url: `${getSiteUrl()}/producto/${product.slug}`,
 									...(product.primaryImage ? { image: product.primaryImage.url } : {}),
 									...(product.brand
-										? { brand: { "@type": "Brand", name: product.brand.name } }
+										? {
+												brand: { "@type": "Brand", name: product.brand.name },
+											}
 										: {}),
 									offers: {
 										"@type": "Offer",

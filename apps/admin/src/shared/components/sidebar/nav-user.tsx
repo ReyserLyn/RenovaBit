@@ -21,7 +21,7 @@ import { useState } from "react";
 import { useUserDisplay } from "@/features/auth/hooks/use-user-display";
 import { LogoutDialog } from "@/shared/components/dialog/logout-dialog";
 import { AnimatedThemeToggler } from "@/shared/components/layout/theme-toggle";
-import { User } from "@/shared/lib/auth/auth-client";
+import type { User } from "@/shared/lib/auth/auth-client";
 
 type NavUserProps = {
 	user: User;

@@ -15,7 +15,10 @@ export function useLogin() {
 			const isEmail = emailOrUsername.includes("@");
 
 			const result = isEmail
-				? await authClient.signIn.email({ email: emailOrUsername.trim(), password })
+				? await authClient.signIn.email({
+						email: emailOrUsername.trim(),
+						password,
+					})
 				: await authClient.signIn.username({
 						username: emailOrUsername.trim().toLowerCase(),
 						password,

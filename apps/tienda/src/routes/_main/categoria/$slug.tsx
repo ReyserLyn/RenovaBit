@@ -13,7 +13,7 @@ import { isApiClientError } from "@/shared/lib/api";
 import { getSiteUrl } from "@/shared/lib/env";
 import { mapSortToApi, productFilterParsers } from "@/shared/lib/filters/parsers";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
-import { seo } from "@/shared/lib/seo";
+import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
 
 const serializeCatalogSearch = createSerializer(productFilterParsers, {
 	processUrlSearchParams: (params) => {
@@ -80,14 +80,25 @@ export const Route = createFileRoute("/_main/categoria/$slug")({
 	head: ({ loaderData }) => {
 		if (!loaderData?.category) return {};
 
-		const title = `${loaderData.category.name} · Comprar online | Renovabit`;
+		const { category, canonicalUrl } = loaderData;
+		const title = `${category.name} · Comprar online | Renovabit`;
 		const description =
-			loaderData.category.description ??
-			`Explora ${loaderData.category.name} en Renovabit con envíos a todo Perú.`;
+			category.description ?? `Explora ${category.name} en Renovabit con envíos a todo Perú.`;
+
+		const seoTags = seo({ title, description, url: canonicalUrl });
+
+		const breadcrumbItems = [
+			{ name: "Home", url: getSiteUrl() },
+			...category.breadcrumb.map((item) => ({
+				name: item.name,
+				url: `${getSiteUrl()}/categoria/${item.slug}`,
+			})),
+		] as Array<{ name: string; url?: string }>;
 
 		return {
-			meta: [...seo({ title, description })],
-			links: [{ rel: "canonical", href: loaderData.canonicalUrl }],
+			meta: [...seoTags.meta],
+			links: [{ rel: "canonical", href: canonicalUrl }, ...seoTags.links],
+			scripts: [breadcrumbJsonLd(breadcrumbItems)],
 		};
 	},
 
@@ -123,7 +134,11 @@ function CategoryPage() {
 			<Breadcrumbs
 				items={category.breadcrumb.map((item) => ({
 					name: item.name,
-					link: { to: "/categoria/$slug", params: { slug: item.slug }, search: {} },
+					link: {
+						to: "/categoria/$slug",
+						params: { slug: item.slug },
+						search: {},
+					},
 				}))}
 			/>
 			<div className="space-y-2">

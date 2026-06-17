@@ -1,4 +1,4 @@
-import { authClient } from "./auth-client";
+import type { authClient } from "./auth-client";
 
 type ErrorTypes = Partial<Record<keyof typeof authClient.$ERROR_CODES, string>>;
 

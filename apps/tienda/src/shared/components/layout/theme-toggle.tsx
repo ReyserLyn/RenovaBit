@@ -145,7 +145,7 @@ export const AnimatedThemeToggler = ({
 		});
 
 		return () => observer.disconnect();
-	}, []);
+	}, [onThemeChange]);
 
 	const toggleTheme = useCallback(() => {
 		const button = buttonRef.current;

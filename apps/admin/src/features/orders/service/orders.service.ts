@@ -1,4 +1,4 @@
-import { type OrderSource, type OrderStatus, type PaymentMethod } from "@renovabit/db/orders";
+import type { OrderSource, OrderStatus, PaymentMethod } from "@renovabit/db/orders";
 import { api } from "@/shared/lib/api/api-client";
 import { unwrapResponse } from "@/shared/lib/api/api-errors";
 import type { BatchActionResult, OrderDetail, OrderListResponse } from "../model";

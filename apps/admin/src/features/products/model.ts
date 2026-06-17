@@ -169,7 +169,9 @@ export const productFormSchema = z.object({
 	price: z
 		.string()
 		.min(1, { error: "El precio es obligatorio" })
-		.regex(/^\d+(\.\d{1,2})?$/, { error: "El precio debe ser un número válido (ej: 99.99)" }),
+		.regex(/^\d+(\.\d{1,2})?$/, {
+			error: "El precio debe ser un número válido (ej: 99.99)",
+		}),
 	stock: z.number().int().min(0, { error: "El stock no puede ser negativo" }),
 	brandId: z.uuid().nullable().optional(),
 	categoryId: z.uuid().nullable().optional(),

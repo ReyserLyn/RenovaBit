@@ -68,7 +68,7 @@ export const UserTable = function UserTable() {
 
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, [columnFilters]);
+	}, []);
 
 	const filteredCount = table.getFilteredRowModel().rows.length;
 

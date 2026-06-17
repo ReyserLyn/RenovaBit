@@ -62,7 +62,10 @@ const historyGlobalFilterFn = (
 };
 
 export function HistoryTable({ changes, isPending }: HistoryTableProps) {
-	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 15 });
+	const [pagination, setPagination] = useState<PaginationState>({
+		pageIndex: 0,
+		pageSize: 15,
+	});
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [globalFilter, setGlobalFilter] = useState("");
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -87,7 +90,7 @@ export function HistoryTable({ changes, isPending }: HistoryTableProps) {
 	// Reset pagination on filter change
 	useEffect(() => {
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, [columnFilters, globalFilter]);
+	}, []);
 
 	const table = useReactTable({
 		data: changes,

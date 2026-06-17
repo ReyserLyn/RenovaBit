@@ -6,8 +6,8 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuTrigger,
 } from "@renovabit/ui/components/ui/dropdown-menu";
-import { Table } from "@tanstack/react-table";
-import { ReactElement } from "react";
+import type { Table } from "@tanstack/react-table";
+import type { ReactElement } from "react";
 import { getColumnHeaderLabel } from "./data-grid";
 
 function DataGridColumnVisibility<TData>({

@@ -1,4 +1,4 @@
-import { User } from "@/shared/lib/auth/auth-client";
+import type { User } from "@/shared/lib/auth/auth-client";
 
 export type UserDisplay = {
 	displayName: string;

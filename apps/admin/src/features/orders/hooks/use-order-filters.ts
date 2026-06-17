@@ -1,8 +1,8 @@
 import {
-	ORDER_STATUS_URL_VALUES,
+	type ORDER_STATUS_URL_VALUES,
 	type OrderSource,
 	type OrderStatus,
-	PAYMENT_METHOD_URL_VALUES,
+	type PAYMENT_METHOD_URL_VALUES,
 	PAYMENT_URL_TO_API,
 	type PaymentMethod,
 	STATUS_URL_TO_API,

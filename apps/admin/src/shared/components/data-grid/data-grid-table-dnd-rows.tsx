@@ -6,7 +6,7 @@ import {
 	type Modifier,
 	MouseSensor,
 	TouchSensor,
-	UniqueIdentifier,
+	type UniqueIdentifier,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
@@ -17,11 +17,11 @@ import { DragDropHorizontalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@renovabit/ui/components/ui/button";
 import { cn } from "@renovabit/ui/lib/utils";
-import { Cell, flexRender, HeaderGroup, Row } from "@tanstack/react-table";
+import { type Cell, flexRender, type HeaderGroup, type Row } from "@tanstack/react-table";
 import {
-	CSSProperties,
+	type CSSProperties,
 	createContext,
-	ReactNode,
+	type ReactNode,
 	useContext,
 	useEffect,
 	useId,
