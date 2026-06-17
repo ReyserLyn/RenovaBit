@@ -1,32 +1,19 @@
-import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { Elysia, t } from "elysia";
-import { auth } from "@/utils/auth/auth";
+import { AuthModule } from "@/modules/auth";
 import { ErrorResponse, FavoritesModel } from "./model";
 import { FavoritesService } from "./service";
-
-async function requireAuth(request: Request): Promise<string> {
-	const session = await auth.api.getSession({ headers: request.headers });
-	if (!session) {
-		throw createApiError({
-			code: BackendErrorCodes.INVALID_CREDENTIALS,
-			message: "Inicia sesión para gestionar tus favoritos",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-	return session.user.id;
-}
 
 // ═══════════════════════════════════════════════════
 //  Prefijo: /api/v1/favorites
 // ═══════════════════════════════════════════════════
 
 export const favoritesRoute = new Elysia({ prefix: "/favorites" })
+	.use(AuthModule)
 	// ── List Favorites ──────────────────────────
 	.get(
 		"/",
-		async ({ query, request }) => {
-			const userId = await requireAuth(request);
+		async ({ query, user }) => {
+			const userId = user.id;
 			const favorite = await FavoritesService.getOrCreate(userId);
 
 			return FavoritesService.getItems(favorite.id, {
@@ -39,6 +26,7 @@ export const favoritesRoute = new Elysia({ prefix: "/favorites" })
 			});
 		},
 		{
+			isAuth: true,
 			query: FavoritesModel.favoritesListQuery,
 			response: { 200: FavoritesModel.favoriteListResponse, 400: ErrorResponse },
 			detail: { summary: "Listar favoritos con filtros", tags: ["Favorites"] },
@@ -48,12 +36,13 @@ export const favoritesRoute = new Elysia({ prefix: "/favorites" })
 	// ── Add Product ─────────────────────────────
 	.post(
 		"/items",
-		async ({ body, request }) => {
-			const userId = await requireAuth(request);
+		async ({ body, user }) => {
+			const userId = user.id;
 			const favorite = await FavoritesService.getOrCreate(userId);
 			return FavoritesService.addItem(favorite.id, body);
 		},
 		{
+			isAuth: true,
 			body: FavoritesModel.addItemBody,
 			response: {
 				200: FavoritesModel.favoriteResponse,
@@ -67,11 +56,12 @@ export const favoritesRoute = new Elysia({ prefix: "/favorites" })
 	// ── Check Favorite Status ──────────────────
 	.get(
 		"/items/:productId/status",
-		async ({ params: { productId }, request }) => {
-			const userId = await requireAuth(request);
+		async ({ params: { productId }, user }) => {
+			const userId = user.id;
 			return FavoritesService.checkFavorite(userId, productId);
 		},
 		{
+			isAuth: true,
 			params: FavoritesModel.productIdParams,
 			response: { 200: FavoritesModel.favoriteStatusResponse, 400: ErrorResponse },
 			detail: { summary: "Verificar si un producto está en favoritos", tags: ["Favorites"] },
@@ -81,12 +71,13 @@ export const favoritesRoute = new Elysia({ prefix: "/favorites" })
 	// ── Remove Product ──────────────────────────
 	.delete(
 		"/items/:productId",
-		async ({ params: { productId }, request }) => {
-			const userId = await requireAuth(request);
+		async ({ params: { productId }, user }) => {
+			const userId = user.id;
 			const favorite = await FavoritesService.getOrCreate(userId);
 			return FavoritesService.removeItem(favorite.id, productId);
 		},
 		{
+			isAuth: true,
 			params: FavoritesModel.productIdParams,
 			response: { 200: FavoritesModel.favoriteResponse, 404: ErrorResponse },
 			detail: { summary: "Eliminar producto de favoritos", tags: ["Favorites"] },

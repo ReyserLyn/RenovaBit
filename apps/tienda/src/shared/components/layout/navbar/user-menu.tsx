@@ -36,7 +36,11 @@ function getUserInitials(
 	return "?";
 }
 
-export function UserMenu() {
+export function UserMenu({
+	preloadedProfile,
+}: {
+	preloadedProfile?: { image: string | null } | null;
+}) {
 	const { data: session } = useSuspenseQuery(authSessionQueryOptions());
 	const router = useRouter();
 	const queryClient = useQueryClient();
@@ -46,6 +50,7 @@ export function UserMenu() {
 	}
 
 	const user = session.user;
+	const avatarUrl = user.image === null ? null : (user.image ?? preloadedProfile?.image ?? null);
 	const initials = getUserInitials(user.name, user.email);
 
 	const handleSignOut = async () => {
@@ -55,7 +60,7 @@ export function UserMenu() {
 			void router.invalidate();
 			toast.success("Sesión cerrada correctamente");
 		} catch (error) {
-			toast.error(getAuthMessage(error as Error));
+			toast.error(error instanceof Error ? getAuthMessage(error) : "No se pudo cerrar la sesión.");
 		}
 	};
 
@@ -66,11 +71,8 @@ export function UserMenu() {
 				aria-label="Menú de usuario"
 			>
 				<Avatar>
-					{user.image ? (
-						<AvatarImage src={user.image} alt={user.name ?? ""} />
-					) : (
-						<AvatarFallback>{initials}</AvatarFallback>
-					)}
+					<AvatarImage src={avatarUrl ?? undefined} alt={user.name ?? ""} />
+					<AvatarFallback>{initials}</AvatarFallback>
 				</Avatar>
 			</DropdownMenuTrigger>
 

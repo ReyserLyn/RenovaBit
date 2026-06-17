@@ -8,7 +8,7 @@ import { categoryQueries } from "@/features/categories/hooks/queries";
 import Footer from "@/shared/components/layout/footer";
 import Navbar from "@/shared/components/layout/navbar";
 import { AppSidebar } from "@/shared/components/layout/sidebar/app-sidebar";
-import { authSessionQueryOptions } from "@/shared/lib/auth/auth-session";
+import { authSessionQueryOptions, getProfileServerFn } from "@/shared/lib/auth/auth-session";
 import { CartSsrProvider } from "@/shared/lib/stores/cart-ssr-context";
 
 export const Route = createFileRoute("/_main")({
@@ -19,21 +19,27 @@ export const Route = createFileRoute("/_main")({
 			queryClient.ensureQueryData(brandQueries.list()),
 		]);
 
+		let preloadedProfile: { image: string | null } | null = null;
 		let cartTotal: { itemsCount: number; subtotal: string } | null = null;
+
 		if (session?.user) {
+			// Fetch profile via server function — deterministic SSR data flow
+			const profileData = await getProfileServerFn();
+			preloadedProfile = profileData;
+
 			const total = await getCartTotalServerFn();
 			cartTotal = total ?? { itemsCount: 0, subtotal: "0" };
 			queryClient.setQueryData(cartQueries.total(null).queryKey, cartTotal);
 		}
 
-		return { preloadedSession: session, preloadedCartTotal: cartTotal };
+		return { preloadedSession: session, preloadedCartTotal: cartTotal, preloadedProfile };
 	},
 
 	component: RouteComponent,
 });
 
 function RouteComponent() {
-	const { preloadedSession, preloadedCartTotal } = Route.useLoaderData();
+	const { preloadedSession, preloadedCartTotal, preloadedProfile } = Route.useLoaderData();
 	const isMobile = useIsMobile();
 
 	return (
@@ -43,7 +49,7 @@ function RouteComponent() {
 			<div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
 				<div className="container mx-auto flex w-full flex-1 flex-col overflow-x-hidden min-h-svh">
 					<CartSsrProvider value={{ session: preloadedSession, cartTotal: preloadedCartTotal }}>
-						<Navbar />
+						<Navbar preloadedProfile={preloadedProfile} />
 					</CartSsrProvider>
 
 					<main className="flex min-w-0 flex-1 flex-col">

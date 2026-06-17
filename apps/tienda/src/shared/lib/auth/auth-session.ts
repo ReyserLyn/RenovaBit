@@ -1,30 +1,41 @@
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
+import { api } from "@/shared/lib/api/api-client";
+import { getApiBaseUrl } from "@/shared/lib/env";
 import type { Session } from "./auth-client";
 
-// ── Server function — obtiene la sesión desde la API ──
+// ── Server function — session via API ──────────────
 
 export const getSessionServerFn = createServerFn({ method: "GET" }).handler(
 	async (): Promise<Session | null> => {
 		try {
-			const apiUrl = process.env.VITE_API_URL ?? "http://localhost:3001";
-			const headers = getRequestHeaders();
+			const reqHeaders = getRequestHeaders();
+			const cookie = reqHeaders.get("cookie") ?? "";
+			const apiUrl = getApiBaseUrl();
 
 			const response = await fetch(`${apiUrl}/api/v1/auth/get-session`, {
-				headers: { cookie: headers.get?.("cookie") ?? "" },
+				headers: { cookie },
 			});
 
 			if (!response.ok) return null;
 
-			return (await response.json()) as Session;
+			const data: unknown = await response.json();
+			if (!data || typeof data !== "object") return null;
+			const raw = data as Record<string, unknown>;
+			if (!raw.user || typeof raw.user !== "object") return null;
+
+			return {
+				user: raw.user as Session["user"],
+				session: raw.session as Session["session"],
+			} as Session;
 		} catch {
 			return null;
 		}
 	},
 );
 
-// ── TanStack Query — cache de sesión ────────────────
+// ── TanStack Query — session cache ─────────────────
 
 export const authKeys = {
 	all: ["auth"] as const,
@@ -53,4 +64,42 @@ export async function invalidateAuthQueries(queryClient: QueryClient): Promise<v
 
 export async function resetAuthState(queryClient: QueryClient): Promise<void> {
 	queryClient.removeQueries({ queryKey: authKeys.all });
+}
+
+// ── Profile query — for profile page and navbar SSR ──
+
+export const profileKeys = {
+	all: ["profile"] as const,
+};
+
+/** Server function: fetches fresh profile from DB via Eden Treaty, bypassing Better Auth cookie cache. */
+export const getProfileServerFn = createServerFn({ method: "GET" }).handler(
+	async (): Promise<{ image: string | null } | null> => {
+		try {
+			const reqHeaders = getRequestHeaders();
+			const cookie = reqHeaders.get("cookie") ?? "";
+
+			const { data, error } = await api.api.v1.users.me.get({
+				headers: { cookie },
+			});
+
+			if (error || !data) return null;
+
+			return {
+				image: typeof data.image === "string" ? data.image : null,
+			};
+		} catch {
+			return null;
+		}
+	},
+);
+
+export function profileQueryOptions() {
+	return queryOptions({
+		queryKey: profileKeys.all,
+		queryFn: () => getProfileServerFn(),
+		staleTime: 1000 * 60 * 5,
+		gcTime: 1000 * 60 * 30,
+		retry: false,
+	});
 }

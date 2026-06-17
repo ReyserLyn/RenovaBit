@@ -18,7 +18,7 @@ const PRESIGN_EXPIRY_SECONDS = 300; // 5 minutos
  * Content-Type → extensión segura.
  * Útil cuando el cliente reporta un content-type distinto al esperado.
  */
-const EXT_MAP: Record<string, string> = {
+export const EXT_MAP: Record<string, string> = {
 	"image/jpeg": "jpg",
 	"image/png": "png",
 	"image/webp": "webp",

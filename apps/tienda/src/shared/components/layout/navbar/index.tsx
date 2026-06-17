@@ -11,7 +11,11 @@ import { MenuCategory } from "./menu-category";
 import { MenuInfo } from "./menu-info";
 import { UserMenu } from "./user-menu";
 
-export default function Navbar() {
+export default function Navbar({
+	preloadedProfile,
+}: {
+	preloadedProfile?: { image: string | null } | null;
+}) {
 	const { setTheme } = useTheme();
 
 	return (
@@ -51,7 +55,7 @@ export default function Navbar() {
 
 					<ButtonCart />
 
-					<UserMenu />
+					<UserMenu preloadedProfile={preloadedProfile} />
 				</div>
 			</div>
 

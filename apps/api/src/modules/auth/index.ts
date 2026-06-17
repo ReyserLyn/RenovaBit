@@ -18,8 +18,7 @@ export const isAdminUser = (user: AuthUser | null): boolean => user?.role === "a
 async function getSessionFromHeaders(
 	headers: Headers | Record<string, string>,
 ): Promise<Session | null> {
-	const headersObj =
-		headers instanceof Headers ? headers : new Headers(headers as Record<string, string>);
+	const headersObj = headers instanceof Headers ? headers : new Headers(Object.entries(headers));
 
 	try {
 		return await auth.api.getSession({ headers: headersObj });
@@ -97,7 +96,10 @@ export const AuthModule = new Elysia({
 				}
 
 				// Extrae el ID del recurso de los parámetros de forma segura
-				const resourceId = (params as Record<string, string> | undefined)?.id;
+				const resourceId =
+					typeof params === "object" && params !== null && "id" in params
+						? String(params.id)
+						: undefined;
 
 				if (!resourceId) {
 					throw createApiError({
