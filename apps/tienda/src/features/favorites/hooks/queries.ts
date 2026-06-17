@@ -1,5 +1,6 @@
 import { infiniteQueryOptions, keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api, unwrapResponse } from "@/shared/lib/api";
+import { getFavoritesServerFn } from "./server";
 
 // ── Types inferred from API ──────────────────────────────────
 
@@ -31,21 +32,6 @@ export interface FavoriteSnapshot {
 	category: { id: string; name: string; slug: string } | null;
 }
 
-// ── Type Guard ───────────────────────────────────────────────
-
-function isFavoriteListResponse(data: unknown): data is FavoriteListResponse {
-	return (
-		typeof data === "object" &&
-		data !== null &&
-		"data" in data &&
-		"total" in data &&
-		"offset" in data &&
-		"limit" in data &&
-		"hasMore" in data &&
-		"brands" in data
-	);
-}
-
 // ── Constants ────────────────────────────────────────────────
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -75,53 +61,11 @@ export const favoritesQueries = {
 	infinite: (filters?: FavoritesFilters, limit: number = DEFAULT_PAGE_SIZE) =>
 		infiniteQueryOptions({
 			queryKey: favoritesKeys.infinite(filters),
-			queryFn: async ({ pageParam }) => {
-				// SSR: use raw fetch with cookie forwarding
-				// Server (Nitro) doesn't have `document`, so Eden Treaty can't authenticate.
-				if (typeof document === "undefined") {
-					const { getApiBaseUrl } = await import("@/shared/lib/env");
-					const { getRequestHeaders } = await import("@tanstack/react-start/server");
-					const apiUrl = getApiBaseUrl();
-					const headers = getRequestHeaders();
-
-					const params = new URLSearchParams();
-					params.set("offset", String(pageParam));
-					params.set("limit", String(limit));
-					if (filters?.sortBy) params.set("sortBy", filters.sortBy);
-					if (filters?.brands) params.set("brands", filters.brands);
-					if (filters?.minPrice) params.set("minPrice", filters.minPrice);
-					if (filters?.maxPrice) params.set("maxPrice", filters.maxPrice);
-
-					const response = await fetch(`${apiUrl}/api/v1/favorites?${params}`, {
-						headers: { cookie: headers.get?.("cookie") ?? "" },
-					});
-					if (!response.ok) {
-						throw new Error(`SSR fetch failed: ${response.status}`);
-					}
-					const json: unknown = await response.json();
-					if (!isFavoriteListResponse(json)) {
-						throw new Error("Invalid SSR response shape");
-					}
-					return json;
-				}
-
-				// Client: use Eden Treaty with browser cookies
-				const result = await unwrapResponse(
-					api.api.v1.favorites.get({
-						query: {
-							offset: pageParam,
-							limit,
-							sortBy: filters?.sortBy,
-							brands: filters?.brands,
-							minPrice: filters?.minPrice,
-							maxPrice: filters?.maxPrice,
-						},
-					}),
-				);
-				return result;
-			},
+			queryFn: ({ pageParam }) =>
+				getFavoritesServerFn({ data: { offset: pageParam, limit, filters } }),
 			initialPageParam: 0,
 			getNextPageParam: (lastPage) => {
+				if (!lastPage) return undefined;
 				return lastPage.hasMore ? lastPage.offset + lastPage.limit : undefined;
 			},
 			placeholderData: keepPreviousData,

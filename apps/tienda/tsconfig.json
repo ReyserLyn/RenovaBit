@@ -17,6 +17,9 @@
 			"@renovabit/db/constants": [
 				"../../packages/db/src/constants.ts"
 			],
+			"@renovabit/db/orders": [
+				"../../packages/db/src/orders.ts"
+			],
 			"@renovabit/backend-client": [
 				"../../packages/backend-client/src/index.ts"
 			],

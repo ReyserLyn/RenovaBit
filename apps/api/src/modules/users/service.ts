@@ -1,8 +1,8 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { db } from "@renovabit/db";
 import { users } from "@renovabit/db/schema";
-import type { InferInsertModel } from "drizzle-orm";
 import { and, asc, eq, ne } from "drizzle-orm";
+import { auth } from "@/utils/auth/auth";
 import { R2_BUCKET_NAME, R2_PUBLIC_URL, r2Client } from "@/utils/storage/client";
 import { deleteEntityImage, EXT_MAP } from "@/utils/storage/helpers";
 
@@ -17,13 +17,6 @@ export interface UpdateProfileInput {
 	image?: File | null;
 	removeImage?: boolean;
 }
-
-type UserUpdateFields = Partial<
-	Pick<
-		InferInsertModel<typeof users>,
-		"name" | "lastname" | "username" | "displayUsername" | "phone" | "image"
-	>
->;
 
 // ── Column list (single source of truth) ───────────
 
@@ -84,7 +77,7 @@ export class UsernameConflictError extends Error {
 	}
 }
 
-async function updateProfile(userId: string, input: UpdateProfileInput) {
+async function updateProfile(userId: string, input: UpdateProfileInput, headers: Headers) {
 	// Derive username from displayUsername if applicable
 	let resolvedUsername: string | null | undefined = input.username;
 	if (input.displayUsername !== undefined) {
@@ -95,25 +88,26 @@ async function updateProfile(userId: string, input: UpdateProfileInput) {
 		}
 	}
 
-	// Build update data
-	const updateData: UserUpdateFields = {};
+	// Build update fields for Better Auth
+	const updateFields: Record<string, unknown> = {};
 
-	if (input.name !== undefined) updateData.name = input.name;
-	if (input.lastname !== undefined) updateData.lastname = input.lastname || null;
-	if (resolvedUsername !== undefined) updateData.username = resolvedUsername || null;
+	if (input.name !== undefined) updateFields.name = input.name;
+	if (input.lastname !== undefined) updateFields.lastname = input.lastname || null;
+	if (resolvedUsername !== undefined) updateFields.username = resolvedUsername || null;
 	if (input.displayUsername !== undefined)
-		updateData.displayUsername = input.displayUsername || null;
-	if (input.phone !== undefined) updateData.phone = input.phone || null;
+		updateFields.displayUsername = input.displayUsername || null;
+	if (input.phone !== undefined) updateFields.phone = input.phone || null;
 
-	// Handle avatar: set image field
+	// Handle avatar: upload to R2 first
+	let newImageUrl: string | undefined;
 	if (input.removeImage) {
-		updateData.image = null;
+		updateFields.image = null;
 	} else if (input.image) {
-		const newUrl = await uploadAvatar(userId, input.image);
-		updateData.image = newUrl;
+		newImageUrl = await uploadAvatar(userId, input.image);
+		updateFields.image = newImageUrl;
 	}
 
-	// Validate username uniqueness (only if it changed and is non-null)
+	// Validate username uniqueness
 	if (resolvedUsername) {
 		const [existing] = await db
 			.select({ id: users.id })
@@ -122,31 +116,35 @@ async function updateProfile(userId: string, input: UpdateProfileInput) {
 			.limit(1);
 
 		if (existing) {
+			// Clean up uploaded avatar if username conflict
+			if (newImageUrl) void deleteEntityImage(newImageUrl);
 			throw new UsernameConflictError(resolvedUsername);
 		}
 	}
 
-	// Fetch current user (only needed for old image cleanup)
-	const [current] = await db.select({ image: users.image }).from(users).where(eq(users.id, userId));
-
-	if (!current) throw new Error("Usuario no encontrado");
-
 	// If nothing to update, return current profile
-	if (Object.keys(updateData).length === 0) {
+	if (Object.keys(updateFields).length === 0) {
 		return getProfile(userId);
 	}
 
-	// Commit to database
-	const [updated] = await db.update(users).set(updateData).where(eq(users.id, userId)).returning();
+	// Fetch current user for old avatar cleanup
+	const [current] = await db.select({ image: users.image }).from(users).where(eq(users.id, userId));
+	if (!current) throw new Error("Usuario no encontrado");
 
-	if (!updated) throw new Error("Error al actualizar el perfil.");
+	// Delegate to Better Auth — handles DB update + session refresh in Redis.
+	// Better Auth infers userId from the session in the provided headers.
+	await auth.api.updateUser({
+		body: updateFields,
+		headers,
+	});
 
-	// Clean up old avatar AFTER successful DB commit (fire-and-forget, internally caught)
+	// Clean up old avatar AFTER successful update
 	if (input.removeImage || input.image) {
 		void deleteEntityImage(current.image);
 	}
 
-	return updated;
+	// Return fresh DB profile (not session snapshot)
+	return getProfile(userId);
 }
 
 // ── Public API ─────────────────────────────────────

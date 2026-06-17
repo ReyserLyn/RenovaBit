@@ -1,24 +1,14 @@
+import { type OrderStatus, STATUS_URL_TO_API } from "@renovabit/db/orders";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api, unwrapResponse } from "@/shared/lib/api";
 
-export const ORDER_STATUS_API = ["pending", "confirmed", "cancelled", "refunded"] as const;
-export const ORDER_STATUS_UI = ["pendiente", "confirmado", "cancelado", "reembolsado"] as const;
-
-type UIStatus = (typeof ORDER_STATUS_UI)[number];
-
-const STATUS_UI_TO_API: Record<UIStatus, (typeof ORDER_STATUS_API)[number]> = {
-	pendiente: "pending",
-	confirmado: "confirmed",
-	cancelado: "cancelled",
-	reembolsado: "refunded",
-};
+export type OrderStatusFilter = OrderStatus | undefined;
 
 export function statusUiToApi(value: string | undefined): OrderStatusFilter {
 	if (!value) return undefined;
-	return STATUS_UI_TO_API[value as UIStatus];
+	const entry = Object.entries(STATUS_URL_TO_API).find(([key]) => key === value);
+	return entry ? entry[1] : undefined;
 }
-
-export type OrderStatusFilter = (typeof ORDER_STATUS_API)[number] | undefined;
 
 // ── Query Keys Factory ───────────────────────────────────────
 

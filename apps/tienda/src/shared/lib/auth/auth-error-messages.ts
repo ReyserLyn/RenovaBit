@@ -41,7 +41,8 @@ export function translateError(code: string | undefined | null): string {
 
 	if (code === "Failed to fetch") return "Error de conexión. Verifica tu internet.";
 
-	return errorCodes[code as keyof typeof errorCodes] ?? code;
+	const entry = Object.entries(errorCodes).find(([key]) => key === code);
+	return entry ? entry[1] : code;
 }
 
 export function getAuthMessage(

@@ -1,39 +1,31 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import type { CartResponse, CartTotalResponse } from "./queries";
+import { api } from "@/shared/lib/api/api-client";
 
-export const getCartServerFn = createServerFn({ method: "GET" }).handler(
-	async (): Promise<CartResponse | null> => {
-		try {
-			const apiUrl = process.env.VITE_API_URL ?? "http://localhost:3001";
-			const headers = getRequestHeaders();
+export const getCartServerFn = createServerFn({ method: "GET" }).handler(async () => {
+	try {
+		const reqHeaders = getRequestHeaders();
+		const cookie = reqHeaders.get("cookie") ?? "";
 
-			const response = await fetch(`${apiUrl}/api/v1/cart/`, {
-				headers: { cookie: headers.get?.("cookie") ?? "" },
-			});
+		const { data, error } = await api.api.v1.cart.get({ headers: { cookie } });
 
-			if (!response.ok) return null;
-			return (await response.json()) as CartResponse;
-		} catch {
-			return null;
-		}
-	},
-);
+		if (error || !data) return null;
+		return data;
+	} catch {
+		return null;
+	}
+});
 
-export const getCartTotalServerFn = createServerFn({ method: "GET" }).handler(
-	async (): Promise<CartTotalResponse | null> => {
-		try {
-			const apiUrl = process.env.VITE_API_URL ?? "http://localhost:3001";
-			const headers = getRequestHeaders();
+export const getCartTotalServerFn = createServerFn({ method: "GET" }).handler(async () => {
+	try {
+		const reqHeaders = getRequestHeaders();
+		const cookie = reqHeaders.get("cookie") ?? "";
 
-			const response = await fetch(`${apiUrl}/api/v1/cart/total`, {
-				headers: { cookie: headers.get?.("cookie") ?? "" },
-			});
+		const { data, error } = await api.api.v1.cart.total.get({ headers: { cookie } });
 
-			if (!response.ok) return null;
-			return (await response.json()) as CartTotalResponse;
-		} catch {
-			return null;
-		}
-	},
-);
+		if (error || !data) return null;
+		return data;
+	} catch {
+		return null;
+	}
+});

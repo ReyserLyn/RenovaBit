@@ -90,10 +90,10 @@ function ProfileForm() {
 	const { data: session } = useSuspenseQuery(authSessionQueryOptions());
 	const user = session?.user;
 
-	// DB-direct profile query bypasses Better Auth's stale cookie cache
+	// Fresh DB profile — authoritative source, bypasses Better Auth's stale session cache
 	const { data: freshProfile } = useSuspenseQuery(profileQueryOptions());
 
-	const avatarUrl = user?.image ?? freshProfile?.image ?? null;
+	const avatarUrl = freshProfile?.image ?? user?.image ?? null;
 
 	const [avatarFile, setAvatarFile] = useState<File | null>(null);
 	const [removeAvatar, setRemoveAvatar] = useState(false);
@@ -106,21 +106,21 @@ function ProfileForm() {
 	const removeAvatarRef = useRef(removeAvatar);
 	removeAvatarRef.current = removeAvatar;
 
-	// Initial values for change detection
+	// Initial values for change detection — use fresh DB profile as source of truth
 	const initial = useRef({
-		name: user?.name ?? "",
-		lastname: user?.lastname ?? "",
-		displayUsername: user?.displayUsername ?? "",
-		phone: user?.phone ?? "",
-		image: user?.image ?? null,
+		name: freshProfile?.name ?? "",
+		lastname: freshProfile?.lastname ?? "",
+		displayUsername: freshProfile?.displayUsername ?? "",
+		phone: freshProfile?.phone ?? "",
+		image: freshProfile?.image ?? null,
 	});
 
 	const form = useForm({
 		defaultValues: {
-			name: user?.name ?? "",
-			lastname: user?.lastname ?? "",
-			displayUsername: user?.displayUsername ?? "",
-			phone: user?.phone ?? "",
+			name: freshProfile?.name ?? "",
+			lastname: freshProfile?.lastname ?? "",
+			displayUsername: freshProfile?.displayUsername ?? "",
+			phone: freshProfile?.phone ?? "",
 		} satisfies ProfileFormValues,
 		validators: {
 			onChange: profileSchema,
@@ -198,16 +198,6 @@ function ProfileForm() {
 		setAvatarFile(null);
 		setRemoveAvatar(true);
 	}, []);
-
-	// Change detection (computed at render time — always reactive)
-	const currentValues = form.state.values;
-	const textChanged =
-		currentValues.name !== initial.current.name ||
-		currentValues.lastname !== initial.current.lastname ||
-		currentValues.displayUsername !== initial.current.displayUsername ||
-		currentValues.phone !== initial.current.phone;
-	const avatarChanged = avatarFile !== null || removeAvatar;
-	const hasChanges = textChanged || avatarChanged;
 
 	return (
 		<form
@@ -393,19 +383,37 @@ function ProfileForm() {
 							</Field>
 						</div>
 					</FieldGroup>
-					<form.Subscribe selector={(state) => state.isSubmitting}>
-						{(isSubmitting) => (
-							<Button type="submit" disabled={isSubmitting || !hasChanges} aria-busy={isSubmitting}>
-								{isSubmitting ? (
-									<>
-										<Spinner data-icon="inline-start" aria-hidden />
-										<span>Guardando...</span>
-									</>
-								) : (
-									"Guardar cambios"
-								)}
-							</Button>
-						)}
+					<form.Subscribe
+						selector={(state) => ({
+							isSubmitting: state.isSubmitting,
+							values: state.values,
+						})}
+					>
+						{({ isSubmitting, values }) => {
+							const textChanged =
+								values.name !== initial.current.name ||
+								values.lastname !== initial.current.lastname ||
+								values.displayUsername !== initial.current.displayUsername ||
+								values.phone !== initial.current.phone;
+							const hasChanges = textChanged || avatarFile !== null || removeAvatar;
+
+							return (
+								<Button
+									type="submit"
+									disabled={isSubmitting || !hasChanges}
+									aria-busy={isSubmitting}
+								>
+									{isSubmitting ? (
+										<>
+											<Spinner data-icon="inline-start" aria-hidden />
+											<span>Guardando...</span>
+										</>
+									) : (
+										"Guardar cambios"
+									)}
+								</Button>
+							);
+						}}
 					</form.Subscribe>
 				</CardContent>
 			</Card>

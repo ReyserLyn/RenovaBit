@@ -1,4 +1,3 @@
-import { Button } from "@renovabit/ui/components/ui/button";
 import {
 	Empty,
 	EmptyContent,
@@ -142,7 +141,7 @@ function FavoritesContent({ search }: { search: FavoritosSearch }) {
 			...favoritesQueries.infinite(filters),
 		});
 
-	const products = data?.pages.flatMap((page) => page.data) ?? [];
+	const products = data?.pages.flatMap((page) => (page ? page.data : [])) ?? [];
 	const totalProducts = data?.pages[0]?.total ?? 0;
 	const brands = data?.pages[0]?.brands ?? [];
 

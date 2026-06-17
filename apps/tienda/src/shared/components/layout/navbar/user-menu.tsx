@@ -20,7 +20,11 @@ import { Link, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { authClient } from "@/shared/lib/auth/auth-client";
 import { getAuthMessage } from "@/shared/lib/auth/auth-error-messages";
-import { authSessionQueryOptions, invalidateAuthQueries } from "@/shared/lib/auth/auth-session";
+import {
+	authSessionQueryOptions,
+	invalidateAuthQueries,
+	profileQueryOptions,
+} from "@/shared/lib/auth/auth-session";
 import { ButtonAuth } from "./button-auth";
 
 function getUserInitials(
@@ -36,12 +40,9 @@ function getUserInitials(
 	return "?";
 }
 
-export function UserMenu({
-	preloadedProfile,
-}: {
-	preloadedProfile?: { image: string | null } | null;
-}) {
+export function UserMenu() {
 	const { data: session } = useSuspenseQuery(authSessionQueryOptions());
+	const { data: freshProfile } = useSuspenseQuery(profileQueryOptions());
 	const router = useRouter();
 	const queryClient = useQueryClient();
 
@@ -50,7 +51,7 @@ export function UserMenu({
 	}
 
 	const user = session.user;
-	const avatarUrl = user.image === null ? null : (user.image ?? preloadedProfile?.image ?? null);
+	const avatarUrl = user.image ?? freshProfile?.image ?? null;
 	const initials = getUserInitials(user.name, user.email);
 
 	const handleSignOut = async () => {
@@ -71,7 +72,7 @@ export function UserMenu({
 				aria-label="Menú de usuario"
 			>
 				<Avatar>
-					<AvatarImage src={avatarUrl ?? undefined} alt={user.name ?? ""} />
+					{avatarUrl ? <AvatarImage src={avatarUrl} alt={user.name ?? ""} /> : null}
 					<AvatarFallback>{initials}</AvatarFallback>
 				</Avatar>
 			</DropdownMenuTrigger>

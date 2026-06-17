@@ -42,7 +42,7 @@ export const usersRoute = new Elysia({ prefix: "/users" })
 	// ── Update own profile ──────────────────────────
 	.patch(
 		"/me",
-		async ({ body, user }) => {
+		async ({ body, user, request: { headers } }) => {
 			const input: UpdateProfileInput = {
 				name: body.name,
 				lastname: body.lastname === "" ? null : body.lastname,
@@ -53,7 +53,7 @@ export const usersRoute = new Elysia({ prefix: "/users" })
 				removeImage: body.removeImage === "true",
 			};
 
-			return UserService.updateProfile(user.id, input);
+			return UserService.updateProfile(user.id, input, headers);
 		},
 		{
 			isAuth: true,

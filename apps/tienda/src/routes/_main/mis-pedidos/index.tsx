@@ -1,5 +1,6 @@
 import { ArrowRight01Icon, ShoppingBag01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { ORDER_STATUS_URL_VALUES } from "@renovabit/db/orders";
 import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Button } from "@renovabit/ui/components/ui/button";
 import {
@@ -19,7 +20,7 @@ import {
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useRef } from "react";
-import { ORDER_STATUS_UI, orderQueries, statusUiToApi } from "@/features/orders/hooks/queries";
+import { orderQueries, statusUiToApi } from "@/features/orders/hooks/queries";
 import { getOrderListServerFn } from "@/features/orders/hooks/server";
 import { getOrderStatusInfo } from "@/features/orders/lib/order-status";
 import { Breadcrumbs } from "@/shared/components/breadcrumbs";
@@ -29,8 +30,8 @@ import { formatPrice } from "@/shared/lib/format";
 
 const PAGE_SIZE = 10;
 
-function isValidEstado(value: string): value is (typeof ORDER_STATUS_UI)[number] {
-	return ORDER_STATUS_UI.some((s) => s === value);
+function isValidEstado(value: string): value is (typeof ORDER_STATUS_URL_VALUES)[number] {
+	return ORDER_STATUS_URL_VALUES.some((s) => s === value);
 }
 
 export const Route = createFileRoute("/_main/mis-pedidos/")({
@@ -113,7 +114,7 @@ function OrdersPage() {
 				>
 					Todos
 				</Button>
-				{ORDER_STATUS_UI.map((v) => (
+				{ORDER_STATUS_URL_VALUES.map((v) => (
 					<Button
 						key={v}
 						variant={estado === v ? "default" : "outline"}

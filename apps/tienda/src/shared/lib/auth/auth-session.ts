@@ -5,30 +5,27 @@ import { api } from "@/shared/lib/api/api-client";
 import { getApiBaseUrl } from "@/shared/lib/env";
 import type { Session } from "./auth-client";
 
-// ── Server function — session via API ──────────────
+// ── Server function — session via Better Auth (catch-all route, not typed in Elysia) ──
 
 export const getSessionServerFn = createServerFn({ method: "GET" }).handler(
 	async (): Promise<Session | null> => {
 		try {
 			const reqHeaders = getRequestHeaders();
 			const cookie = reqHeaders.get("cookie") ?? "";
-			const apiUrl = getApiBaseUrl();
 
-			const response = await fetch(`${apiUrl}/api/v1/auth/get-session`, {
+			const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/get-session`, {
 				headers: { cookie },
 			});
 
 			if (!response.ok) return null;
 
 			const data: unknown = await response.json();
-			if (!data || typeof data !== "object") return null;
-			const raw = data as Record<string, unknown>;
-			if (!raw.user || typeof raw.user !== "object") return null;
+			if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+			if (!("user" in data) || typeof data.user !== "object" || data.user === null) return null;
 
-			return {
-				user: raw.user as Session["user"],
-				session: raw.session as Session["session"],
-			} as Session;
+			// ⚠️ Único `as` justificado: Better Auth catch-all no está tipado en Elysia.
+			// Validación runtime antes del cast garantiza seguridad.
+			return data as Session;
 		} catch {
 			return null;
 		}
@@ -72,27 +69,22 @@ export const profileKeys = {
 	all: ["profile"] as const,
 };
 
-/** Server function: fetches fresh profile from DB via Eden Treaty, bypassing Better Auth cookie cache. */
-export const getProfileServerFn = createServerFn({ method: "GET" }).handler(
-	async (): Promise<{ image: string | null } | null> => {
-		try {
-			const reqHeaders = getRequestHeaders();
-			const cookie = reqHeaders.get("cookie") ?? "";
+/** Fresh DB profile — bypasses Better Auth's stale session cookie cache. */
+export const getProfileServerFn = createServerFn({ method: "GET" }).handler(async () => {
+	try {
+		const reqHeaders = getRequestHeaders();
+		const cookie = reqHeaders.get("cookie") ?? "";
 
-			const { data, error } = await api.api.v1.users.me.get({
-				headers: { cookie },
-			});
+		const { data, error } = await api.api.v1.users.me.get({
+			headers: { cookie },
+		});
 
-			if (error || !data) return null;
-
-			return {
-				image: typeof data.image === "string" ? data.image : null,
-			};
-		} catch {
-			return null;
-		}
-	},
-);
+		if (error || !data) return null;
+		return data;
+	} catch {
+		return null;
+	}
+});
 
 export function profileQueryOptions() {
 	return queryOptions({
