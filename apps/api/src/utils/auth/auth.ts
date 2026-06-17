@@ -64,7 +64,7 @@ export const auth = betterAuth({
 		storeSessionInDatabase: true,
 		cookieCache: {
 			enabled: true,
-			maxAge: 5 * 60, // 5 minutos
+			maxAge: 60, // 1 minuto (mitigación: reduce ventana de cookies stale)
 			strategy: "compact",
 		},
 	},

@@ -1,6 +1,7 @@
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
+import { getApiBaseUrl } from "@/shared/lib/env";
 import type { Session } from "./auth-client";
 
 // ── Server function — obtiene la sesión desde la API ──
@@ -8,16 +9,21 @@ import type { Session } from "./auth-client";
 export const getSessionServerFn = createServerFn({ method: "GET" }).handler(
 	async (): Promise<Session | null> => {
 		try {
-			const apiUrl = process.env.VITE_API_URL ?? "http://localhost:3001";
 			const headers = getRequestHeaders();
 
-			const response = await fetch(`${apiUrl}/api/v1/auth/get-session`, {
-				headers: { cookie: headers.get?.("cookie") ?? "" },
+			const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/get-session`, {
+				headers: { cookie: headers.get("cookie") ?? "" },
 			});
 
 			if (!response.ok) return null;
 
-			return (await response.json()) as Session;
+			const data: unknown = await response.json();
+			if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+			if (!("user" in data) || typeof data.user !== "object" || data.user === null) return null;
+
+			// ⚠️ Único `as` justificado: Better Auth catch-all no está tipado en Elysia.
+			// Validación runtime antes del cast garantiza seguridad.
+			return data as Session;
 		} catch {
 			return null;
 		}
@@ -35,7 +41,7 @@ export function authSessionQueryOptions() {
 	return queryOptions({
 		queryKey: authKeys.session(),
 		queryFn: () => getSessionServerFn(),
-		staleTime: 1000 * 60 * 15, // 15 min
+		staleTime: 1000 * 60 * 2, // 2 min (reducido para reflejar revocación más rápido)
 		gcTime: 1000 * 60 * 30, // 30 min
 		retry: false,
 	});

@@ -13,13 +13,15 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@renovabit/ui/compone
 import { Separator } from "@renovabit/ui/components/ui/separator";
 import { Spinner } from "@renovabit/ui/components/ui/spinner";
 import { useForm } from "@tanstack/react-form";
-import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { authClient } from "@/shared/lib/auth/auth-client";
 import { getAuthMessage } from "@/shared/lib/auth/auth-error-messages";
+import { resetAuthState } from "@/shared/lib/auth/auth-session";
 import { getFieldErrorId, normalizeFieldErrors } from "@/shared/lib/form/form-utils";
 
 // ── Route ─────────────────────────────────────────
@@ -46,9 +48,17 @@ const changePasswordSchema = z
 
 type PasswordFormValues = z.infer<typeof changePasswordSchema>;
 
+const DATE_FORMAT: Intl.DateTimeFormatOptions = {
+	year: "numeric",
+	month: "short",
+	day: "numeric",
+};
+
 // ── Page component ─────────────────────────────────
 
 function SeguridadPage() {
+	const [sessionsKey, setSessionsKey] = useState(0);
+
 	return (
 		<div className="space-y-6">
 			<div>
@@ -58,15 +68,15 @@ function SeguridadPage() {
 				</p>
 			</div>
 
-			<ChangePasswordCard />
-			<ActiveSessionsCard />
+			<ChangePasswordCard onPasswordChanged={() => setSessionsKey((k) => k + 1)} />
+			<ActiveSessionsCard sessionsKey={sessionsKey} />
 		</div>
 	);
 }
 
 // ── Change Password Card ───────────────────────────
 
-function ChangePasswordCard() {
+function ChangePasswordCard({ onPasswordChanged }: { onPasswordChanged: () => void }) {
 	const [serverError, setServerError] = useState<string | null>(null);
 
 	const form = useForm({
@@ -96,6 +106,7 @@ function ChangePasswordCard() {
 			toast.success("Contraseña actualizada");
 			form.reset();
 			setServerError(null);
+			onPasswordChanged();
 		},
 	});
 
@@ -265,22 +276,35 @@ interface AccountInfo {
 
 // ── Active Sessions Card ──────────────────────────
 
-function ActiveSessionsCard() {
+function ActiveSessionsCard({ sessionsKey }: { sessionsKey: number }) {
 	const [sessions, setSessions] = useState<SessionInfo[]>([]);
 	const [accounts, setAccounts] = useState<AccountInfo[]>([]);
 	const [isLoadingSessions, setIsLoadingSessions] = useState(true);
 	const [revokingId, setRevokingId] = useState<string | null>(null);
 	const [isRevokingAll, setIsRevokingAll] = useState(false);
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 
 	const loadSessions = useCallback(async () => {
 		setIsLoadingSessions(true);
 		try {
-			const { data: sessionsData, error: sessionsErr } = await authClient.listSessions();
-			if (sessionsErr) {
-				toast.error(getAuthMessage(sessionsErr));
+			const [sessionsRes, currentRes] = await Promise.all([
+				authClient.listSessions(),
+				authClient.getSession({ query: { disableCookieCache: true } }),
+			]);
+
+			if (sessionsRes.error) {
+				toast.error(getAuthMessage(sessionsRes.error));
 				return;
 			}
-			setSessions(sessionsData ?? []);
+
+			const currentToken = currentRes.data?.session?.token;
+			const sessionsData = (sessionsRes.data ?? []).map((s) => ({
+				...s,
+				isCurrent: s.token === currentToken,
+			}));
+
+			setSessions(sessionsData);
 		} catch {
 			toast.error("Error al cargar las sesiones activas.");
 		} finally {
@@ -300,13 +324,33 @@ function ActiveSessionsCard() {
 	useEffect(() => {
 		void loadSessions();
 		void loadAccounts();
-	}, [loadSessions, loadAccounts]);
+	}, [loadSessions, loadAccounts, sessionsKey]);
 
 	const handleRevoke = useCallback(
 		async (sessionToken: string) => {
 			if (!sessionToken) return;
 			setRevokingId(sessionToken);
+
+			const isCurrent = sessions.find((s) => s.token === sessionToken)?.isCurrent ?? false;
 			const result = await authClient.revokeSession({ token: sessionToken });
+
+			// ── Self-revoke: always sign out + redirect ──
+			if (isCurrent) {
+				if (result.error) {
+					toast.error("No se pudo revocar la sesión. Cerrando sesión localmente...");
+				} else {
+					toast.success("Sesión cerrada");
+				}
+				// signOut bloqueante → cookies limpias → SPA navigation segura
+				await authClient.signOut().catch(() => {
+					// signOut es best-effort tras revoke — ignorar fallos
+				});
+				resetAuthState(queryClient);
+				navigate({ to: "/iniciar-sesion", replace: true });
+				return;
+			}
+
+			// ── Revocar otra sesión ──
 			if (result.error) {
 				toast.error(getAuthMessage(result.error));
 			} else {
@@ -315,7 +359,7 @@ function ActiveSessionsCard() {
 			}
 			setRevokingId(null);
 		},
-		[loadSessions],
+		[sessions, loadSessions, queryClient, navigate],
 	);
 
 	const handleRevokeOthers = useCallback(async () => {
@@ -359,8 +403,8 @@ function ActiveSessionsCard() {
 												{deviceInfo || "Dispositivo desconocido"}
 											</span>
 											{session.isCurrent && (
-												<span className="bg-primary/10 text-primary text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0">
-													Actual
+												<span className="text-primary text-xs font-bold shrink-0">
+													Sesión actual
 												</span>
 											)}
 										</div>
@@ -369,21 +413,13 @@ function ActiveSessionsCard() {
 											{session.createdAt && (
 												<span>
 													Desde:{" "}
-													{new Date(session.createdAt).toLocaleDateString("es-PE", {
-														year: "numeric",
-														month: "short",
-														day: "numeric",
-													})}
+													{new Date(session.createdAt).toLocaleDateString("es-PE", DATE_FORMAT)}
 												</span>
 											)}
 											{session.expiresAt && (
 												<span>
 													Expira:{" "}
-													{new Date(session.expiresAt).toLocaleDateString("es-PE", {
-														year: "numeric",
-														month: "short",
-														day: "numeric",
-													})}
+													{new Date(session.expiresAt).toLocaleDateString("es-PE", DATE_FORMAT)}
 												</span>
 											)}
 										</div>
