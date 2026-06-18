@@ -78,3 +78,9 @@ docs
 
 
 renovabit-mono
+
+# Raw working files (AI generations, exports) - per app
+.raw
+
+# Test
+__tests__
