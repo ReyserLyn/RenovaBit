@@ -1,0 +1,96 @@
+---
+import HighlightText from "@astroanimate/core/HighlightText"
+import WhatsappIcon from "@/components/social-icon/WhatsappIcon.astro"
+import InstagramIcon from "@/components/social-icon/InstagramIcon.astro"
+import FacebookIcon from "@/components/social-icon/FacebookIcon.astro"
+import TikTokIcon from "@/components/social-icon/TikTokIcon.astro"
+import { CONTACT, SOCIAL } from "@/constants"
+import { Icon } from "astro-icon/components"
+
+interface Props {
+	class?: string
+}
+
+const { class: className = "" } = Astro.props as Props
+
+const telHref = `tel:${CONTACT.phone.replace(/\s/g, "")}`
+---
+
+<div
+	class={`flex w-full flex-col items-center justify-center gap-4 text-base text-muted-foreground md:flex-row md:gap-6 motion-safe:animate-fade-in-up motion-safe:animate-duration-700 animate-delay-1000 ${className}`}
+>
+	<a
+		href={telHref}
+		class="group inline-flex items-center gap-2.5 rounded-md font-sans text-base font-medium text-foreground md:text-lg"
+		aria-label={`Llamar al ${CONTACT.phone}`}
+	>
+		<Icon name="hugeicons:call" class="size-5 text-primary" aria-hidden="true" />
+		<HighlightText
+			variant="underline"
+			trigger="hover"
+			color="currentColor"
+			thickness="2px"
+			duration="400ms"
+		>
+			{CONTACT.phone}
+		</HighlightText>
+	</a>
+
+	<span class="hidden text-border md:inline" aria-hidden="true">·</span>
+
+	<ul class="m-0 flex list-none items-center gap-3 p-0" role="list" aria-label="Redes sociales">
+		<li>
+			<a
+				href={CONTACT.whatsappUrl}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="inline-flex size-10 items-center justify-center rounded-full bg-[#25d366]/10 text-[#25d366] transition-colors duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:hover:bg-[#25d366] motion-safe:hover:text-white active:scale-95"
+				aria-label="WhatsApp (se abre en nueva pestaña)"
+			>
+				<WhatsappIcon size={20} aria-hidden="true" />
+			</a>
+		</li>
+		<li>
+			<a
+				href={SOCIAL.instagram}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="inline-flex size-10 items-center justify-center rounded-full bg-foreground/5 text-foreground/80 transition-colors duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:hover:bg-primary motion-safe:hover:text-primary-foreground active:scale-95"
+				aria-label="Instagram (se abre en nueva pestaña)"
+			>
+				<InstagramIcon size={20} aria-hidden="true" />
+			</a>
+		</li>
+		<li>
+			<a
+				href={SOCIAL.facebook}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="inline-flex size-10 items-center justify-center rounded-full bg-foreground/5 text-foreground/80 transition-colors duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:hover:bg-primary motion-safe:hover:text-primary-foreground active:scale-95"
+				aria-label="Facebook (se abre en nueva pestaña)"
+			>
+				<FacebookIcon size={20} aria-hidden="true" />
+			</a>
+		</li>
+		<li>
+			<a
+				href={SOCIAL.tiktok}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="inline-flex size-10 items-center justify-center rounded-full bg-foreground/5 text-foreground/80 transition-colors duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:hover:bg-primary motion-safe:hover:text-primary-foreground active:scale-95"
+				aria-label="TikTok (se abre en nueva pestaña)"
+			>
+				<TikTokIcon size={20} aria-hidden="true" />
+			</a>
+		</li>
+		<li>
+			<a
+				href={`mailto:${CONTACT.email}`}
+				class="inline-flex size-10 items-center justify-center rounded-full bg-foreground/5 text-foreground/80 transition-colors duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] motion-safe:hover:bg-primary motion-safe:hover:text-primary-foreground active:scale-95"
+				aria-label={`Email: ${CONTACT.email}`}
+			>
+				<Icon name="hugeicons:mail-01" class="size-5" aria-hidden="true" />
+			</a>
+		</li>
+	</ul>
+</div>

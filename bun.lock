@@ -32,6 +32,7 @@
         "@hugeicons/react": "catalog:",
         "@renovabit/backend-client": "*",
         "@renovabit/db": "*",
+        "@renovabit/pricing": "*",
         "@renovabit/ui": "*",
         "@tailwindcss/vite": "catalog:",
         "@tanstack/match-sorter-utils": "8.19.4",
@@ -95,6 +96,7 @@
         "@openrouter/ai-sdk-provider": "^2.9.0",
         "@renovabit/backend-errors": "*",
         "@renovabit/db": "*",
+        "@renovabit/pricing": "*",
         "@sinclair/typebox": "^0.34.49",
         "ai": "^6.0.198",
         "better-auth": "catalog:",
@@ -123,7 +125,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@astroanimate/core": "^0.1.2",
-        "@renovabit/ui": "*",
+        "class-variance-authority": "^0.7.1",
       },
       "devDependencies": {
         "@astrojs/check": "^0.9.9",
@@ -135,8 +137,13 @@
         "astro": "^6.4.4",
         "astro-icon": "^1.1.5",
         "astro-theme-toggle": "^0.8.1",
+        "clsx": "^2.1.1",
         "prettier": "catalog:",
         "prettier-plugin-astro": "catalog:",
+        "tailwind-animations": "^1.0.1",
+        "tailwind-merge": "^3.5.0",
+        "tailwindcss": "^4.3.0",
+        "tw-animate-css": "^1.4.0",
         "typescript": "catalog:",
         "vite": "^7.0.0",
       },
@@ -240,6 +247,16 @@
         "@renovabit/ts-config": "*",
         "@types/node": "^25.9.2",
         "drizzle-kit": "^0.31.10",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/pricing": {
+      "name": "@renovabit/pricing",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@renovabit/biome-config": "*",
+        "@renovabit/ts-config": "*",
+        "bun-types": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -884,6 +901,8 @@
     "@renovabit/biome-config": ["@renovabit/biome-config@workspace:packages/biome-config"],
 
     "@renovabit/db": ["@renovabit/db@workspace:packages/db"],
+
+    "@renovabit/pricing": ["@renovabit/pricing@workspace:packages/pricing"],
 
     "@renovabit/ts-config": ["@renovabit/ts-config@workspace:packages/ts-config"],
 

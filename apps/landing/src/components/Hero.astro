@@ -1,172 +1,135 @@
 ---
-import { Image } from "astro:assets"
 import { Icon } from "astro-icon/components"
-import heroImage from "@/assets/images/hero/laptop-disambling.avif"
-import { CONTACT } from "@/constants"
+import HeroVideo from "@/components/hero/HeroVideo.astro"
+import ProcessStrip from "@/components/hero/ProcessStrip.astro"
+import ContactStrip from "@/components/hero/ContactStrip.astro"
 import Button from "@/components/ui/Button.astro"
-import HeroBackground from "@/components/ui/HeroBackground.astro"
-import Badge from "@/components/ui/Badge.astro"
-import HeroWatermark from "@/components/ui/HeroWatermark.astro"
-import WhatsappIcon from "@/components/social-icon/WhatsappIcon.astro"
-import GridDotsBackground from "@astroanimate/core/GridDotsBackground"
-import TypewriterText from "@astroanimate/core/TypewriterText"
 import HighlightText from "@astroanimate/core/HighlightText"
+import TypewriterText from "@astroanimate/core/TypewriterText"
+import WhatsappIcon from "@/components/social-icon/WhatsappIcon.astro"
+import { CONTACT } from "@/constants"
 
-const typewriterPhrases = [
-	"un cuidado experto",
-	"un servicio de confianza",
-	"un servicio completo",
-	"la mejor garantía",
-]
+const processSteps = [
+	{
+		number: "01",
+		icon: "hugeicons:search-01",
+		title: "Diagnóstico",
+		meta: "Gratis, sin compromiso",
+	},
+	{
+		number: "02",
+		icon: "hugeicons:home-01",
+		title: "Recojo",
+		meta: "Vamos a tu casa en Arequipa",
+	},
+	{
+		number: "03",
+		icon: "hugeicons:wrench-01",
+		title: "Reparación",
+		meta: "Con repuestos originales y garantía",
+	},
+	{
+		number: "04",
+		icon: "hugeicons:alarm-clock",
+		title: "Entrega",
+		meta: "Probada y con informe PDF",
+	},
+] as const
+
+const paymentMethods = ["Yape", "Plin", "transferencia", "efectivo"]
 ---
 
-<GridDotsBackground
-	variant="dots"
-	animate={true}
-	mask={true}
-	bgColor="transparent"
-	dotColor="color-mix(in oklab, var(--foreground) 8%, transparent)"
-	height="100%"
-	mainClassName="flex-1 w-full flex items-center"
+<section
+	class="relative isolate flex min-h-svh items-center justify-center overflow-hidden"
+	aria-labelledby="hero-headline"
 >
-	<HeroBackground />
-	<HeroWatermark />
-
-	<div class="container relative z-10 flex flex-1 flex-col lg:flex-row lg:items-stretch max-w-7xl">
-		<div
-			class="flex flex-col items-center justify-center pb-6 text-center lg:w-1/2 lg:items-start lg:text-left"
-		>
-			<div class="max-w-xl">
-				<!-- Badge -->
-				<Badge variant="primary-light" radius="full" class="animate-fade-in-up" size="lg">
-					<Icon name="hugeicons:star" class="size-3.5 text-primary" />
-					Recogemos
-					<span class="text-muted-foreground mx-0.5">·</span>
-					Reparamos
-					<span class="text-muted-foreground mx-0.5">·</span>
-					Entregamos
-				</Badge>
-
-				<!-- Headline -->
-				<h1
-					class="animate-fade-in-up animate-delay-100 text-3xl font-bold leading-[1.15] tracking-tight text-foreground sm:text-4xl lg:text-5xl xl:text-6xl"
-				>
-					Tu laptop merece<br />
-					<span class="text-primary">
-						<TypewriterText
-							texts={typewriterPhrases}
-							typeSpeed={70}
-							eraseSpeed={35}
-							pauseAfter={2000}
-							enhance
-							mainClassName="text-primary"
-						/>
-					</span>
-				</h1>
-
-				<!-- Subheadline -->
-				<p
-					class="animate-fade-in-up animate-delay-200 mt-4 max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base lg:mt-5 lg:text-base xl:text-lg"
-				>
-					Reparamos tu laptop, mejoramos tu equipo y
-					<HighlightText trigger="load" color="color-mix(in oklab, var(--primary) 30%, transparent)"
-						>lo dejamos como nueva</HighlightText
-					> con la
-					<HighlightText trigger="load" variant="underline" color="var(--primary)"
-						>más alta calidad</HighlightText
-					> en
-					<HighlightText trigger="load" variant="underline" color="var(--primary)"
-						>🇵🇪 Arequipa</HighlightText
-					>.
-				</p>
-
-				<!-- Features -->
-				<ul
-					class="animate-fade-in-up animate-delay-200 mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground lg:mt-6 lg:text-base"
-				>
-					<li class="flex items-center gap-1.5 lg:gap-2">
-						<Icon name="hugeicons:wrench-01" class="size-4 text-primary" />
-						<span>Reparación y mejora</span>
-					</li>
-					<li class="flex items-center gap-1.5 lg:gap-2">
-						<Icon name="hugeicons:location-01" class="size-4 text-primary" />
-						<span>Recogemos a domicilio</span>
-					</li>
-					<li class="flex items-center gap-1.5 lg:gap-2">
-						<Icon name="hugeicons:checkmark-circle-01" class="size-4 text-primary" />
-						<span>Garantía incluida</span>
-					</li>
-				</ul>
-
-				<!-- CTAs -->
-				<div
-					class="animate-fade-in-up animate-delay-300 mt-6 flex flex-col gap-3 sm:flex-row sm:gap-4 lg:mt-8 w-full sm:w-auto"
-				>
-					<Button
-						as="a"
-						href={CONTACT.whatsappUrl}
-						size="lg"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="px-6 sm:px-8 h-11 text-base gap-2 animate-pulsing animate-duration-3500 animate-iteration-count-infinite"
-					>
-						<WhatsappIcon size={18} />
-						WhatsApp
-					</Button>
-					<Button
-						as="a"
-						href={CONTACT.whatsappUrl}
-						variant="outline"
-						size="lg"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="px-6 sm:px-8 h-11 text-base gap-2"
-					>
-						<Icon name="hugeicons:chatting-01" class="size-4" />
-						Recibir diagnóstico gratis
-					</Button>
-				</div>
-			</div>
-		</div>
-
-		<!-- ====== IMAGEN ====== -->
-		<div
-			class="relative flex flex-1 items-end justify-center lg:w-1/2 lg:flex-none lg:items-center lg:justify-center lg:pr-8 overflow-visible"
-		>
-			<!-- Backlight — brilla a través de las transparencias del PNG -->
-			<div
-				class="absolute inset-0 flex items-center justify-center pointer-events-none overflow-visible animate-pulsing animate-duration-2000 animate-iteration-count-infinite"
-				aria-hidden="true"
-			>
-				<!-- Glow principal — luz que se cuela por los huecos entre capas -->
-				<div
-					class="w-[85%] h-[90%] rounded-full bg-[radial-gradient(ellipse_50%_55%_at_50%_50%,color-mix(in_oklab,var(--primary)_35%,transparent)_0%,color-mix(in_oklab,var(--secondary)_15%,transparent)_45%,transparent_70%)] blur-3xl"
-				>
-				</div>
-				<!-- Hotspot — más brillante, ligeramente desplazado para profundidad -->
-				<div
-					class="absolute w-[55%] h-[65%] rounded-full bg-[radial-gradient(ellipse_50%_50%_at_50%_50%,color-mix(in_oklab,var(--primary)_25%,transparent)_0%,color-mix(in_oklab,var(--accent)_10%,transparent)_50%,transparent_65%)] blur-xl translate-x-[4%] translate-y-[2%]"
-				>
-				</div>
-			</div>
-
-			<!-- Imagen — escalada para que desborde e impacte -->
-			<div
-				class="animate-fade-in animate-delay-100 relative z-10 flex w-full max-w-[280px] items-center justify-center sm:max-w-sm lg:max-w-xl xl:max-w-2xl scale-100 lg:scale-125 origin-bottom lg:origin-center perspective-normal transform-3d rotate-x-20 -rotate-y-15"
-			>
-				<Image
-					src={heroImage}
-					alt="Técnico desarmando una laptop para diagnóstico y reparación"
-					class="h-auto max-h-[40dvh] w-full select-none object-contain drop-shadow-[0_0_50px_color-mix(in_oklab,var(--accent)_85%,transparent)] lg:max-h-none lg:h-auto lg:w-auto animate-bouncing animate-iteration-count-infinite animate-duration-3000"
-					loading="eager"
-					fetchpriority="high"
-					decoding="async"
-					width={1343}
-					height={1800}
-					widths={[240, 320, 480, 640, 960, 1280]}
-					sizes="(max-width: 640px) 280px, (max-width: 1024px) 384px, (max-width: 1280px) 720px, 840px"
-				/>
-			</div>
-		</div>
+	<HeroVideo />
+	<div
+		class="absolute inset-0 z-2 pointer-events-none bg-[radial-gradient(ellipse_85%_75%_at_50%_45%,color-mix(in_oklab,var(--background)_90%,transparent)_0%,color-mix(in_oklab,var(--background)_45%,transparent)_55%,color-mix(in_oklab,var(--background)_28%,transparent)_85%,transparent_100%)]"
+		aria-hidden="true"
+	>
 	</div>
-</GridDotsBackground>
+	<div
+		class="absolute inset-0 z-1 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,transparent_20%,var(--background)_80%)]"
+		aria-hidden="true"
+	>
+	</div>
+
+	<div
+		class="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center gap-7 px-5 py-24 text-center md:gap-8 md:px-8 md:py-28 lg:py-32"
+	>
+		<h1
+			id="hero-headline"
+			class="font-display m-0 max-w-[22ch] text-balance text-[clamp(2.5rem,6vw,4.5rem)] font-bold leading-[1.05] tracking-[-0.03em] text-foreground motion-safe:animate-fade-in-up motion-safe:animate-duration-700 motion-safe:animate-delay-100"
+		>
+			Laptop <HighlightText
+				variant="background"
+				trigger="load"
+				padding="0.1em"
+				color="color-mix(in oklab, var(--primary) 30%, transparent)"
+				>lenta, rota o con agua</HighlightText
+			><br />
+			<span class="block text-primary">La arreglamos</span>
+		</h1>
+
+		<p
+			class="m-0 max-w-2xl text-pretty text-[clamp(1.0625rem,1.8vw,1.25rem)] leading-normal text-muted-foreground motion-safe:animate-fade-in-up motion-safe:animate-duration-700 motion-safe:animate-delay-200"
+		>
+			Servicio técnico a domicilio en Arequipa — <HighlightText
+				variant="underline"
+				trigger="load"
+				color="var(--primary)"
+				thickness="2px"
+				duration="800ms">desde S/49</HighlightText
+			>. Diagnóstico gratis, garantía hasta 90 días.
+		</p>
+
+		<ProcessStrip steps={processSteps} baseDelay={300} class="hidden md:flex" />
+
+		<div
+			class="mt-1 flex flex-col items-center justify-center gap-4 md:flex-row md:items-center md:gap-3 motion-safe:animate-fade-in-up motion-safe:animate-duration-700 animate-delay-800"
+		>
+			<Button
+				as="a"
+				href={CONTACT.whatsappUrl}
+				target="_blank"
+				rel="noopener noreferrer"
+				size="lg"
+				variant="whatsapp"
+				class="motion-safe:animate-pulsing motion-safe:animate-iteration-count-infinite motion-safe:animate-duration-2500 motion-reduce:animation-none"
+				aria-label="Contactar por WhatsApp (se abre en nueva pestaña)"
+			>
+				<WhatsappIcon size={18} aria-hidden="true" />
+				WhatsApp ahora
+			</Button>
+
+			<Button
+				as="a"
+				href="#servicios"
+				size="lg"
+				variant="outline"
+				class="inline-flex items-center gap-1.5"
+			>
+				<Icon name="hugeicons:arrow-down-01" class="size-4" aria-hidden="true" />
+				Ver servicios
+			</Button>
+		</div>
+
+		<ContactStrip class="md:order-first" />
+
+		<p
+			class="m-0 flex flex-wrap items-center justify-center gap-1 text-sm leading-normal text-muted-foreground motion-safe:animate-fade-in-up motion-safe:animate-duration-700 animate-delay-1000"
+		>
+			<span>Aceptamos&nbsp;</span>
+			<TypewriterText
+				texts={paymentMethods}
+				typeSpeed={80}
+				eraseSpeed={40}
+				pauseAfter={1800}
+				enhance
+				mainClassName="text-primary font-medium"
+			/>
+			&nbsp;<span class="text-border" aria-hidden="true">·</span>&nbsp;Arequipa y distritos
+		</p>
+	</div>
+</section>

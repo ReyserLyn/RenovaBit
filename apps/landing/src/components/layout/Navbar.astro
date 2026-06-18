@@ -4,7 +4,6 @@ import { CONTACT, NAV_ITEMS } from "@/constants"
 import Logo from "../ui/Logo.astro"
 import Button from "../ui/Button.astro"
 import MobileMenu from "./MobileMenu.astro"
-import ThemeToggle from "../ui/ThemeToggle.astro"
 
 const currentPath = Astro.url.pathname
 ---
@@ -23,7 +22,7 @@ const currentPath = Astro.url.pathname
 				NAV_ITEMS.map((item) => (
 					<Button
 						as="a"
-						variant="ghost-accent"
+						variant="ghost"
 						href={item.href}
 						aria-current={currentPath === item.href ? "page" : undefined}
 						class="text-foreground/70 aria-[current=page]:bg-accent aria-[current=page]:text-foreground"
@@ -36,8 +35,6 @@ const currentPath = Astro.url.pathname
 
 		<!-- Right side -->
 		<div class="flex items-center md:gap-4">
-			<ThemeToggle />
-
 			<Button
 				as="a"
 				href={CONTACT.whatsappUrl}

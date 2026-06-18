@@ -1,0 +1,40 @@
+---
+const { class: className = "" } = Astro.props as { class?: string }
+
+const posterUrl = "/hero/hero-poster.jpg"
+---
+
+<video
+	class:list={["absolute inset-0 w-full h-full object-cover object-center block z-1", className]}
+	autoplay
+	muted
+	loop
+	playsinline
+	preload="auto"
+	poster={posterUrl}
+	aria-label="Técnico abriendo una laptop Lenovo ThinkPad para reparación"
+>
+	<source src="/hero/hero-desktop.webm" type="video/webm" media="(min-width: 768px)" />
+	<source src="/hero/hero-desktop.mp4" type="video/mp4" media="(min-width: 768px)" />
+	<source src="/hero/hero-mobile.webm" type="video/webm" />
+	<source src="/hero/hero-mobile.mp4" type="video/mp4" />
+	<img src={posterUrl} alt="Laptop Lenovo ThinkPad en estudio" />
+</video>
+
+<script>
+	// Buscamos usando el atributo z-1 nativo o tag para evitar colisiones si se duplica el componente
+	const video = document.querySelector<HTMLVideoElement>("video.z-1")
+	if (video) {
+		const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
+		const stopVideo = () => {
+			video.pause()
+			video.removeAttribute("autoplay")
+			video.currentTime = 0
+		}
+
+		if (mq.matches) stopVideo()
+		mq.addEventListener("change", (e) => {
+			if (e.matches) stopVideo()
+		})
+	}
+</script>

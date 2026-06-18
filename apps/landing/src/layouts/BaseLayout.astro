@@ -1,9 +1,7 @@
 ---
-import "@renovabit/ui/styles/globals.css"
 import "@/styles/landing.css"
 import { Font } from "astro:assets"
 import { ClientRouter } from "astro:transitions"
-import { ThemeScript } from "astro-theme-toggle/components"
 import { SITE } from "@/constants"
 
 interface Props {
@@ -49,12 +47,18 @@ const canonicalUrl = new URL(Astro.url.pathname, SITE.url).toString()
 
 		<link rel="icon" href="/favicon.ico" />
 
+		<!-- Outfit (body / UI / subhead / features / CTAs / trust) -->
 		<Font
 			cssVariable="--font-outfit"
 			preload={[{ weight: "400" }, { weight: "500" }, { weight: "700" }]}
 		/>
 
-		<ThemeScript />
+		<!-- Urbanist (display, headlines) — preload only the critical 700 -->
+		<Font cssVariable="--font-urbanist" preload={[{ weight: "700" }]} />
+
+		<!-- Azonix (display accent, eyebrow) — single weight, preloaded -->
+		<Font cssVariable="--font-azonix" preload={[{ weight: "400" }]} />
+
 		<ClientRouter />
 	</head>
 

@@ -47,5 +47,53 @@ export default defineConfig({
 				],
 			},
 		},
+		{
+			provider: fontProviders.local(),
+			name: "Urbanist",
+			cssVariable: "--font-urbanist",
+			options: {
+				variants: [
+					{
+						src: ["./src/assets/fonts/urbanist-v18-latin-300.woff2"],
+						weight: "300",
+						style: "normal",
+					},
+					{
+						src: ["./src/assets/fonts/urbanist-v18-latin-400.woff2"],
+						weight: "400",
+						style: "normal",
+					},
+					{
+						src: ["./src/assets/fonts/urbanist-v18-latin-500.woff2"],
+						weight: "500",
+						style: "normal",
+					},
+					{
+						src: ["./src/assets/fonts/urbanist-v18-latin-700.woff2"],
+						weight: "700",
+						style: "normal",
+					},
+					{
+						src: ["./src/assets/fonts/urbanist-v18-latin-800.woff2"],
+						weight: "800",
+						style: "normal",
+					},
+				],
+			},
+		},
+		{
+			provider: fontProviders.local(),
+			name: "Azonix",
+			cssVariable: "--font-azonix",
+			options: {
+				variants: [
+					{
+						src: ["./src/assets/fonts/Azonix.woff2"],
+						weight: "400",
+						style: "normal",
+					},
+				],
+			},
+		},
 	],
 });
