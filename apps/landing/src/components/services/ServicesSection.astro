@@ -1,0 +1,369 @@
+---
+import { Icon } from "astro-icon/components"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import { Card, CardDescription, CardMedia, CardTitle } from "@/components/ui/card"
+import WhatsappIcon from "@/components/social-icon/WhatsappIcon.astro"
+import { CONTACT, STORE_URL, isExternalHref } from "@/constants"
+import soporteRemotoImage from "@/assets/images/services/soporte-remoto.avif"
+import tallerImage from "@/assets/images/services/taller.avif"
+
+type Service = {
+	id: string
+	title: string
+	description: string
+	bullets?: string[]
+	price: string
+	priceNote?: string
+	cta: string
+	whatsappMessage?: string
+	href?: string
+	icon: string
+	colSpan: string
+	delay: number
+	featured?: boolean
+	image?: { src: string; width: number; height: number; alt: string }
+}
+
+const wa = (msg: string) => `${CONTACT.whatsappUrl}?text=${encodeURIComponent(msg)}`
+
+const delayClass = (delay: number) =>
+	({
+		100: "animate-delay-100",
+		200: "animate-delay-200",
+		300: "animate-delay-300",
+	})[delay] ?? ""
+
+/**
+ * Estilo replicable para eyebrows (texto de rótulo corto encima de títulos).
+ * Patrón "kicker" — barra decorativa en color primary + tipografía display
+ */
+const eyebrowClass = "font-eyebrow text-base text-foreground/85"
+
+const services: readonly Service[] = [
+	{
+		id: "mantenimiento",
+		title: "¿Laptop lenta, apagada o sin imagen?",
+		description:
+			"La revisamos el mismo día. Microsoldadura SMD, cambio de pasta térmica, recuperación de datos y reparación de placas base. Todo centralizado en nuestro taller en Arequipa.",
+		bullets: [
+			"Diagnóstico gratuito y sin compromiso",
+			"Garantía por escrito de 90 días",
+			"Precio cerrado antes de empezar",
+		],
+		price: "Desde S/79",
+		priceNote: "diagnóstico gratis",
+		cta: "Solicitar diagnóstico gratis",
+		whatsappMessage:
+			"Hola, quiero solicitar un diagnóstico gratuito para mi laptop o PC. ¿Cuándo puedo llevarla?",
+		icon: "hugeicons:wrench-01",
+		colSpan: "lg:col-span-8 lg:row-span-2",
+		delay: 100,
+		featured: true,
+		image: {
+			src: tallerImage.src,
+			width: tallerImage.width,
+			height: tallerImage.height,
+			alt: "Técnico especialista reparando una laptop en el taller de RenovaBit",
+		},
+	},
+	{
+		id: "soporte-remoto",
+		title: "Soporte Remoto Inmediato",
+		description:
+			"Resolvemos el problema sin que salgas de casa. Eliminación de virus, optimización del sistema, instalación de software y recuperación de archivos.",
+		price: "S/49",
+		priceNote: "por sesión",
+		cta: "Agendar ahora",
+		whatsappMessage:
+			"Hola, necesito agendar una sesión de soporte remoto. ¿Tienen disponibilidad hoy?",
+		icon: "hugeicons:computer",
+		colSpan: "lg:col-span-4",
+		delay: 200,
+		image: {
+			src: soporteRemotoImage.src,
+			width: soporteRemotoImage.width,
+			height: soporteRemotoImage.height,
+			alt: "Sesión de soporte técnico remoto asistido por pantalla compartida",
+		},
+	},
+	{
+		id: "tienda",
+		title: "Tu próxima PC, sin sorpresas",
+		description:
+			"Cotiza online laptops, componentes originales o ensambles a medida. Stock real y asesoría técnica profesional antes de tu compra.",
+		price: "Proforma",
+		priceNote: "sin costo",
+		cta: "Ver catálogo online",
+		href: STORE_URL,
+		icon: "hugeicons:package",
+		colSpan: "lg:col-span-4",
+		delay: 300,
+	},
+] as const
+---
+
+<section
+	id="servicios"
+	aria-labelledby="servicios-heading"
+	class="relative isolate scroll-mt-24 py-20 md:py-28 lg:py-32"
+>
+	<div class="container">
+		<header class="mx-auto mb-12 flex max-w-2xl flex-col items-center text-center md:mb-16">
+			<div class="mb-4 inline-flex items-center gap-3">
+				<span class="h-px w-8 bg-primary" aria-hidden="true"></span>
+				<span class={eyebrowClass}>Nuestros Servicios</span>
+			</div>
+			<h2
+				id="servicios-heading"
+				class="font-display text-balance text-3xl font-bold leading-tight tracking-[-0.02em] text-foreground md:text-4xl lg:text-5xl"
+			>
+				Tu equipo en buenas manos
+			</h2>
+			<p class="mt-4 text-pretty text-base leading-relaxed text-muted-foreground md:text-lg">
+				Reparamos, optimizamos y equipamos. Diagnóstico gratuito, garantía de hasta 90 días y
+				atención presencial en Arequipa o a domicilio.
+			</p>
+		</header>
+
+		<ol
+			class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-12 lg:grid-rows-2"
+			aria-label="Servicios ofrecidos por RenovaBit"
+		>
+			{
+				services.map((service) => {
+					// Variables pre-calculadas para evitar redundancia
+					const cardClass = `motion-safe:animate-fade-in-up motion-safe:animate-duration-700 motion-reduce:animate-none ${delayClass(service.delay)} ${service.colSpan}`
+					const whatsappLink = service.whatsappMessage ? wa(service.whatsappMessage) : ""
+					const resolvedHref = service.href ?? STORE_URL
+					const isExternal = isExternalHref(resolvedHref)
+
+					// ── Card 1: Mantenimiento (FEATURED) ──
+					if (service.featured && service.image) {
+						return (
+							<li class="contents">
+								<Card
+									class={`group/featured relative overflow-hidden border-0 bg-transparent p-0 ring-0 lg:self-stretch ${cardClass}`}
+								>
+									<CardMedia class="aspect-video lg:h-full">
+										<img
+											src={service.image.src}
+											alt={service.image.alt}
+											width={service.image.width}
+											height={service.image.height}
+											loading="lazy"
+											decoding="async"
+											class="h-full w-full object-cover transition-transform duration-700 ease-out group-hover/featured:scale-105"
+										/>
+									</CardMedia>
+
+									{/* Gradient overlay */}
+									<div
+										class="pointer-events-none absolute inset-0 z-10 bg-linear-to-t from-background via-background/90 to-background/10"
+										aria-hidden="true"
+									/>
+
+									<div class="absolute inset-0 z-20 flex flex-col justify-end gap-4 p-6 md:p-8 lg:p-10">
+										{/* Badges */}
+										<div class="flex flex-col gap-3">
+											<div class="inline-flex items-center gap-3">
+												<span class="h-px w-8 bg-foreground/80" aria-hidden="true" />
+												<span class={eyebrowClass}>Servicio técnico integral</span>
+											</div>
+											<Badge
+												variant="outline"
+												class="w-fit gap-1.5 border-border/40 bg-background/30 px-2.5 py-0.5 text-[10px] tracking-wide uppercase text-foreground/80 backdrop-blur"
+											>
+												Garantía de 90 días
+											</Badge>
+										</div>
+
+										{/* Headline */}
+										<h3 class="font-display text-balance text-2xl font-bold leading-tight text-foreground md:text-3xl lg:text-4xl">
+											{service.title}
+										</h3>
+
+										{/* Description */}
+										<p class="max-w-xl text-pretty text-sm leading-relaxed text-foreground/80 md:text-base">
+											{service.description}
+										</p>
+
+										{/* Bullets */}
+										{service.bullets && (
+											<ul class="flex flex-col gap-1.5" aria-label="Beneficios incluidos">
+												{service.bullets.map((bullet) => (
+													<li class="flex items-center gap-2 text-sm text-foreground/75">
+														<Icon
+															name="hugeicons:checkmark-circle-02"
+															class="size-4 shrink-0 text-primary"
+															aria-hidden="true"
+														/>
+														{bullet}
+													</li>
+												))}
+											</ul>
+										)}
+
+										{/* Price + CTA */}
+										<div class="mt-1 flex flex-wrap items-end justify-between gap-4">
+											<div class="flex items-baseline gap-2">
+												<span class="font-display text-3xl font-bold text-primary md:text-4xl">
+													{service.price}
+												</span>
+												{service.priceNote && (
+													<span class="text-xs text-muted-foreground md:text-sm">
+														· {service.priceNote}
+													</span>
+												)}
+											</div>
+											<Button
+												as="a"
+												href={whatsappLink}
+												target="_blank"
+												rel="noopener noreferrer"
+												variant="whatsapp"
+												size="lg"
+												aria-label={`${service.cta} (se abre en WhatsApp)`}
+											>
+												<WhatsappIcon size={18} aria-hidden="true" />
+												{service.cta}
+											</Button>
+										</div>
+									</div>
+								</Card>
+							</li>
+						)
+					}
+
+					// ── Card 2: Soporte remoto (con imagen) ──
+					if (service.image) {
+						return (
+							<li class="contents">
+								<Card
+									class={`group relative flex h-full flex-col overflow-hidden border border-border/60 bg-card/60 p-0 backdrop-blur-sm transition-all duration-300 ease-out hover:border-primary/40 hover:bg-card/80 hover:shadow-[0_8px_30px_color-mix(in_oklab,var(--primary)_15%,transparent)] ${cardClass}`}
+								>
+									{/* Image — top */}
+									<div class="relative overflow-hidden">
+										<img
+											src={service.image.src}
+											alt={service.image.alt}
+											width={service.image.width}
+											height={service.image.height}
+											loading="lazy"
+											decoding="async"
+											class="aspect-5/3 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+										/>
+										<div class="absolute bottom-3 left-3">
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-background/80 px-3 py-1 text-xs font-medium text-foreground backdrop-blur-sm ring-1 ring-border/40">
+												<Icon
+													name="hugeicons:clock-01"
+													class="size-3 text-primary"
+													aria-hidden="true"
+												/>
+												Resuelto en menos de 1 hora
+											</span>
+										</div>
+									</div>
+
+									{/* Content */}
+									<div class="flex flex-1 flex-col gap-3 p-5">
+										<CardTitle class="text-base font-semibold leading-snug text-foreground">
+											{service.title}
+										</CardTitle>
+										<CardDescription class="text-sm leading-relaxed text-muted-foreground">
+											{service.description}
+										</CardDescription>
+
+										<div class="mt-auto flex items-end justify-between gap-3 pt-2">
+											<div class="flex items-baseline gap-1.5">
+												<span class="font-display text-2xl font-bold leading-none text-primary">
+													{service.price}
+												</span>
+												{service.priceNote && (
+													<span class="text-xs leading-none text-muted-foreground">
+														/ {service.priceNote}
+													</span>
+												)}
+											</div>
+											<Button
+												as="a"
+												href={whatsappLink}
+												target="_blank"
+												rel="noopener noreferrer"
+												variant="whatsapp"
+												size="sm"
+												aria-label={`${service.cta} (se abre en WhatsApp)`}
+											>
+												<WhatsappIcon size={14} aria-hidden="true" />
+												{service.cta}
+											</Button>
+										</div>
+									</div>
+								</Card>
+							</li>
+						)
+					}
+
+					// ── Card 3: Tienda (sin imagen) ──
+					return (
+						<li class="contents">
+							<Card
+								class={`group relative flex h-full flex-col overflow-hidden border border-border/60 bg-linear-to-br from-primary/10 via-card/60 to-card/60 p-6 backdrop-blur-sm transition-all duration-300 ease-out hover:border-primary/50 hover:from-primary/15 hover:shadow-[0_8px_30px_color-mix(in_oklab,var(--primary)_20%,transparent)] lg:self-start ${cardClass}`}
+							>
+								<div class="flex items-center justify-between gap-2">
+									<div class="flex size-12 items-center justify-center rounded-xl bg-primary/15 text-primary transition-transform duration-300 group-hover:scale-110">
+										<Icon name={service.icon} class="size-6" aria-hidden="true" />
+									</div>
+									<Badge
+										variant="outline"
+										class="shrink-0 border-border/40 bg-background/30 px-2.5 py-0.5 text-[10px] tracking-wider text-foreground/80 backdrop-blur"
+									>
+										Tienda Online
+									</Badge>
+								</div>
+
+								<div class="mt-4 flex flex-1 flex-col">
+									<CardTitle class="text-lg font-semibold leading-snug text-foreground">
+										{service.title}
+									</CardTitle>
+									<CardDescription class="mt-2 text-sm leading-relaxed text-muted-foreground">
+										{service.description}
+									</CardDescription>
+
+									<p class="mt-3 text-xs text-muted-foreground/80">
+										Componentes verificados · Stock real · Asesoría incluida
+									</p>
+								</div>
+
+								<div class="mt-auto flex items-end justify-between gap-3 pt-5">
+									<div class="flex items-baseline gap-2">
+										<span class="font-display text-2xl font-bold leading-none text-primary">
+											{service.price}
+										</span>
+										{service.priceNote && (
+											<span class="text-xs leading-none text-muted-foreground">
+												{service.priceNote}
+											</span>
+										)}
+									</div>
+									<Button
+										as="a"
+										href={resolvedHref}
+										target={isExternal ? "_blank" : undefined}
+										rel={isExternal ? "noopener noreferrer" : undefined}
+										variant="outline"
+										size="sm"
+										aria-label={`${service.cta} ${isExternal ? "(se abre en nueva pestaña)" : ""}`}
+									>
+										<Icon name="hugeicons:arrow-up-right-01" class="size-3.5" aria-hidden="true" />
+										{service.cta}
+									</Button>
+								</div>
+							</Card>
+						</li>
+					)
+				})
+			}
+		</ol>
+	</div>
+</section>
