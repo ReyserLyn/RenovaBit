@@ -15,12 +15,14 @@ import { adminNotifications, productChanges, syncReports } from "./schema/sync";
 
 export const brandsRelations = relations(brands, ({ many }) => ({
 	products: many(products),
+	offerBrands: many(offerBrands),
 }));
 
 // ── Categories ───────────────────────────────────────
 
 export const categoriesRelations = relations(categories, ({ many, one }) => ({
 	products: many(products),
+	offerCategories: many(offerCategories),
 	parent: one(categories, {
 		fields: [categories.parentId],
 		references: [categories.id],

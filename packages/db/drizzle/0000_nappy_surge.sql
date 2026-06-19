@@ -199,6 +199,7 @@ CREATE TABLE "offers" (
 	"ends_at" timestamp NOT NULL,
 	"is_active" boolean DEFAULT true,
 	"is_featured" boolean DEFAULT false,
+	"is_customer_only" boolean DEFAULT true NOT NULL,
 	"created_by" uuid,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
@@ -309,12 +310,14 @@ CREATE TABLE "product_providers" (
 CREATE TABLE "role_margin_rules" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"role" "role_margin_rule_role" NOT NULL,
+	"name" text NOT NULL,
 	"min_price" numeric(10, 2) NOT NULL,
 	"max_price" numeric(10, 2),
 	"margin_percent" numeric(5, 2) NOT NULL,
 	"sort_order" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "role_margin_rules_role_name_unique" UNIQUE("role","name")
 );
 --> statement-breakpoint
 CREATE TABLE "scraping_blacklist" (

@@ -15,4 +15,12 @@ const client = postgres(DATABASE_URL, {
 
 export const db = drizzle(client);
 
+/**
+ * Close the Postgres connection pool.
+ * Should be called during graceful shutdown.
+ */
+export async function closeDb(): Promise<void> {
+	await client.end();
+}
+
 import "./relations";

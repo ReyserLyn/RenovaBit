@@ -1,5 +1,5 @@
 {
-	"id": "ae5a8365-fdf6-40ec-a497-33017d440c69",
+	"id": "6c043979-a029-4b43-9a71-7ec1ecd3e35c",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"version": "7",
 	"dialect": "postgresql",
@@ -1807,6 +1807,13 @@
 					"notNull": false,
 					"default": false
 				},
+				"is_customer_only": {
+					"name": "is_customer_only",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true,
+					"default": true
+				},
 				"created_by": {
 					"name": "created_by",
 					"type": "uuid",
@@ -2933,6 +2940,12 @@
 					"primaryKey": false,
 					"notNull": true
 				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
 				"min_price": {
 					"name": "min_price",
 					"type": "numeric(10, 2)",
@@ -3004,7 +3017,13 @@
 			},
 			"foreignKeys": {},
 			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
+			"uniqueConstraints": {
+				"role_margin_rules_role_name_unique": {
+					"name": "role_margin_rules_role_name_unique",
+					"nullsNotDistinct": false,
+					"columns": ["role", "name"]
+				}
+			},
 			"policies": {},
 			"checkConstraints": {},
 			"isRLSEnabled": false

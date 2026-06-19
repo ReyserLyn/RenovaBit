@@ -1,4 +1,4 @@
-import { index, integer, numeric, pgEnum, pgTable } from "drizzle-orm/pg-core";
+import { index, integer, numeric, pgEnum, pgTable, text, unique } from "drizzle-orm/pg-core";
 import { lifecycleDates, primaryKey as primaryKeyCol } from "./_utils";
 
 /**
@@ -16,6 +16,7 @@ export const roleMarginRules = pgTable(
 		...primaryKeyCol,
 
 		role: roleMarginRuleRoleEnum("role").notNull(),
+		name: text("name").notNull(),
 		minPrice: numeric("min_price", { precision: 10, scale: 2 }).notNull(),
 		maxPrice: numeric("max_price", { precision: 10, scale: 2 }),
 		marginPercent: numeric("margin_percent", { precision: 5, scale: 2 }).notNull(),
@@ -25,5 +26,6 @@ export const roleMarginRules = pgTable(
 	},
 	(table) => [
 		index("role_margin_rules_role_range_idx").on(table.role, table.minPrice, table.maxPrice),
+		unique("role_margin_rules_role_name_unique").on(table.role, table.name),
 	],
 );

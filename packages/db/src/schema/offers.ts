@@ -44,6 +44,13 @@ export const offers = pgTable(
 		isActive: boolean("is_active").default(true),
 		isFeatured: boolean("is_featured").default(false),
 
+		/**
+		 * Business rule: offers are ONLY for customers (role='customer').
+		 * Distributors and admins always get role-based price without offer discount.
+		 * When true (default), the offer is filtered to customer-only contexts.
+		 */
+		isCustomerOnly: boolean("is_customer_only").notNull().default(true),
+
 		createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
 
 		...lifecycleDates,
