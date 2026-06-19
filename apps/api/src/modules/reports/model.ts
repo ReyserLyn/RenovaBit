@@ -1,5 +1,10 @@
 import { t, type UnwrapSchema } from "elysia";
 
+const ChangeValueObjectSchema = t.Record(
+	t.String(),
+	t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]),
+);
+
 const ChangeResponse = t.Object({
 	id: t.String({ format: "uuid" }),
 	productId: t.String({ format: "uuid" }),
@@ -7,8 +12,8 @@ const ChangeResponse = t.Object({
 	productSku: t.String(),
 	changeType: t.String(),
 	field: t.Nullable(t.String()),
-	oldValue: t.Unknown(),
-	newValue: t.Unknown(),
+	oldValue: t.Nullable(ChangeValueObjectSchema),
+	newValue: t.Nullable(ChangeValueObjectSchema),
 	reason: t.Nullable(t.String()),
 	createdAt: t.String(),
 });

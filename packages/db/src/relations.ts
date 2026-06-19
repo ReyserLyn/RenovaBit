@@ -3,6 +3,8 @@ import { users } from "./schema/auth";
 import { brands } from "./schema/brands";
 import { cartItems, carts } from "./schema/cart";
 import { categories } from "./schema/categories";
+import { favoriteItems, favorites } from "./schema/favorites";
+import { offerBrands, offerCategories, offerProducts, offers } from "./schema/offers";
 import { orderItems, orders } from "./schema/orders";
 import { productImages, products } from "./schema/products";
 import { productProviders } from "./schema/providers";
@@ -43,6 +45,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
 	changes: many(productChanges),
 	cartItems: many(cartItems),
 	orderItems: many(orderItems),
+	offerProducts: many(offerProducts),
 }));
 
 // ── Product Images ───────────────────────────────────
@@ -95,6 +98,51 @@ export const scrapingBlacklistRelations = relations(scrapingBlacklist, ({ one })
 	}),
 }));
 
+// ── Offers ──────────────────────────────────────────
+
+export const offersRelations = relations(offers, ({ one, many }) => ({
+	createdByUser: one(users, {
+		fields: [offers.createdBy],
+		references: [users.id],
+	}),
+	offerProducts: many(offerProducts),
+	offerBrands: many(offerBrands),
+	offerCategories: many(offerCategories),
+}));
+
+export const offerProductsRelations = relations(offerProducts, ({ one }) => ({
+	offer: one(offers, {
+		fields: [offerProducts.offerId],
+		references: [offers.id],
+	}),
+	product: one(products, {
+		fields: [offerProducts.productId],
+		references: [products.id],
+	}),
+}));
+
+export const offerBrandsRelations = relations(offerBrands, ({ one }) => ({
+	offer: one(offers, {
+		fields: [offerBrands.offerId],
+		references: [offers.id],
+	}),
+	brand: one(brands, {
+		fields: [offerBrands.brandId],
+		references: [brands.id],
+	}),
+}));
+
+export const offerCategoriesRelations = relations(offerCategories, ({ one }) => ({
+	offer: one(offers, {
+		fields: [offerCategories.offerId],
+		references: [offers.id],
+	}),
+	category: one(categories, {
+		fields: [offerCategories.categoryId],
+		references: [categories.id],
+	}),
+}));
+
 // ── Admin Notifications ─────────────────────────────
 
 export const adminNotificationsRelations = relations(adminNotifications, ({ one }) => ({
@@ -142,6 +190,27 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 	}),
 	product: one(products, {
 		fields: [orderItems.productId],
+		references: [products.id],
+	}),
+}));
+
+// ── Favorites ─────────────────────────────────────────
+
+export const favoritesRelations = relations(favorites, ({ many, one }) => ({
+	user: one(users, {
+		fields: [favorites.userId],
+		references: [users.id],
+	}),
+	items: many(favoriteItems),
+}));
+
+export const favoriteItemsRelations = relations(favoriteItems, ({ one }) => ({
+	favorite: one(favorites, {
+		fields: [favoriteItems.favoriteId],
+		references: [favorites.id],
+	}),
+	product: one(products, {
+		fields: [favoriteItems.productId],
 		references: [products.id],
 	}),
 }));

@@ -1,3 +1,4 @@
+import type { ChangeValueObject } from "@renovabit/db/schema";
 import { Elysia } from "elysia";
 import { ErrorResponse } from "@/modules/products/model";
 import { ReportsModel } from "./model";
@@ -10,8 +11,8 @@ function serializeChange(row: {
 	productSku: string;
 	changeType: string;
 	field: string | null;
-	oldValue: unknown;
-	newValue: unknown;
+	oldValue: ChangeValueObject | null;
+	newValue: ChangeValueObject | null;
 	reason: string | null;
 	createdAt: Date;
 }) {
@@ -35,6 +36,8 @@ export const reportsRoute = new Elysia({ prefix: "/reports" }).get(
 		params: ReportsModel.reportIdParams,
 		response: {
 			200: ReportsModel.changesListResponse,
+			401: ErrorResponse,
+			403: ErrorResponse,
 			404: ErrorResponse,
 		},
 		detail: { summary: "Listar cambios de un reporte", tags: ["Reports"] },

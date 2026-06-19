@@ -1,68 +1,61 @@
 import { db } from "@renovabit/db";
-import { Elysia, type Static } from "elysia";
-import { logger } from "../../utils/logger";
-import { AppInfoSchema, HealthCheckDataSchema, HealthCheckErrorSchema } from "./model";
+import { sql } from "drizzle-orm";
+import { Elysia } from "elysia";
+import { getRedis } from "@/utils/redis";
+import { AppInfoSchema, HealthCheckSchema } from "./model";
+
+type HealthCheck = (typeof HealthCheckSchema)["static"];
+type ServiceKey = "database" | "redis";
+
+async function checkService(
+	key: ServiceKey,
+	probe: () => Promise<unknown>,
+	health: HealthCheck,
+): Promise<void> {
+	try {
+		await probe();
+	} catch {
+		health.services[key] = "down";
+		health.status = "degraded";
+	}
+}
 
 export const homeRoute = new Elysia({ name: "home" })
-	// ── Root ──────────────────────────────────────
 	.get(
 		"/",
-		() => {
-			const payload: Static<typeof AppInfoSchema> = {
-				app_name: "RenovaBit",
-				app_env: process.env.NODE_ENV ?? "development",
-				date: new Date().toISOString(),
-			};
-
-			return payload;
-		},
+		() => ({
+			app_name: "Renovabit",
+			app_env: process.env.NODE_ENV ?? "development",
+			date: new Date().toISOString(),
+		}),
 		{
-			response: {
-				200: AppInfoSchema,
-			},
+			response: { 200: AppInfoSchema },
 			detail: {
 				summary: "Raíz de la API",
 				description: "Devuelve información básica sobre la API",
 			},
 		},
 	)
-
-	// ── Health Check ───────────────────────────────
 	.get(
 		"/health",
 		async ({ set }) => {
-			const healthStatus: Static<typeof HealthCheckDataSchema> = {
-				status: "healthy",
+			const health: HealthCheck = {
+				status: "ok",
 				timestamp: new Date().toISOString(),
-				services: {
-					database: "healthy",
-				},
+				services: { database: "ok", redis: "ok" },
 			};
 
-			try {
-				await db.execute("select 1");
-				healthStatus.services.database = "healthy";
-			} catch (err) {
-				healthStatus.services.database = "unhealthy";
-				healthStatus.status = "degraded";
-				logger.withError(err).warn("Health check: Database no responde");
-			}
+			await checkService("database", () => db.execute(sql`SELECT 1`), health);
+			await checkService("redis", () => getRedis().ping(), health);
 
-			if (healthStatus.status === "degraded") {
-				set.status = 503;
-				return healthStatus;
-			}
-
-			return healthStatus;
+			if (health.status === "degraded") set.status = 503;
+			return health;
 		},
 		{
-			response: {
-				200: HealthCheckDataSchema,
-				503: HealthCheckErrorSchema,
-			},
+			response: { 200: HealthCheckSchema, 503: HealthCheckSchema },
 			detail: {
 				summary: "Health check",
-				description: "Verifica el estado de salud de todos los servicios",
+				description: "Chequea DB y Redis. 503 si alguno está caído.",
 			},
 		},
 	);

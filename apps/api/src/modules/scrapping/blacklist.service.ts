@@ -2,35 +2,13 @@ import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { productProviders, products, scrapingBlacklist } from "@renovabit/db/schema";
 import { and, desc, eq } from "drizzle-orm";
+import { handleUniqueViolation } from "@/utils/db-helpers";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
 import type { BlacklistModel } from "./blacklist.model";
 
 // ── Constants ──────────────────────────────────────
 
 const DEFAULT_SOURCE = "rematazo";
-
-// ── Helpers ────────────────────────────────────────
-
-/**
- * Convierte errores de constraint violation de PostgreSQL (23505)
- * en errores de negocio tipados. Evita 500 por race conditions.
- */
-function handleUniqueViolation(error: unknown, fallbackMessage: string): never {
-	if (
-		error &&
-		typeof error === "object" &&
-		"code" in error &&
-		(error as Record<string, unknown>).code === "23505"
-	) {
-		throw createApiError({
-			code: BackendErrorCodes.EXISTS_ERROR,
-			message: fallbackMessage,
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-	throw error;
-}
 
 // ── Types ──────────────────────────────────────────
 

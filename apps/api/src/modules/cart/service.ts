@@ -1,34 +1,52 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { ORDER_RESERVATION_STATUSES } from "@renovabit/db/orders";
+import { cartItems, carts, productImages, products } from "@renovabit/db/schema";
 import {
-	cartItems,
-	carts,
-	orderItems,
-	orders,
-	productImages,
-	products,
-} from "@renovabit/db/schema";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+	getEffectiveSalePrice,
+	type ProductRoleCustomMargins,
+	type Role,
+} from "@renovabit/pricing";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { getReservedStockSubquery } from "@/utils/stock";
+import { formatDate, now } from "@/utils/date";
+import { getActiveMarginRules, getActiveRoleMarginRules } from "@/utils/margin-rules";
+import { getReservedStockForProductInTx, getReservedStockSubquery } from "@/utils/stock";
 import type { CartItemResponse, CartModel, CartResponse, CartTotalResponse } from "./model";
 
 type AddToCartBody = CartModel["addToCartBody"];
 type UpdateCartItemBody = CartModel["updateCartItemBody"];
 
-function now(): Date {
-	return new Date();
-}
+// ═══════════════════════════════════════════════════
+//  PRICING HELPERS
+// ═══════════════════════════════════════════════════
 
-function formatDate(date: Date): string {
-	return date.toISOString();
-}
-
-function parseNumeric(val: string | number | null | undefined): number {
-	if (val === null || val === undefined) return 0;
-	if (typeof val === "number") return val;
-	return Number.parseFloat(val);
+/**
+ * Compute the effective sale price for a product given the user's role.
+ * Accepts pre-fetched margin rules to avoid re-fetching per item.
+ */
+function getRoleAwarePrice(
+	supplierPrice: string,
+	roleCustomMargins: ProductRoleCustomMargins | null | undefined,
+	role: Role,
+	customerRules: ReadonlyArray<{
+		minPrice: string;
+		maxPrice: string | null;
+		marginPercent: string;
+	}>,
+	roleRules: ReadonlyArray<{
+		role: Exclude<Role, "admin">;
+		minPrice: string;
+		maxPrice: string | null;
+		marginPercent: string;
+	}>,
+): number {
+	const { salePrice } = getEffectiveSalePrice(
+		{ supplierPrice, roleCustomMargins: roleCustomMargins ?? null },
+		role,
+		customerRules,
+		roleRules,
+	);
+	return salePrice;
 }
 
 // ═══════════════════════════════════════════════════
@@ -103,13 +121,20 @@ async function syncCartSummary(cartId: string): Promise<void> {
 		.where(eq(carts.id, cartId));
 }
 
-async function refreshCartItems(cartId: string): Promise<void> {
+async function refreshCartItems(cartId: string, role: Role): Promise<void> {
+	const [customerRules, roleRules] = await Promise.all([
+		getActiveMarginRules(),
+		getActiveRoleMarginRules(),
+	]);
+
 	const items = await db
 		.select({
 			itemId: cartItems.id,
 			productId: cartItems.productId,
 			addedAtPrice: cartItems.addedAtPrice,
 			productPrice: products.price,
+			supplierPrice: products.supplierPrice,
+			roleCustomMargins: products.roleCustomMargins,
 			productIsActive: products.isActive,
 			productNeedsReview: products.needsReview,
 			productStock: products.stock,
@@ -134,11 +159,22 @@ async function refreshCartItems(cartId: string): Promise<void> {
 			if (availableStock <= 0) {
 				status = "out_of_stock";
 				statusMessage = "Producto agotado";
-			} else if (item.productPrice !== item.addedAtPrice) {
-				status = "price_changed";
-				statusMessage = `El precio cambió de S/ ${item.addedAtPrice} a S/ ${item.productPrice}`;
 			} else {
-				status = "available";
+				// Compute the current role-aware price and compare with the stored add-time price
+				const roleAwarePrice = getRoleAwarePrice(
+					item.supplierPrice ?? "0",
+					item.roleCustomMargins,
+					role,
+					customerRules,
+					roleRules,
+				);
+				const roleAwarePriceStr = roleAwarePrice.toFixed(2);
+				if (roleAwarePriceStr !== item.addedAtPrice) {
+					status = "price_changed";
+					statusMessage = `El precio cambió de S/ ${item.addedAtPrice} a S/ ${roleAwarePriceStr}`;
+				} else {
+					status = "available";
+				}
 			}
 		}
 
@@ -154,7 +190,12 @@ async function refreshCartItems(cartId: string): Promise<void> {
 	await Promise.all(updates);
 }
 
-async function getCartWithItems(cartId: string): Promise<CartResponse> {
+async function getCartWithItems(cartId: string, role: Role): Promise<CartResponse> {
+	const [customerRules, roleRules] = await Promise.all([
+		getActiveMarginRules(),
+		getActiveRoleMarginRules(),
+	]);
+
 	const rows = await db
 		.select({
 			itemId: cartItems.id,
@@ -166,7 +207,8 @@ async function getCartWithItems(cartId: string): Promise<CartResponse> {
 			addedAtPrice: cartItems.addedAtPrice,
 			status: cartItems.status,
 			statusMessage: cartItems.statusMessage,
-			currentPrice: sql<string>`${products.price}::text`,
+			supplierPrice: products.supplierPrice,
+			roleCustomMargins: products.roleCustomMargins,
 			imageUrl: sql<string | null>`(
 				SELECT pi.url FROM ${productImages} pi
 				WHERE pi.product_id = ${products.id}
@@ -187,33 +229,33 @@ async function getCartWithItems(cartId: string): Promise<CartResponse> {
 		.where(eq(cartItems.cartId, cartId))
 		.orderBy(asc(cartItems.createdAt));
 
-	const items: CartItemResponse[] = rows.map((row) => ({
-		id: row.itemId,
-		productId: row.productId,
-		productName: row.productName ?? "",
-		productSlug: row.productSlug ?? "",
-		productSku: row.productSku ?? "",
-		quantity: row.quantity,
-		addedAtPrice: row.addedAtPrice,
-		currentPrice: row.currentPrice,
-		status: row.status,
-		statusMessage: row.statusMessage,
-		primaryImage: row.imageUrl ? { url: row.imageUrl, alt: row.imageAlt } : null,
-		product: row.productIdRef
-			? { id: row.productIdRef, name: row.productNameRef ?? "", slug: row.productSlug ?? "" }
-			: null,
-	}));
+	let subtotal = 0;
+	const items: CartItemResponse[] = rows.map((row) => {
+		const roleAwarePrice = row.supplierPrice
+			? getRoleAwarePrice(row.supplierPrice, row.roleCustomMargins, role, customerRules, roleRules)
+			: 0;
+		const roleAwarePriceStr = roleAwarePrice.toFixed(2);
+		subtotal += roleAwarePrice * row.quantity;
+
+		return {
+			id: row.itemId,
+			productId: row.productId,
+			productName: row.productName ?? "",
+			productSlug: row.productSlug ?? "",
+			productSku: row.productSku ?? "",
+			quantity: row.quantity,
+			addedAtPrice: row.addedAtPrice,
+			currentPrice: roleAwarePriceStr,
+			status: row.status,
+			statusMessage: row.statusMessage,
+			primaryImage: row.imageUrl ? { url: row.imageUrl, alt: row.imageAlt } : null,
+			product: row.productIdRef
+				? { id: row.productIdRef, name: row.productNameRef ?? "", slug: row.productSlug ?? "" }
+				: null,
+		};
+	});
 
 	const itemsCount = items.reduce((sum, i) => sum + i.quantity, 0);
-
-	const [subtotalRow] = await db
-		.select({
-			subtotal: sql<string>`COALESCE(SUM(${cartItems.addedAtPrice} * ${cartItems.quantity})::text, '0')`,
-		})
-		.from(cartItems)
-		.where(eq(cartItems.cartId, cartId));
-
-	const subtotal = parseNumeric(subtotalRow?.subtotal).toFixed(2);
 
 	const [cart] = await db
 		.select({ lastActivityAt: carts.lastActivityAt, guestToken: carts.guestToken })
@@ -228,7 +270,7 @@ async function getCartWithItems(cartId: string): Promise<CartResponse> {
 		guestToken: cart?.guestToken ?? null,
 		items,
 		itemsCount,
-		subtotal,
+		subtotal: subtotal.toFixed(2),
 		lastActivityAt: formatDate(lastActivity),
 	};
 }
@@ -240,21 +282,23 @@ async function getCartWithItems(cartId: string): Promise<CartResponse> {
 async function getOrCreate(
 	userId: string | null,
 	guestToken: string | null,
+	role: Role,
 ): Promise<CartResponse> {
 	const existing = await findCart(userId, guestToken);
 
 	if (existing) {
-		await refreshCartItems(existing.id);
-		return getCartWithItems(existing.id);
+		await refreshCartItems(existing.id, role);
+		return getCartWithItems(existing.id, role);
 	}
 
 	const created = await createCart(userId);
-	return getCartWithItems(created.id);
+	return getCartWithItems(created.id, role);
 }
 
 async function requireCart(
 	userId: string | null,
 	guestToken: string | null,
+	role: Role,
 ): Promise<CartResponse> {
 	const existing = await findCart(userId, guestToken);
 	if (!existing) {
@@ -265,18 +309,25 @@ async function requireCart(
 			doNotLog: true,
 		});
 	}
-	await refreshCartItems(existing.id);
-	return getCartWithItems(existing.id);
+	await refreshCartItems(existing.id, role);
+	return getCartWithItems(existing.id, role);
 }
 
-async function addItem(cartId: string, data: AddToCartBody): Promise<CartResponse> {
+async function addItem(cartId: string, data: AddToCartBody, role: Role): Promise<CartResponse> {
 	const quantity = data.quantity ?? 1;
+
+	const [customerRules, roleRules] = await Promise.all([
+		getActiveMarginRules(),
+		getActiveRoleMarginRules(),
+	]);
 
 	await db.transaction(async (tx) => {
 		const [product] = await tx
 			.select({
 				id: products.id,
 				price: products.price,
+				supplierPrice: products.supplierPrice,
+				roleCustomMargins: products.roleCustomMargins,
 				stock: products.stock,
 				isActive: products.isActive,
 				needsReview: products.needsReview,
@@ -304,18 +355,8 @@ async function addItem(cartId: string, data: AddToCartBody): Promise<CartRespons
 			});
 		}
 
-		const [reserved] = await tx
-			.select({ reserved: sql<number>`COALESCE(SUM(${orderItems.quantity})::int, 0)` })
-			.from(orderItems)
-			.innerJoin(orders, eq(orders.id, orderItems.orderId))
-			.where(
-				and(
-					eq(orderItems.productId, data.productId),
-					inArray(orders.status, ORDER_RESERVATION_STATUSES),
-				),
-			);
-
-		const availableStock = product.stock - (reserved?.reserved ?? 0);
+		const reserved = await getReservedStockForProductInTx(tx, data.productId);
+		const availableStock = product.stock - reserved;
 
 		if (availableStock <= 0) {
 			throw createApiError({
@@ -325,6 +366,16 @@ async function addItem(cartId: string, data: AddToCartBody): Promise<CartRespons
 				doNotLog: true,
 			});
 		}
+
+		// Compute role-aware price for this product
+		const roleAwarePrice = getRoleAwarePrice(
+			product.supplierPrice,
+			product.roleCustomMargins,
+			role,
+			customerRules,
+			roleRules,
+		);
+		const addedAtPrice = roleAwarePrice.toFixed(2);
 
 		const [existingItem] = await tx
 			.select({ id: cartItems.id, quantity: cartItems.quantity })
@@ -356,20 +407,21 @@ async function addItem(cartId: string, data: AddToCartBody): Promise<CartRespons
 				cartId,
 				productId: data.productId,
 				quantity,
-				addedAtPrice: product.price,
+				addedAtPrice,
 			});
 		}
 	});
 
 	await syncCartSummary(cartId);
 
-	return getCartWithItems(cartId);
+	return getCartWithItems(cartId, role);
 }
 
 async function updateQuantity(
 	cartId: string,
 	itemId: string,
 	data: UpdateCartItemBody,
+	role: Role,
 ): Promise<CartResponse> {
 	if (data.quantity === 0) {
 		const deleted = await db
@@ -387,7 +439,7 @@ async function updateQuantity(
 		}
 
 		await syncCartSummary(cartId);
-		return getCartWithItems(cartId);
+		return getCartWithItems(cartId, role);
 	}
 
 	const [item] = await db
@@ -422,18 +474,8 @@ async function updateQuantity(
 			});
 		}
 
-		const [reserved] = await tx
-			.select({ reserved: sql<number>`COALESCE(SUM(${orderItems.quantity})::int, 0)` })
-			.from(orderItems)
-			.innerJoin(orders, eq(orders.id, orderItems.orderId))
-			.where(
-				and(
-					eq(orderItems.productId, item.productId),
-					inArray(orders.status, ORDER_RESERVATION_STATUSES),
-				),
-			);
-
-		const availableStock = product.stock - (reserved?.reserved ?? 0);
+		const reserved = await getReservedStockForProductInTx(tx, item.productId);
+		const availableStock = product.stock - reserved;
 
 		if (data.quantity > availableStock) {
 			throw createApiError({
@@ -452,10 +494,10 @@ async function updateQuantity(
 
 	await syncCartSummary(cartId);
 
-	return getCartWithItems(cartId);
+	return getCartWithItems(cartId, role);
 }
 
-async function removeItem(cartId: string, itemId: string): Promise<CartResponse> {
+async function removeItem(cartId: string, itemId: string, role: Role): Promise<CartResponse> {
 	const deleted = await db
 		.delete(cartItems)
 		.where(and(eq(cartItems.id, itemId), eq(cartItems.cartId, cartId)))
@@ -472,7 +514,7 @@ async function removeItem(cartId: string, itemId: string): Promise<CartResponse>
 
 	await syncCartSummary(cartId);
 
-	return getCartWithItems(cartId);
+	return getCartWithItems(cartId, role);
 }
 
 async function clearCart(cartId: string): Promise<void> {
@@ -481,7 +523,11 @@ async function clearCart(cartId: string): Promise<void> {
 	await db.update(carts).set({ itemsCount: 0, lastActivityAt: now() }).where(eq(carts.id, cartId));
 }
 
-async function mergeGuestCart(userId: string, guestToken: string): Promise<CartResponse> {
+async function mergeGuestCart(
+	userId: string,
+	guestToken: string,
+	role: Role,
+): Promise<CartResponse> {
 	const guestCart = await findCart(null, guestToken);
 	if (!guestCart) {
 		throw createApiError({
@@ -492,19 +538,53 @@ async function mergeGuestCart(userId: string, guestToken: string): Promise<CartR
 		});
 	}
 
-	const userCart = await findCart(userId, null);
-
 	const guestItems = await db.select().from(cartItems).where(eq(cartItems.cartId, guestCart.id));
 
-	const existingItems = userCart
-		? await db
+	const targetCartId = await db.transaction(async (tx) => {
+		// ── Lock the guest cart row first to prevent concurrent merges of
+		// the same guest cart. Re-read inside the transaction (the hint above
+		// is informational only). ──
+		const [guestCartLocked] = await tx
+			.select({ id: carts.id })
+			.from(carts)
+			.where(eq(carts.id, guestCart.id))
+			.for("update")
+			.limit(1);
+		if (!guestCartLocked) {
+			throw createApiError({
+				code: BackendErrorCodes.NOT_FOUND_ERROR,
+				message: "Carrito de invitado no encontrado",
+				logLevel: "info",
+				doNotLog: true,
+			});
+		}
+
+		// Re-resolve the user cart inside the transaction and lock it to
+		// serialize concurrent merges of multiple guest carts into the same user.
+		const [userCartLocked] = await tx
+			.select({ id: carts.id })
+			.from(carts)
+			.where(and(eq(carts.userId, userId)))
+			.orderBy(desc(carts.lastActivityAt))
+			.limit(1)
+			.for("update");
+		const userCart = userCartLocked ?? null;
+
+		// ── Re-fetch user-cart items INSIDE the transaction so the stock
+		// check uses the current user cart state. Otherwise, a concurrent add
+		// to the user cart between the outer read and this transaction can be
+		// missed and we'd merge over the available stock.
+		const existingQtyByProduct = new Map<string, number>();
+		if (userCart) {
+			const existingItems = await tx
 				.select({ productId: cartItems.productId, quantity: cartItems.quantity })
 				.from(cartItems)
-				.where(eq(cartItems.cartId, userCart.id))
-		: [];
-	const existingQtyByProduct = new Map(existingItems.map((i) => [i.productId, i.quantity]));
+				.where(eq(cartItems.cartId, userCart.id));
+			for (const i of existingItems) {
+				existingQtyByProduct.set(i.productId, i.quantity);
+			}
+		}
 
-	const targetCartId = await db.transaction(async (tx) => {
 		// ── Stock validation inside transaction with row locks ──
 		for (const item of guestItems) {
 			const [locked] = await tx
@@ -516,18 +596,8 @@ async function mergeGuestCart(userId: string, guestToken: string): Promise<CartR
 
 			if (!locked) continue; // product deleted — skip (cascade handle)
 
-			const [reserved] = await tx
-				.select({ reserved: sql<number>`COALESCE(SUM(${orderItems.quantity})::int, 0)` })
-				.from(orderItems)
-				.innerJoin(orders, eq(orders.id, orderItems.orderId))
-				.where(
-					and(
-						eq(orderItems.productId, item.productId),
-						inArray(orders.status, ORDER_RESERVATION_STATUSES),
-					),
-				);
-
-			const availableStock = locked.stock - (reserved?.reserved ?? 0);
+			const reserved = await getReservedStockForProductInTx(tx, item.productId);
+			const availableStock = locked.stock - reserved;
 			const existingQty = existingQtyByProduct.get(item.productId) ?? 0;
 			const finalQty = existingQty + item.quantity;
 
@@ -574,34 +644,50 @@ async function mergeGuestCart(userId: string, guestToken: string): Promise<CartR
 	});
 
 	await syncCartSummary(targetCartId);
-	await refreshCartItems(targetCartId);
-	return getCartWithItems(targetCartId);
+	await refreshCartItems(targetCartId, role);
+	return getCartWithItems(targetCartId, role);
 }
 
-async function getTotal(cartId: string): Promise<CartTotalResponse> {
-	const [row] = await db
+async function getTotal(cartId: string, role: Role): Promise<CartTotalResponse> {
+	const [customerRules, roleRules] = await Promise.all([
+		getActiveMarginRules(),
+		getActiveRoleMarginRules(),
+	]);
+
+	const rows = await db
 		.select({
-			itemsCount: sql<number>`COALESCE(SUM(${cartItems.quantity})::int, 0)`,
-			subtotal: sql<string>`COALESCE(SUM(${cartItems.addedAtPrice} * ${cartItems.quantity})::text, '0')`,
+			quantity: cartItems.quantity,
+			supplierPrice: products.supplierPrice,
+			roleCustomMargins: products.roleCustomMargins,
 		})
 		.from(cartItems)
+		.leftJoin(products, eq(cartItems.productId, products.id))
 		.where(eq(cartItems.cartId, cartId));
 
-	const subtotal = parseNumeric(row?.subtotal).toFixed(2);
+	let subtotal = 0;
+	let itemsCount = 0;
+	for (const row of rows) {
+		itemsCount += row.quantity;
+		const roleAwarePrice = row.supplierPrice
+			? getRoleAwarePrice(row.supplierPrice, row.roleCustomMargins, role, customerRules, roleRules)
+			: 0;
+		subtotal += roleAwarePrice * row.quantity;
+	}
 
 	return {
-		itemsCount: row?.itemsCount ?? 0,
-		subtotal,
+		itemsCount,
+		subtotal: subtotal.toFixed(2),
 	};
 }
 
 async function getTotalByOwner(
 	userId: string | null,
 	guestToken: string | null,
+	role: Role,
 ): Promise<CartTotalResponse> {
 	if (userId) {
-		const cart = await getOrCreate(userId, null);
-		return getTotal(cart.id);
+		const cart = await getOrCreate(userId, null, role);
+		return getTotal(cart.id, role);
 	}
 
 	if (!guestToken) {
@@ -613,8 +699,8 @@ async function getTotalByOwner(
 		return { itemsCount: 0, subtotal: "0.00" };
 	}
 
-	await refreshCartItems(cart.id);
-	return getTotal(cart.id);
+	await refreshCartItems(cart.id, role);
+	return getTotal(cart.id, role);
 }
 
 // ═══════════════════════════════════════════════════

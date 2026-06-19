@@ -29,7 +29,7 @@ export const users = pgTable(
 		phone: varchar("phone", { length: 20 }),
 		role: userRoleEnum("role").default("customer").notNull(),
 
-		banned: boolean("banned").default(false),
+		banned: boolean("banned").default(false).notNull(),
 		banReason: text("ban_reason"),
 		banExpires: timestamp("ban_expires"),
 

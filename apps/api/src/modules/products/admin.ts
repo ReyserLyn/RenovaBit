@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
+import { AuthModule } from "@/modules/auth";
 import { notFound } from "@/utils/api-helpers";
-import { getUserId } from "@/utils/auth/helpers";
 import { ErrorResponse, ProductModel } from "./model";
 import { ProductService } from "./service";
 
@@ -10,6 +10,7 @@ import { ProductService } from "./service";
 // ═══════════════════════════════════════════════════
 
 export const adminProductsRoute = new Elysia({ prefix: "/products" })
+	.use(AuthModule)
 	// ── List ─────────
 	.get(
 		"/",
@@ -23,7 +24,7 @@ export const adminProductsRoute = new Elysia({ prefix: "/products" })
 		},
 		{
 			isAdmin: true,
-			query: ProductModel.listQuery,
+			query: ProductModel.adminListQuery,
 			response: {
 				200: ProductModel.adminProductListResponse,
 				401: ErrorResponse,
@@ -78,8 +79,9 @@ export const adminProductsRoute = new Elysia({ prefix: "/products" })
 	// ── Create ────────────────────────────────────
 	.post(
 		"/",
-		async ({ body, request }) => {
-			return ProductService.create(body, await getUserId(request));
+		async ({ body, user }) => {
+			// isAdmin macro guarantees user is present
+			return ProductService.create(body, user.id);
 		},
 		{
 			isAdmin: true,
@@ -98,8 +100,8 @@ export const adminProductsRoute = new Elysia({ prefix: "/products" })
 	// ── Update ────────────────────────────────────
 	.patch(
 		"/:id",
-		async ({ params: { id }, body, request }) => {
-			return ProductService.update(id, body, await getUserId(request));
+		async ({ params: { id }, body, user }) => {
+			return ProductService.update(id, body, user.id);
 		},
 		{
 			isAdmin: true,
@@ -178,10 +180,7 @@ export const adminProductsRoute = new Elysia({ prefix: "/products" })
 			isAdmin: true,
 			params: ProductModel.idParams,
 			response: {
-				200: t.Object({
-					changes: t.Array(t.Any()),
-					total: t.Integer({ minimum: 0 }),
-				}),
+				200: ProductModel.productChangesResponse,
 				401: ErrorResponse,
 				403: ErrorResponse,
 			},

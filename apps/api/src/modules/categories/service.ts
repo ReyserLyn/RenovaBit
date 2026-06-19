@@ -2,8 +2,11 @@ import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { categories, products } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, asc, count, eq, gt, inArray, like, ne } from "drizzle-orm";
+import { and, asc, count, eq, inArray, like, ne, sql } from "drizzle-orm";
+import { MAX_BULK_DELETE } from "@/constants";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
+import { logger } from "@/utils/logger";
+import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
 import type {
 	AdminCategoryTree,
@@ -27,7 +30,6 @@ type CreateBody = CategoryModel["createBody"];
 type UpdateBody = CategoryModel["updateBody"];
 
 const MAX_DEPTH = 5;
-const MAX_BULK_DELETE = 50;
 
 // ── Helpers ────────────────────────────────────────
 
@@ -163,7 +165,13 @@ async function getProductCounts(): Promise<Map<string, number>> {
 	const rows = await db
 		.select({ categoryId: products.categoryId, cnt: count(products.id) })
 		.from(products)
-		.where(and(eq(products.isActive, true), eq(products.needsReview, false), gt(products.stock, 0)))
+		.where(
+			and(
+				eq(products.isActive, true),
+				eq(products.needsReview, false),
+				sql`${products.stock} > (${getReservedStockSubquery(products.id)})`,
+			),
+		)
 		.groupBy(products.categoryId);
 
 	const map = new Map<string, number>();
@@ -273,7 +281,7 @@ async function getBySlugPublic(slug: string): Promise<PublicCategoryDetail | nul
 				inArray(products.categoryId, categoryIds),
 				eq(products.isActive, true),
 				eq(products.needsReview, false),
-				gt(products.stock, 0),
+				sql`${products.stock} > (${getReservedStockSubquery(products.id)})`,
 			),
 		);
 
@@ -545,7 +553,10 @@ async function deleteById(id: string): Promise<Category> {
 		})
 		.then((deleted) => {
 			deleteEntityFolder("categories", deleted.id).catch((err) =>
-				console.error(`[R2 cleanup] Failed to delete folder for category ${deleted.id}:`, err),
+				logger
+					.withMetadata({ entity: "category", id: deleted.id })
+					.withError(err)
+					.error("[R2 cleanup] Failed to delete folder"),
 			);
 			return deleted;
 		});
@@ -600,7 +611,10 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 		.then((result) => {
 			for (const id of result.deletedIds) {
 				deleteEntityFolder("categories", id).catch((err) =>
-					console.error(`[R2 cleanup] Failed to delete folder for category ${id}:`, err),
+					logger
+						.withMetadata({ entity: "category", id })
+						.withError(err)
+						.error("[R2 cleanup] Failed to delete folder"),
 				);
 			}
 			return result;

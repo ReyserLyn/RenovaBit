@@ -1,8 +1,7 @@
-import { ORDER_SOURCES, ORDER_STATUSES, PAYMENT_METHODS } from "@renovabit/db/orders";
 import { t, type UnwrapSchema } from "elysia";
 
 // ── Shared literal unions ──────────────────────
-// Valores duplicados intencionalmente aquí porque TypeBox necesita
+// Los tipos literales se definen inline porque TypeBox necesita
 // una tupla de literales; el SSoT de transiciones/labels vive en @renovabit/db/orders.
 
 const OrderStatusSchema = t.Union([
@@ -41,7 +40,6 @@ const OrderResponse = t.Object({
 	status: OrderStatusSchema,
 	source: OrderSourceSchema,
 	paymentMethod: t.Nullable(PaymentMethodSchema),
-	paymentProofUrl: t.Nullable(t.String()), // reserved for future payment proof uploads; currently unpopulated by service
 
 	customerName: t.Nullable(t.String()),
 	customerPhone: t.Nullable(t.String()),
@@ -52,7 +50,8 @@ const OrderResponse = t.Object({
 	total: t.String(),
 
 	notes: t.Nullable(t.String()),
-	adminNotes: t.Nullable(t.String()),
+	// Only present in admin responses; never leaked to order owners.
+	adminNotes: t.Optional(t.Nullable(t.String())),
 
 	items: t.Array(OrderItemResponse),
 
@@ -84,10 +83,11 @@ const OrderListResponse = t.Object({
 const CreateOrderBody = t.Object({
 	cartId: t.String({ format: "uuid" }),
 	guestToken: t.Optional(t.String({ minLength: 1 })),
-	customerName: t.Optional(t.Nullable(t.String({ minLength: 1, maxLength: 255 }))),
+	customerName: t.Optional(t.Nullable(t.String({ minLength: 1, maxLength: 100 }))),
 	customerPhone: t.Optional(t.Nullable(t.String({ minLength: 1, maxLength: 20 }))),
 	notes: t.Optional(t.Nullable(t.String({ maxLength: 2000 }))),
 	paymentMethod: t.Optional(t.Nullable(PaymentMethodSchema)),
+	appliedOfferIds: t.Optional(t.Array(t.String({ format: "uuid" }))),
 });
 
 const AdminUpdateOrderBody = t.Object({

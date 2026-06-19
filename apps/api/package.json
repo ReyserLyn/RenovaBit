@@ -29,6 +29,7 @@
 		"@openrouter/ai-sdk-provider": "^2.9.0",
 		"@renovabit/backend-errors": "*",
 		"@renovabit/db": "*",
+		"@renovabit/pricing": "*",
 		"@sinclair/typebox": "^0.34.49",
 		"ai": "^6.0.198",
 		"better-auth": "catalog:",

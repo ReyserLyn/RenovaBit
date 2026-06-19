@@ -4,5 +4,5 @@ import type { StorageModel } from "./model";
 type CreateBody = StorageModel["presignRequest"];
 
 export async function createPresignedUrl(data: CreateBody) {
-	return generatePresignUrl(data.filename, data.contentType);
+	return generatePresignUrl(data.filename, data.contentType, data.maxSizeBytes);
 }

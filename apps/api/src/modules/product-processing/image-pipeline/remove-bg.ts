@@ -1,3 +1,4 @@
+import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { logger } from "@/utils/logger";
 
 /**
@@ -64,6 +65,9 @@ export async function removeBackgroundSafe(input: Buffer, inputMimeType?: string
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Background removal failed";
 		logger.withError(error).warn("[remove-bg] Falló la eliminación de fondo");
-		throw new Error(message);
+		throw createApiError({
+			code: BackendErrorCodes.SERVICE_UNAVAILABLE,
+			message: `Eliminación de fondo falló: ${message}`,
+		});
 	}
 }

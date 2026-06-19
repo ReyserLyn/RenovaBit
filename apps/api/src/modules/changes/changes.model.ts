@@ -1,5 +1,10 @@
 import { t } from "elysia";
 
+const ChangeValueObjectSchema = t.Record(
+	t.String(),
+	t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]),
+);
+
 const RecentChangeItemSchema = t.Object({
 	id: t.String({ format: "uuid" }),
 	productId: t.String({ format: "uuid" }),
@@ -10,8 +15,8 @@ const RecentChangeItemSchema = t.Object({
 	reportStartedAt: t.Nullable(t.String()),
 	changeType: t.String(),
 	field: t.Nullable(t.String()),
-	oldValue: t.Unknown(),
-	newValue: t.Unknown(),
+	oldValue: t.Nullable(ChangeValueObjectSchema),
+	newValue: t.Nullable(ChangeValueObjectSchema),
 	reason: t.Nullable(t.String()),
 	source: t.String(),
 	createdAt: t.String(),

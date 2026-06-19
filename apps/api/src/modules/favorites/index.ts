@@ -1,4 +1,4 @@
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
 import { AuthModule } from "@/modules/auth";
 import { ErrorResponse, FavoritesModel } from "./model";
 import { FavoritesService } from "./service";

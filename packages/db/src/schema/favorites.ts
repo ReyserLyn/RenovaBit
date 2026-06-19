@@ -20,7 +20,6 @@ export const favorites = pgTable(
 		...lifecycleDates,
 	},
 	(table) => [
-		index("favorites_user_id_idx").on(table.userId),
 		index("favorites_last_activity_idx").on(table.lastActivityAt),
 		uniqueIndex("favorites_user_id_unique").on(table.userId),
 	],

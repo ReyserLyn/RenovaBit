@@ -40,8 +40,6 @@ export const carts = pgTable(
 		...lifecycleDates,
 	},
 	(table) => [
-		index("carts_user_id_idx").on(table.userId),
-		index("carts_guest_token_idx").on(table.guestToken),
 		index("carts_last_activity_idx").on(table.lastActivityAt),
 		uniqueIndex("carts_user_id_unique").on(table.userId),
 		uniqueIndex("carts_guest_token_unique").on(table.guestToken),
@@ -72,7 +70,6 @@ export const cartItems = pgTable(
 	(table) => [
 		index("cart_items_cart_id_idx").on(table.cartId),
 		index("cart_items_product_id_idx").on(table.productId),
-		index("cart_items_status_idx").on(table.status),
 		unique("cart_items_cart_product_unique").on(table.cartId, table.productId),
 	],
 );

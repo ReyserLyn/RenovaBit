@@ -84,3 +84,13 @@ renovabit-mono
 
 # Test
 __tests__
+
+# Test artifacts (use the standard test runner artifacts; tests themselves are tracked)
+coverage/
+*.lcov
+.nyc_output/
+
+# Local env files (defense-in-depth — these should never be committed)
+.env
+.env.*
+!.env.example

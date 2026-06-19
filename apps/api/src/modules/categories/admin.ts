@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
+import { AuthModule } from "@/modules/auth";
 import { notFound } from "@/utils/api-helpers";
-import { getUserId } from "@/utils/auth/helpers";
 import { CategoryModel, ErrorResponse } from "./model";
 import { CategoryService } from "./service";
 
@@ -10,6 +10,7 @@ import { CategoryService } from "./service";
 // ═══════════════════════════════════════════════════
 
 export const adminCategoriesRoute = new Elysia({ prefix: "/categories" })
+	.use(AuthModule)
 	// ── List ──────────────────────────────────────
 	.get(
 		"/",
@@ -96,8 +97,8 @@ export const adminCategoriesRoute = new Elysia({ prefix: "/categories" })
 	// ── Create ────────────────────────────────────
 	.post(
 		"/",
-		async ({ body, request }) => {
-			return CategoryService.create(body, await getUserId(request));
+		async ({ body, user }) => {
+			return CategoryService.create(body, user.id);
 		},
 		{
 			isAdmin: true,
@@ -116,8 +117,8 @@ export const adminCategoriesRoute = new Elysia({ prefix: "/categories" })
 	// ── Update ────────────────────────────────────
 	.patch(
 		"/:id",
-		async ({ params: { id }, body, request }) => {
-			return CategoryService.update(id, body, await getUserId(request));
+		async ({ params: { id }, body, user }) => {
+			return CategoryService.update(id, body, user.id);
 		},
 		{
 			isAdmin: true,

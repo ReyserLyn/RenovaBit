@@ -42,7 +42,7 @@ function createClient(name: string, opts?: RedisOptions): Redis {
 }
 
 // ── Cache / General purpose ────────────────────────
-const _redis = createClient("main", { maxRetriesPerRequest: 3 });
+const _redis = createClient("main");
 
 export function getRedis(): Redis {
 	return _redis;

@@ -13,6 +13,8 @@ import { R2_BUCKET_NAME, R2_PUBLIC_URL, r2Client } from "./client";
 // ── Constants ──────────────────────────────────────
 
 const PRESIGN_EXPIRY_SECONDS = 300; // 5 minutos
+/** Max upload size enforced by R2 (10 MB) — rejects oversized uploads at the edge. */
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 /**
  * Content-Type → extensión segura.
@@ -47,7 +49,11 @@ export function extractKeyFromUrl(url: string): string | null {
 	try {
 		const parsed = new URL(url);
 		if (!url.startsWith(R2_PUBLIC_URL)) return null;
-		return parsed.pathname.slice(1) || null;
+		const key = parsed.pathname.slice(1);
+		if (!key) return null;
+		// Rechaza segmentos `..` para evitar traversal al copiar/mover.
+		if (key.split("/").some((segment) => segment === "..")) return null;
+		return key;
 	} catch {
 		return null;
 	}
@@ -63,6 +69,7 @@ export function extractKeyFromUrl(url: string): string | null {
 export async function generatePresignUrl(
 	filename: string,
 	contentType: string,
+	maxSizeBytes: number = MAX_UPLOAD_BYTES,
 ): Promise<{
 	uploadUrl: string;
 	publicUrl: string;
@@ -73,10 +80,15 @@ export async function generatePresignUrl(
 	const ext = EXT_MAP[contentType] || rawExt;
 	const key = generatePendingKey(ext);
 
+	// Enforce client-requested size at the bucket level so R2 rejects oversized
+	// uploads at the edge. Clamp to the absolute MAX to prevent abuse.
+	const enforcedMax = Math.min(Math.max(1, maxSizeBytes), MAX_UPLOAD_BYTES);
+
 	const command = new PutObjectCommand({
 		Bucket: R2_BUCKET_NAME,
 		Key: key,
 		ContentType: contentType,
+		ContentLength: enforcedMax,
 	});
 
 	const uploadUrl = await getSignedUrl(r2Client, command, {

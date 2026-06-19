@@ -7,11 +7,6 @@ type Session = typeof auth.$Infer.Session;
 export type AuthUser = Session["user"];
 
 /**
- * Comprueba si el usuario tiene rol de administrador.
- */
-export const isAdminUser = (user: AuthUser | null): boolean => user?.role === "admin";
-
-/**
  * Obtiene la sesión actual desde los headers de la request.
  * Devuelve null si no hay sesión o si ocurre un error.
  */
@@ -75,51 +70,6 @@ export const AuthModule = new Elysia({
 						doNotLog: true,
 					});
 				}
-				return { user: session.user, session: session.session };
-			},
-		},
-		isOwnerOrAdmin: {
-			async resolve({ request: { headers }, params }) {
-				const session = await getSessionFromHeaders(headers);
-				if (!session) {
-					throw createApiError({
-						code: BackendErrorCodes.INVALID_CREDENTIALS,
-						message: "No autorizado. Inicia sesión para continuar.",
-						logLevel: "info",
-						doNotLog: true,
-					});
-				}
-
-				// Los administradores siempre tienen acceso
-				if (session.user.role === "admin") {
-					return { user: session.user, session: session.session };
-				}
-
-				// Extrae el ID del recurso de los parámetros de forma segura
-				const resourceId =
-					typeof params === "object" && params !== null && "id" in params
-						? String(params.id)
-						: undefined;
-
-				if (!resourceId) {
-					throw createApiError({
-						code: BackendErrorCodes.ACCESS_DENIED,
-						message: "ID de recurso no especificado",
-						logLevel: "info",
-						doNotLog: true,
-					});
-				}
-
-				// Verifica si el usuario es propietario del recurso
-				if (session.user.id !== resourceId) {
-					throw createApiError({
-						code: BackendErrorCodes.ACCESS_DENIED,
-						message: "Acceso denegado. Solo puedes acceder a tus propios recursos.",
-						logLevel: "info",
-						doNotLog: true,
-					});
-				}
-
 				return { user: session.user, session: session.session };
 			},
 		},

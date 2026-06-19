@@ -15,6 +15,7 @@ import { lifecycleDates, primaryKey, seoFields } from "./_utils";
 import { users } from "./auth";
 import { brands } from "./brands";
 import { categories } from "./categories";
+import type { RoleCustomMargins } from "./role-custom-margins";
 
 export type ProductSpecification = {
 	id: string;
@@ -39,6 +40,8 @@ export const products = pgTable(
 
 		sku: varchar("sku", { length: 100 }).notNull().unique(),
 		price: numeric("price", { precision: 12, scale: 2 }).notNull(),
+		supplierPrice: numeric("supplier_price", { precision: 12, scale: 2 }).notNull().default("0"),
+		roleCustomMargins: jsonb("role_custom_margins").$type<RoleCustomMargins | null>(),
 		stock: integer("stock").default(0).notNull(),
 
 		brandId: uuid("brand_id").references(() => brands.id, {
@@ -55,8 +58,8 @@ export const products = pgTable(
 		needsReview: boolean("needs_review").default(false).notNull(),
 		reviewReason: varchar("review_reason", { length: 500 }),
 
-		createdBy: uuid("created_by").references(() => users.id),
-		updatedBy: uuid("updated_by").references(() => users.id),
+		createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+		updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
 
 		...seoFields,
 		...lifecycleDates,
@@ -72,6 +75,7 @@ export const products = pgTable(
 		index("products_category_id_idx").on(table.categoryId),
 		index("products_is_active_idx").on(table.isActive),
 		index("products_featured_idx").on(table.isFeatured),
+		index("products_supplier_price_idx").on(table.supplierPrice),
 		index("products_search_vector_idx").using("gin", table.searchVector),
 	],
 );
@@ -92,9 +96,5 @@ export const productImages = pgTable(
 
 		...lifecycleDates,
 	},
-	(table) => [
-		index("product_images_product_id_idx").on(table.productId),
-		index("product_images_sort_order_idx").on(table.sortOrder),
-		index("product_images_primary_idx").on(table.isPrimary),
-	],
+	(table) => [index("product_images_product_id_idx").on(table.productId)],
 );

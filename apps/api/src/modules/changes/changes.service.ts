@@ -1,5 +1,10 @@
 import { db } from "@renovabit/db";
-import { productChanges, products, syncReports } from "@renovabit/db/schema";
+import {
+	type ChangeValueObject,
+	productChanges,
+	products,
+	syncReports,
+} from "@renovabit/db/schema";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 
 export type RecentChangeRow = {
@@ -12,8 +17,8 @@ export type RecentChangeRow = {
 	reportStartedAt: Date | null;
 	changeType: string;
 	field: string | null;
-	oldValue: unknown;
-	newValue: unknown;
+	oldValue: ChangeValueObject | null;
+	newValue: ChangeValueObject | null;
 	reason: string | null;
 	source: string;
 	createdAt: Date;

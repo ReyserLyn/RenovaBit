@@ -1,6 +1,5 @@
-import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { productChanges, products, syncReports } from "@renovabit/db/schema";
+import { type ChangeValueObject, productChanges, products } from "@renovabit/db/schema";
 import { desc, eq } from "drizzle-orm";
 
 type ChangeRow = {
@@ -10,8 +9,8 @@ type ChangeRow = {
 	productSku: string;
 	changeType: string;
 	field: string | null;
-	oldValue: unknown;
-	newValue: unknown;
+	oldValue: ChangeValueObject | null;
+	newValue: ChangeValueObject | null;
 	reason: string | null;
 	createdAt: Date;
 };

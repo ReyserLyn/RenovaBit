@@ -1,6 +1,7 @@
 import { products } from "@renovabit/db/schema";
 import { createInsertSchema, createSelectSchema } from "drizzle-typebox";
 import { t, type UnwrapSchema } from "elysia";
+import { PublicOfferRef } from "../offers/model";
 
 // ── Insert / Update ────────────────────────────────
 
@@ -9,7 +10,29 @@ const _insert = createInsertSchema(products, {
 	slug: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
 	description: t.Optional(t.Nullable(t.String({ maxLength: 10000 }))),
 	sku: t.String({ minLength: 1, maxLength: 100 }),
-	price: t.String({ minLength: 1, pattern: "^\\d+(\\.\\d{1,2})?$" }),
+	// `price` is optional in the body — the service ALWAYS recomputes it from
+	// supplierPrice + margin. A value sent here is silently ignored.
+	price: t.Optional(t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" })),
+	supplierPrice: t.Optional(t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" })),
+	// Per-role custom margin overrides. Each role is independent.
+	roleCustomMargins: t.Optional(
+		t.Nullable(
+			t.Object({
+				customer: t.Optional(
+					t.Object({
+						enabled: t.Literal(true),
+						percent: t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" }),
+					}),
+				),
+				distributor: t.Optional(
+					t.Object({
+						enabled: t.Literal(true),
+						percent: t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" }),
+					}),
+				),
+			}),
+		),
+	),
 	stock: t.Optional(t.Integer({ minimum: 0 })),
 	brandId: t.Optional(t.Nullable(t.String({ format: "uuid" }))),
 	categoryId: t.Optional(t.Nullable(t.String({ format: "uuid" }))),
@@ -19,7 +42,27 @@ const _insert = createInsertSchema(products, {
 
 // ── Admin Responses ──────
 
-const AdminProductResponse = createSelectSchema(products);
+// Mirror the roleCustomMargins shape from the insert schema above.
+// drizzle-typebox falls back to `Json` for jsonb columns; without this,
+// Eden infers `Json` and breaks the admin's typed `Product` shape.
+const AdminProductResponse = createSelectSchema(products, {
+	roleCustomMargins: t.Nullable(
+		t.Object({
+			customer: t.Optional(
+				t.Object({
+					enabled: t.Literal(true),
+					percent: t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" }),
+				}),
+			),
+			distributor: t.Optional(
+				t.Object({
+					enabled: t.Literal(true),
+					percent: t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" }),
+				}),
+			),
+		}),
+	),
+});
 
 const ProviderRef = t.Object({
 	source: t.String(),
@@ -43,6 +86,35 @@ const BulkDeleteResult = t.Object({
 	deletedIds: t.Array(t.String({ format: "uuid" })),
 	notFoundIds: t.Array(t.String({ format: "uuid" })),
 	deletedCount: t.Integer({ minimum: 0 }),
+});
+
+/**
+ * Flat object whose values are primitives (including null for cleared fields).
+ * Matches the runtime shape of `productChanges.oldValue` / `.newValue`
+ * (e.g. `{ price: 100 }`, `{ rawPrice: null }`).
+ */
+const ProductChangeValue = t.Record(
+	t.String(),
+	t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]),
+);
+
+const ProductChangeResponse = t.Object({
+	id: t.String({ format: "uuid" }),
+	syncReportId: t.Nullable(t.String({ format: "uuid" })),
+	reportTrigger: t.Nullable(t.String()),
+	reportStartedAt: t.Nullable(t.String()), // ISO timestamp
+	changeType: t.String(),
+	field: t.Nullable(t.String()),
+	oldValue: t.Nullable(ProductChangeValue),
+	newValue: t.Nullable(ProductChangeValue),
+	reason: t.Nullable(t.String()),
+	source: t.String(),
+	createdAt: t.String(), // ISO timestamp
+});
+
+const ProductChangesResponse = t.Object({
+	changes: t.Array(ProductChangeResponse),
+	total: t.Integer({ minimum: 0 }),
 });
 
 // ── Public Responses ──────────
@@ -75,6 +147,7 @@ export const PublicProductListItem = t.Object({
 	primaryImage: t.Nullable(PublicPrimaryImage),
 	brand: t.Nullable(PublicBrandRef),
 	category: t.Nullable(PublicCategoryRef),
+	offers: t.Array(PublicOfferRef),
 });
 
 const PublicSpecification = t.Object({
@@ -109,6 +182,7 @@ export const PublicProductDetail = t.Object({
 	images: t.Array(PublicImageRef),
 	brand: t.Nullable(PublicBrandDetailRef),
 	category: t.Nullable(PublicCategoryRef),
+	offers: t.Array(PublicOfferRef),
 	createdAt: t.String(),
 });
 
@@ -221,6 +295,15 @@ export const ProductModel = {
 		excludeSlug: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
 	}),
 
+	// Admin query — no pagination cap. Admin table handles pagination client-side
+	// and TanStack table can handle hundreds of thousands of rows.
+	adminListQuery: t.Object({
+		brandId: t.Optional(t.String({ format: "uuid" })),
+		categoryId: t.Optional(t.String({ format: "uuid" })),
+		isFeatured: t.Optional(t.Boolean()),
+		search: t.Optional(t.String({ minLength: 1, maxLength: 200 })),
+	}),
+
 	// Batch
 	bulkDeleteBody: t.Object({
 		ids: t.Array(t.String({ format: "uuid" }), { minItems: 1, maxItems: 50 }),
@@ -230,6 +313,7 @@ export const ProductModel = {
 	adminProductResponse: AdminProductResponse,
 	adminProductListResponse: t.Array(AdminProductListResponse),
 	bulkDeleteResponse: BulkDeleteResult,
+	productChangesResponse: ProductChangesResponse,
 
 	// Search
 	searchQuery: t.Object({

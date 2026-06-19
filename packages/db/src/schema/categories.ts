@@ -24,8 +24,8 @@ export const categories = pgTable(
 		isActive: boolean("is_active").default(true).notNull(),
 		isVisibleInNav: boolean("is_visible_in_nav").default(true).notNull(),
 
-		createdBy: uuid("created_by").references(() => users.id),
-		updatedBy: uuid("updated_by").references(() => users.id),
+		createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+		updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
 
 		...seoFields,
 		...lifecycleDates,
@@ -36,5 +36,6 @@ export const categories = pgTable(
 		index("categories_active_idx").on(table.isActive),
 		index("categories_sort_order_idx").on(table.sortOrder),
 		index("categories_name_idx").on(table.name),
+		index("categories_path_idx").on(table.path),
 	],
 );

@@ -2,23 +2,42 @@ import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { AUTO_CANCEL_MS } from "@renovabit/db/constants";
 import {
-	ORDER_RESERVATION_STATUSES,
-	ORDER_STATUS_LABELS,
 	ORDER_STATUS_TRANSITIONS,
 	type OrderSource,
 	type OrderStatus,
 	type PaymentMethod,
 } from "@renovabit/db/orders";
+import { ORDER_STATUS_LABELS } from "@renovabit/db/orders-meta";
 import { cartItems, carts, orderItems, orders, products, users } from "@renovabit/db/schema";
+import {
+	applyOfferToProduct,
+	type CartItemInput,
+	calculateOrderTotal,
+	getEffectiveSalePrice,
+	type Role,
+} from "@renovabit/pricing";
 import { type Static } from "@sinclair/typebox";
 import type { SQL } from "drizzle-orm";
 import { and, asc, count, desc, eq, gte, ilike, inArray, lt, lte, or, sql } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
+import {
+	DEFAULT_PAGE_SIZE,
+	MAX_ATTACHMENTS,
+	MAX_ORDER_NUMBER_RETRIES,
+	MAX_PAGE_SIZE,
+	MAX_PENDING_ORDERS,
+} from "@/constants";
 import { enqueueOrderAutoCancel, removeOrderAutoCancel } from "@/jobs/orders.queue";
-import { createNotification, getAdminIds } from "@/modules/notifications/notifications.service";
-import { broadcastToAdmins } from "@/plugins/websocket";
+import {
+	notifyAdminsOfCancelledOrder,
+	notifyAdminsOfOrder,
+} from "@/modules/notifications/notifications.service";
+import { OfferService } from "@/modules/offers/service";
+import { formatDate } from "@/utils/date";
+import { isUniqueViolationOn } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
-import { getAvailableStock } from "@/utils/stock";
+import { getActiveMarginRules, getActiveRoleMarginRules } from "@/utils/margin-rules";
+import { getReservedStockForProductInTx } from "@/utils/stock";
 import {
 	deleteEntityAttachment,
 	extractKeyFromUrl,
@@ -32,54 +51,13 @@ import { OrderModel } from "./model";
 type CreateBody = Static<typeof OrderModel.createBody>;
 type AdminUpdateBody = Static<typeof OrderModel.adminUpdateBody>;
 
-const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 100;
 const ORDER_SUFFIX = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 10);
 
-const MAX_PENDING_ORDERS = 10;
 const AUTO_CANCEL_REASON = "Cancelado automáticamente por falta de confirmación";
-
-function formatDate(date: Date): string {
-	return date.toISOString();
-}
 
 function generateOrderNumber(): string {
 	const year = new Date().getFullYear();
 	return `ORD-${year}-${ORDER_SUFFIX()}`;
-}
-
-function isOrderNumberUniqueViolation(error: unknown): boolean {
-	if (!error || typeof error !== "object") return false;
-
-	const getString = (key: "code" | "constraint" | "message") => {
-		const value = Reflect.get(error, key);
-		return typeof value === "string" ? value : "";
-	};
-
-	const code = getString("code");
-	const constraint = getString("constraint");
-	const message = getString("message");
-	return (
-		code === "23505" &&
-		(constraint === "orders_order_number_unique" || message.includes("orders_order_number_unique"))
-	);
-}
-
-function isCartIdUniqueViolation(error: unknown): boolean {
-	if (!error || typeof error !== "object") return false;
-
-	const getString = (key: "code" | "constraint" | "message") => {
-		const value = Reflect.get(error, key);
-		return typeof value === "string" ? value : "";
-	};
-
-	const code = getString("code");
-	const constraint = getString("constraint");
-	const message = getString("message");
-	return (
-		code === "23505" &&
-		(constraint === "orders_cart_id_unique" || message.includes("orders_cart_id_unique"))
-	);
 }
 
 function sanitizePagination(
@@ -109,7 +87,7 @@ function parseJsonArray(value: unknown): string[] {
 
 type OrderRow = typeof orders.$inferSelect;
 
-async function buildOrderResponse(order: OrderRow): Promise<OrderResponse> {
+async function buildOrderResponse(order: OrderRow, isAdminView = false): Promise<OrderResponse> {
 	const items = await db
 		.select({
 			id: orderItems.id,
@@ -148,7 +126,6 @@ async function buildOrderResponse(order: OrderRow): Promise<OrderResponse> {
 		status: order.status,
 		source: order.source,
 		paymentMethod: order.paymentMethod ?? null,
-		paymentProofUrl: null, // TODO: populate when payment proof upload supported
 		customerName,
 		customerPhone: order.customerPhone ?? null,
 		customerEmail,
@@ -156,7 +133,6 @@ async function buildOrderResponse(order: OrderRow): Promise<OrderResponse> {
 		discountTotal: order.discountTotal,
 		total: order.total,
 		notes: order.notes ?? null,
-		adminNotes: order.adminNotes ?? null,
 		items: items.map((i) => ({
 			id: i.id,
 			productId: i.productId ?? null,
@@ -172,43 +148,8 @@ async function buildOrderResponse(order: OrderRow): Promise<OrderResponse> {
 		cancelledAt: order.cancelledAt ? formatDate(order.cancelledAt) : null,
 		cancelReason: order.cancelReason ?? null,
 		attachments: parseJsonArray(order.attachments),
+		...(isAdminView ? { adminNotes: order.adminNotes ?? null } : {}),
 	};
-}
-
-// ═══════════════════════════════════════════════════
-//  NOTIFICATIONS
-// ═══════════════════════════════════════════════════
-
-async function notifyAdmins(
-	orderId: string,
-	orderNumber: string,
-	total: string,
-	customerName: string | null,
-): Promise<void> {
-	const adminIds = await getAdminIds();
-	if (adminIds.length === 0) return;
-
-	for (const adminId of adminIds) {
-		try {
-			await createNotification({
-				userId: adminId,
-				type: "order:created",
-				title: "Nuevo pedido recibido",
-				message: `Pedido ${orderNumber} — S/ ${total}${customerName ? ` — ${customerName}` : ""}`,
-				data: { orderId, orderNumber, total, timestamp: new Date().toISOString() },
-			});
-		} catch (err) {
-			logger.withMetadata({ adminId, err }).error("[Order] Failed to notify admin");
-		}
-	}
-
-	broadcastToAdmins({
-		type: "order:created",
-		orderId,
-		orderNumber,
-		total,
-		timestamp: new Date().toISOString(),
-	});
 }
 
 // ═══════════════════════════════════════════════════
@@ -317,7 +258,8 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			name: products.name,
 			slug: products.slug,
 			sku: products.sku,
-			price: products.price,
+			supplierPrice: products.supplierPrice,
+			roleCustomMargins: products.roleCustomMargins,
 			stock: products.stock,
 			isActive: products.isActive,
 			needsReview: products.needsReview,
@@ -326,6 +268,25 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 		.where(inArray(products.id, productIds));
 
 	const productMap = new Map(productRows.map((p) => [p.id, p]));
+
+	// Resolve the buyer's role for role-aware pricing (admin always sees raw).
+	let orderRole: Role = "customer";
+	if (userId) {
+		const [u] = await db
+			.select({ role: users.role })
+			.from(users)
+			.where(eq(users.id, userId))
+			.limit(1);
+		const r = u?.role;
+		if (r === "admin" || r === "distributor" || r === "customer") {
+			orderRole = r;
+		}
+	}
+
+	const [customerRules, roleRules] = await Promise.all([
+		getActiveMarginRules(),
+		getActiveRoleMarginRules(),
+	]);
 
 	for (const item of cartItemsList) {
 		const product = productMap.get(item.productId);
@@ -348,6 +309,58 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 	}
 	// NOTE: stock re-validation moved INSIDE transaction below
 
+	// Resolve active offers for each product (so we can apply them to the order total).
+	// Fetched outside the transaction: a race with offer expiry mid-checkout is acceptable
+	// since the order is still `pending` and the discount is snapshotted at creation time.
+	const activeOffersByProduct = await OfferService.getActiveOffersForProducts(productIds);
+
+	// Pre-compute per-line pricing so the transaction body only persists it.
+	// Use the buyer's role (or 'customer' for guests) for role-aware pricing.
+	const pricingItems: CartItemInput[] = cartItemsList.map((item) => {
+		const product = productMap.get(item.productId);
+		const { salePrice } = getEffectiveSalePrice(
+			{
+				supplierPrice: product?.supplierPrice ?? "0",
+				roleCustomMargins: product?.roleCustomMargins ?? null,
+			},
+			orderRole,
+			customerRules,
+			roleRules,
+		);
+		return {
+			salePrice,
+			quantity: item.quantity,
+			offers: activeOffersByProduct.get(item.productId) ?? [],
+		};
+	});
+	const pricingResult = calculateOrderTotal({ items: pricingItems });
+
+	const discountTotalValue = pricingResult.offerDiscount;
+	const discountTotalStr = discountTotalValue.toFixed(2);
+	const total = pricingResult.total.toFixed(2);
+
+	// Per-line finalPrice after applying offers; precomputed for the transaction body.
+	const lineFinalPrices = new Map<string, string>();
+	for (const item of cartItemsList) {
+		const product = productMap.get(item.productId);
+		const { salePrice } = getEffectiveSalePrice(
+			{
+				supplierPrice: product?.supplierPrice ?? "0",
+				roleCustomMargins: product?.roleCustomMargins ?? null,
+			},
+			orderRole,
+			customerRules,
+			roleRules,
+		);
+		const offer = activeOffersByProduct.get(item.productId);
+		if (offer && offer.length > 0) {
+			const discounted = applyOfferToProduct(salePrice, offer).discountedPrice;
+			lineFinalPrices.set(item.itemId, (discounted * item.quantity).toFixed(2));
+		} else {
+			lineFinalPrices.set(item.itemId, (salePrice * item.quantity).toFixed(2));
+		}
+	}
+
 	const now = new Date();
 	let customerName =
 		typeof data.customerName === "string" ? data.customerName.trim() || null : null;
@@ -369,6 +382,25 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 
 	const normalizedNotes = typeof data.notes === "string" ? data.notes.trim() || null : null;
 
+	const appliedOfferIds = data.appliedOfferIds ?? [];
+	if (appliedOfferIds.length > 0) {
+		const validOfferIds = new Set<string>();
+		for (const offers of activeOffersByProduct.values()) {
+			for (const offer of offers) {
+				if (offer.id) validOfferIds.add(offer.id);
+			}
+		}
+		const invalid = appliedOfferIds.filter((id) => !validOfferIds.has(id));
+		if (invalid.length > 0) {
+			throw createApiError({
+				code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
+				message: `Ofertas no válidas o expiradas: ${invalid.join(", ")}`,
+				logLevel: "info",
+				doNotLog: true,
+			});
+		}
+	}
+
 	const orderResult = await db.transaction(async (tx) => {
 		// ── Stock re-validation inside transaction with FOR UPDATE ──
 		const uniqueProductIds = [...new Set(cartItemsList.map((i) => i.productId))].sort();
@@ -389,18 +421,8 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 				});
 			}
 
-			const [reserved] = await tx
-				.select({ reserved: sql<number>`COALESCE(SUM(${orderItems.quantity})::int, 0)` })
-				.from(orderItems)
-				.innerJoin(orders, eq(orders.id, orderItems.orderId))
-				.where(
-					and(
-						eq(orderItems.productId, productId),
-						inArray(orders.status, ORDER_RESERVATION_STATUSES),
-					),
-				);
-
-			const availableStock = locked.stock - (reserved?.reserved ?? 0);
+			const reserved = await getReservedStockForProductInTx(tx, productId);
+			const availableStock = locked.stock - reserved;
 			const required = cartItemsList
 				.filter((i) => i.productId === productId)
 				.reduce((sum, i) => sum + i.quantity, 0);
@@ -435,9 +457,13 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			  }
 			| undefined;
 
-		for (let attempt = 0; attempt < 5; attempt++) {
+		for (let attempt = 0; attempt < MAX_ORDER_NUMBER_RETRIES; attempt++) {
 			const orderNumber = generateOrderNumber();
 			try {
+				const metadataValue = {
+					...(appliedOfferIds.length > 0 ? { applied_offer_ids: appliedOfferIds } : {}),
+				};
+
 				const [created] = await tx
 					.insert(orders)
 					.values({
@@ -452,7 +478,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 						discountTotal: "0",
 						total: "0",
 						notes: normalizedNotes,
-						metadata: {},
+						metadata: metadataValue,
 						createdAt: now,
 						updatedAt: now,
 					})
@@ -475,7 +501,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 				order = created;
 				break;
 			} catch (err) {
-				if (isCartIdUniqueViolation(err)) {
+				if (isUniqueViolationOn(err, "orders_cart_id_unique")) {
 					throw createApiError({
 						code: BackendErrorCodes.CONFLICT,
 						message: "Ya existe un pedido para este carrito",
@@ -483,7 +509,11 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 						doNotLog: true,
 					});
 				}
-				if (!isOrderNumberUniqueViolation(err) || attempt === 4) throw err;
+				if (
+					!isUniqueViolationOn(err, "orders_order_number_unique") ||
+					attempt === MAX_ORDER_NUMBER_RETRIES - 1
+				)
+					throw err;
 			}
 		}
 
@@ -494,68 +524,68 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			});
 		}
 
-		const createdItems: Array<{
-			id: string;
-			productId: string | null;
-			productName: string;
-			productSku: string;
-			productSlug: string;
-			quantity: number;
-			unitPrice: string;
-			finalPrice: string;
-		}> = [];
+		const computedSubtotal = pricingResult.subtotal.toFixed(2);
 
-		// Compute subtotal via SQL numeric(12,2) to avoid float drift
-		const [subtotalRow] = await tx
-			.select({
-				subtotal: sql<string>`COALESCE(SUM(${cartItems.addedAtPrice} * ${cartItems.quantity})::text, '0')`,
-			})
-			.from(cartItems)
-			.where(eq(cartItems.cartId, data.cartId));
-
-		const computedSubtotal = parseFloat(subtotalRow?.subtotal ?? "0").toFixed(2);
-
-		for (const item of cartItemsList) {
+		// Batch insert all order items in a single statement
+		const orderItemsValues = cartItemsList.map((item) => {
 			const product = productMap.get(item.productId)!;
-			const qty = item.quantity;
-			const unitPrice = parseFloat(item.addedAtPrice);
-			const finalPrice = unitPrice * qty;
+			const lineFinalPrice = lineFinalPrices.get(item.itemId) ?? "0.00";
 
-			const [insertedItem] = await tx
-				.insert(orderItems)
-				.values({
-					orderId: order.id,
-					productId: item.productId,
-					productName: product.name,
-					productSku: product.sku,
-					quantity: qty,
-					unitPrice: item.addedAtPrice,
-					finalPrice: finalPrice.toFixed(2),
-				})
-				.returning({ id: orderItems.id });
+			// Recompute the role-aware unit price at order creation time.
+			// The cart's `addedAtPrice` may be stale or based on a different role.
+			const { salePrice: rolePrice } = getEffectiveSalePrice(
+				{
+					supplierPrice: product.supplierPrice,
+					roleCustomMargins: product.roleCustomMargins,
+				},
+				orderRole,
+				customerRules,
+				roleRules,
+			);
+			return {
+				orderId: order.id,
+				productId: item.productId,
+				productName: product.name,
+				productSku: product.sku,
+				quantity: item.quantity,
+				unitPrice: rolePrice.toFixed(2),
+				finalPrice: lineFinalPrice,
+			};
+		});
 
-			if (!insertedItem) {
-				throw createApiError({
-					code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
-					message: "Error al crear los items del pedido",
-				});
-			}
+		const insertedItems = await tx
+			.insert(orderItems)
+			.values(orderItemsValues)
+			.returning({ id: orderItems.id });
 
-			createdItems.push({
-				id: insertedItem.id,
+		const createdItems = insertedItems.map((inserted, index) => {
+			const item = cartItemsList[index]!;
+			const product = productMap.get(item.productId)!;
+			const { salePrice: rolePrice } = getEffectiveSalePrice(
+				{
+					supplierPrice: product.supplierPrice,
+					roleCustomMargins: product.roleCustomMargins,
+				},
+				orderRole,
+				customerRules,
+				roleRules,
+			);
+			return {
+				id: inserted.id,
 				productId: item.productId,
 				productName: product.name,
 				productSku: product.sku,
 				productSlug: product.slug,
 				quantity: item.quantity,
-				unitPrice: item.addedAtPrice,
-				finalPrice: (unitPrice * item.quantity).toFixed(2),
-			});
-		}
+				unitPrice: rolePrice.toFixed(2),
+				finalPrice: lineFinalPrices.get(item.itemId) ?? "0.00",
+			};
+		});
 
-		const total = computedSubtotal;
-
-		await tx.update(orders).set({ subtotal: total, total }).where(eq(orders.id, order.id));
+		await tx
+			.update(orders)
+			.set({ subtotal: computedSubtotal, discountTotal: discountTotalStr, total })
+			.where(eq(orders.id, order.id));
 		const deletedCartItems = await tx
 			.delete(cartItems)
 			.where(eq(cartItems.cartId, data.cartId))
@@ -575,18 +605,19 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			.set({ itemsCount: 0, lastActivityAt: now })
 			.where(eq(carts.id, data.cartId));
 
-		order.subtotal = total;
+		order.subtotal = computedSubtotal;
+		order.discountTotal = discountTotalStr;
 		order.total = total;
 
 		return { order, items: createdItems };
 	});
 
-	notifyAdmins(
-		orderResult.order.id,
-		orderResult.order.orderNumber,
-		orderResult.order.total,
+	notifyAdminsOfOrder({
+		orderId: orderResult.order.id,
+		orderNumber: orderResult.order.orderNumber,
+		total: orderResult.order.total,
 		customerName,
-	).catch((err) => logger.withMetadata({ err }).error("[Order] Notification error"));
+	}).catch((err) => logger.withMetadata({ err }).error("[Order] Notification error"));
 
 	enqueueOrderAutoCancel(orderResult.order.id, AUTO_CANCEL_MS).catch((err) =>
 		logger
@@ -615,15 +646,18 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 //  GET ORDER
 // ═══════════════════════════════════════════════════
 
-async function getById(orderId: string): Promise<OrderResponse | null> {
+async function getById(orderId: string, isAdminView = false): Promise<OrderResponse | null> {
 	const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
 
 	if (!order) return null;
 
-	// Lazy auto-cancel: si está pending y venció, lo cancelamos antes de devolver
+	// Lazy auto-cancel: si está pending y venció, lo cancelamos antes de devolver.
+	// El `where status=pending` en el UPDATE lo hace idempotente: si el worker
+	// ya canceló (o el safety-net corrió), el UPDATE no aplica filas y el re-fetch
+	// siguiente simplemente lee el estado actual canónico.
 	if (order.status === "pending" && Date.now() - order.createdAt.getTime() >= AUTO_CANCEL_MS) {
 		const now = new Date();
-		await db
+		const updated = await db
 			.update(orders)
 			.set({
 				status: "cancelled",
@@ -631,13 +665,25 @@ async function getById(orderId: string): Promise<OrderResponse | null> {
 				cancelReason: AUTO_CANCEL_REASON,
 				updatedAt: now,
 			})
-			.where(and(eq(orders.id, orderId), eq(orders.status, "pending")));
+			.where(and(eq(orders.id, orderId), eq(orders.status, "pending")))
+			.returning({ id: orders.id });
+
+		if (updated.length > 0) {
+			// Cancelamos el job delayed de auto-cancel para no desperdiciar lecturas en Redis.
+			removeOrderAutoCancel(orderId).catch((err) =>
+				logger
+					.withMetadata({ orderId })
+					.withError(err)
+					.warn("[Orders] failed to remove auto-cancel job (lazy)"),
+			);
+		}
+
 		const [refreshed] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
 		if (!refreshed) return null;
-		return buildOrderResponse(refreshed);
+		return buildOrderResponse(refreshed, isAdminView);
 	}
 
-	return buildOrderResponse(order);
+	return buildOrderResponse(order, isAdminView);
 }
 
 // ═══════════════════════════════════════════════════
@@ -645,7 +691,7 @@ async function getById(orderId: string): Promise<OrderResponse | null> {
 // ═══════════════════════════════════════════════════
 
 async function queryOrderList(
-	where: SQL<unknown> | undefined,
+	where: SQL | undefined,
 	page: string | number | undefined,
 	limit: string | number | undefined,
 	context: string,
@@ -841,7 +887,7 @@ async function updateStatus(orderId: string, data: AdminUpdateBody): Promise<Ord
 	}
 
 	const now = new Date();
-	const updates: Record<string, unknown> = {
+	const updates: Partial<typeof orders.$inferInsert> = {
 		updatedAt: now,
 	};
 
@@ -855,7 +901,15 @@ async function updateStatus(orderId: string, data: AdminUpdateBody): Promise<Ord
 			updates.cancelReason = data.cancelReason ?? null;
 		}
 
-		const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+		const dateStr = new Intl.DateTimeFormat("es-PE", {
+			timeZone: "America/Lima",
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: false,
+		}).format(now);
 		const systemNote = `[${dateStr}] Sistema: Pedido ${(ORDER_STATUS_LABELS[data.status] ?? data.status).toLowerCase()}`;
 		const existingNotes = order.adminNotes ?? "";
 		const adminProvidedNotes = data.adminNotes !== undefined ? data.adminNotes : "";
@@ -1011,7 +1065,7 @@ async function cancelByUser(orderId: string, userId: string): Promise<OrderRespo
 			.warn("[Orders] failed to remove auto-cancel job"),
 	);
 
-	const refreshed = await getById(orderId);
+	const refreshed = await getById(orderId, true);
 	if (!refreshed) {
 		throw createApiError({
 			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
@@ -1056,38 +1110,30 @@ async function autoCancelExpiredPending(): Promise<string[]> {
 		.withMetadata({ count: stale.length, orderIds: staleIds })
 		.info("[Orders] Auto-cancel de pedidos pendientes vencidos");
 
-	const adminIds = await getAdminIds();
+	// Cancelamos los jobs delayed por orden para no desperdiciar lecturas en Redis
+	// cuando dispare el worker (que ya sería no-op).
+	await Promise.all(
+		staleIds.map((id) =>
+			removeOrderAutoCancel(id).catch((err) =>
+				logger
+					.withMetadata({ orderId: id })
+					.withError(err)
+					.warn("[Orders] failed to remove auto-cancel job (safety-net)"),
+			),
+		),
+	);
 
 	for (const row of stale) {
-		broadcastToAdmins({
-			type: "order:auto-cancelled",
+		notifyAdminsOfCancelledOrder({
 			orderId: row.id,
 			orderNumber: row.orderNumber,
 			reason: AUTO_CANCEL_REASON,
-			timestamp: now.toISOString(),
-		});
-
-		for (const adminId of adminIds) {
-			try {
-				await createNotification({
-					userId: adminId,
-					type: "order:auto-cancelled",
-					title: "Pedido cancelado automáticamente",
-					message: `Pedido ${row.orderNumber} fue cancelado por no ser confirmado a tiempo.`,
-					data: {
-						orderId: row.id,
-						orderNumber: row.orderNumber,
-						reason: AUTO_CANCEL_REASON,
-						timestamp: now.toISOString(),
-					},
-				});
-			} catch (err) {
-				logger
-					.withMetadata({ adminId, orderId: row.id })
-					.withError(err)
-					.error("[Orders] Failed to create auto-cancel notification");
-			}
-		}
+		}).catch((err) =>
+			logger
+				.withMetadata({ orderId: row.id })
+				.withError(err)
+				.error("[Orders] Failed to notify admins of auto-cancel"),
+		);
 	}
 
 	return staleIds;
@@ -1097,7 +1143,7 @@ async function autoCancelExpiredPending(): Promise<string[]> {
 //  ATTACHMENTS
 // ═══════════════════════════════════════════════════
 
-const MAX_ATTACHMENTS = 10;
+// MAX_ATTACHMENTS imported from @/constants
 
 async function updateAttachments(orderId: string, urls: string[]): Promise<OrderResponse> {
 	const [order] = await db
@@ -1170,8 +1216,8 @@ async function updateAttachments(orderId: string, urls: string[]): Promise<Order
 
 	// Step 4: clean up removed attachments.
 	await Promise.all(removed.map((url) => deleteEntityAttachment(url)));
+	const updated = await getById(orderId, true);
 
-	const updated = await getById(orderId);
 	if (!updated) {
 		throw createApiError({
 			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
@@ -1219,36 +1265,16 @@ async function cancelIfStillPending(orderId: string): Promise<boolean> {
 		.withMetadata({ orderId, orderNumber: order.orderNumber })
 		.info("[Orders] Auto-cancel aplicado por worker");
 
-	broadcastToAdmins({
-		type: "order:auto-cancelled",
+	notifyAdminsOfCancelledOrder({
 		orderId,
 		orderNumber: order.orderNumber,
 		reason: AUTO_CANCEL_REASON,
-		timestamp: now.toISOString(),
-	});
-
-	const adminIds = await getAdminIds();
-	for (const adminId of adminIds) {
-		try {
-			await createNotification({
-				userId: adminId,
-				type: "order:auto-cancelled",
-				title: "Pedido cancelado automáticamente",
-				message: `Pedido ${order.orderNumber} fue cancelado por no ser confirmado a tiempo.`,
-				data: {
-					orderId,
-					orderNumber: order.orderNumber,
-					reason: AUTO_CANCEL_REASON,
-					timestamp: now.toISOString(),
-				},
-			});
-		} catch (err) {
-			logger
-				.withMetadata({ adminId, orderId })
-				.withError(err)
-				.error("[Orders] Failed to create auto-cancel notification");
-		}
-	}
+	}).catch((err) =>
+		logger
+			.withMetadata({ orderId })
+			.withError(err)
+			.error("[Orders] Failed to notify admins of auto-cancel"),
+	);
 
 	return true;
 }

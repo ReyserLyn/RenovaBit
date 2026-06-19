@@ -1,49 +1,13 @@
-import { db } from "@renovabit/db";
 import { ORDER_RESERVATION_STATUSES } from "@renovabit/db/orders";
-import { orderItems, orders, products } from "@renovabit/db/schema";
+import { orderItems, orders } from "@renovabit/db/schema";
 import type { AnyColumn } from "drizzle-orm";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 /**
- * Cantidad de unidades de un producto reservadas por órdenes `pending`.
- * El stock físico (`products.stock`) llega del sync del proveedor.
- * Al confirmar un pedido se descuenta el stock físico y la reserva se libera,
- * por eso solo `pending` reserva.
- *
- * Stock disponible = products.stock - getReservedStock(productId).
- */
-export async function getReservedStock(productId: string): Promise<number> {
-	const [result] = await db
-		.select({
-			reserved: sql<number>`COALESCE(SUM(${orderItems.quantity})::int, 0)`,
-		})
-		.from(orderItems)
-		.innerJoin(orders, eq(orders.id, orderItems.orderId))
-		.where(
-			and(eq(orderItems.productId, productId), inArray(orders.status, ORDER_RESERVATION_STATUSES)),
-		);
-
-	return Number(result?.reserved ?? 0);
-}
-
-/**
- * Stock disponible para venta: stock físico menos reservas de órdenes `pending`.
- * Nunca retorna negativo.
- */
-export async function getAvailableStock(productId: string): Promise<number> {
-	const [product] = await db
-		.select({ stock: products.stock })
-		.from(products)
-		.where(eq(products.id, productId))
-		.limit(1);
-
-	if (!product) return 0;
-	const reserved = await getReservedStock(productId);
-	return Math.max(0, product.stock - reserved);
-}
-
-/**
  * SQL fragment usable en queries Drizzle para computar la reserva inline.
+ * El stock físico (`products.stock`) llega del sync del proveedor; al confirmar
+ * un pedido se descuenta el stock físico y la reserva se libera, por eso solo
+ * los estados en `ORDER_RESERVATION_STATUSES` (e.g. `pending`) reservan.
  *
  * Uso:
  * ```ts
@@ -59,4 +23,30 @@ export function getReservedStockSubquery(productIdCol: AnyColumn) {
 		WHERE oi.product_id = ${productIdCol}
 		AND o.status IN (${sql.raw(statusList)})
 	)`;
+}
+
+/**
+ * Obtiene el stock reservado para un producto dentro de una transacción activa.
+ * Reemplaza el bloque duplicado de:
+ * ```
+ * .select({ reserved: sql<number>\`COALESCE(SUM(...)::int, 0)\` })
+ * ```
+ * que aparece 4 veces en cart/service.ts y orders/service.ts.
+ *
+ * @param tx — Transacción Drizzle activa (el parámetro del callback de `db.transaction(tx => ...)`)
+ * @param productId — ID del producto a consultar
+ */
+export async function getReservedStockForProductInTx(
+	// biome-ignore lint/suspicious/noExplicitAny: Drizzle tx type is complex; internal helper
+	tx: any,
+	productId: string,
+): Promise<number> {
+	const [result] = await tx
+		.select({ reserved: sql<number>`COALESCE(SUM(${orderItems.quantity})::int, 0)` })
+		.from(orderItems)
+		.innerJoin(orders, eq(orders.id, orderItems.orderId))
+		.where(
+			and(eq(orderItems.productId, productId), inArray(orders.status, ORDER_RESERVATION_STATUSES)),
+		);
+	return result?.reserved ?? 0;
 }

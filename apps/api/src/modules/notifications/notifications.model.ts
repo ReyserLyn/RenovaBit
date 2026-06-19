@@ -1,6 +1,11 @@
 import { t } from "elysia";
 
-// ── Tipos concretos para OpenAPI + type-safety en cliente ──
+const PrimitiveValue = t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]);
+
+const NotificationDataSchema = t.Record(
+	t.String(),
+	t.Union([PrimitiveValue, t.Record(t.String(), PrimitiveValue)]),
+);
 
 export const notificationItemSchema = t.Object({
 	id: t.String(),
@@ -8,7 +13,7 @@ export const notificationItemSchema = t.Object({
 	type: t.String(),
 	title: t.String(),
 	message: t.Nullable(t.String()),
-	data: t.Unknown(),
+	data: t.Nullable(NotificationDataSchema),
 	isRead: t.Boolean(),
 	createdAt: t.String(),
 	user: t.Nullable(

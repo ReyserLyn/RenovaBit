@@ -1,7 +1,7 @@
 import { Elysia } from "elysia";
 import { AuthModule } from "@/modules/auth";
 import { ErrorResponse, UserModel } from "./model";
-import { type UpdateProfileInput, UsernameConflictError, UserService } from "./service";
+import { type UpdateProfileInput, UserService } from "./service";
 
 // ── Routes ─────────────────────────────────────────
 
@@ -62,19 +62,7 @@ export const usersRoute = new Elysia({ prefix: "/users" })
 			response: {
 				200: UserModel.userProfile,
 				401: ErrorResponse,
-			},
-			error({ error, set }) {
-				if (error instanceof UsernameConflictError) {
-					set.status = 409;
-					return {
-						errId: "",
-						code: "CONFLICT",
-						message: error.message,
-						statusCode: 409,
-						metadata: { field: "displayUsername" },
-					};
-				}
-				// Let other errors propagate to the global error handler
+				409: ErrorResponse,
 			},
 			detail: { summary: "Actualizar perfil propio", tags: ["Users"] },
 		},

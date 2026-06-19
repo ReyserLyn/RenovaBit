@@ -1,7 +1,7 @@
 import { Worker } from "bullmq";
 import { OrderService } from "@/modules/orders/service";
 import { logger } from "@/utils/logger";
-import { connection } from "@/utils/queue";
+import { connection } from "@/utils/queue/connection";
 
 type AutoCancelData = { orderId: string };
 

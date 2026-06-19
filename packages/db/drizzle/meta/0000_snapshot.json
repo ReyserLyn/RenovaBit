@@ -1,5 +1,5 @@
 {
-	"id": "54a8756c-a602-4677-81d5-25dfcfda9149",
+	"id": "ae5a8365-fdf6-40ec-a497-33017d440c69",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"version": "7",
 	"dialect": "postgresql",
@@ -298,7 +298,7 @@
 					"name": "banned",
 					"type": "boolean",
 					"primaryKey": false,
-					"notNull": false,
+					"notNull": true,
 					"default": false
 				},
 				"ban_reason": {
@@ -574,7 +574,7 @@
 					"tableTo": "users",
 					"columnsFrom": ["created_by"],
 					"columnsTo": ["id"],
-					"onDelete": "no action",
+					"onDelete": "set null",
 					"onUpdate": "no action"
 				},
 				"brands_updated_by_users_id_fk": {
@@ -583,7 +583,7 @@
 					"tableTo": "users",
 					"columnsFrom": ["updated_by"],
 					"columnsTo": ["id"],
-					"onDelete": "no action",
+					"onDelete": "set null",
 					"onUpdate": "no action"
 				}
 			},
@@ -699,21 +699,6 @@
 					"concurrently": false,
 					"method": "btree",
 					"with": {}
-				},
-				"cart_items_status_idx": {
-					"name": "cart_items_status_idx",
-					"columns": [
-						{
-							"expression": "status",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
 				}
 			},
 			"foreignKeys": {
@@ -804,36 +789,6 @@
 				}
 			},
 			"indexes": {
-				"carts_user_id_idx": {
-					"name": "carts_user_id_idx",
-					"columns": [
-						{
-							"expression": "user_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				},
-				"carts_guest_token_idx": {
-					"name": "carts_guest_token_idx",
-					"columns": [
-						{
-							"expression": "guest_token",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				},
 				"carts_last_activity_idx": {
 					"name": "carts_last_activity_idx",
 					"columns": [
@@ -1092,6 +1047,21 @@
 					"concurrently": false,
 					"method": "btree",
 					"with": {}
+				},
+				"categories_path_idx": {
+					"name": "categories_path_idx",
+					"columns": [
+						{
+							"expression": "path",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
 				}
 			},
 			"foreignKeys": {
@@ -1110,7 +1080,7 @@
 					"tableTo": "users",
 					"columnsFrom": ["created_by"],
 					"columnsTo": ["id"],
-					"onDelete": "no action",
+					"onDelete": "set null",
 					"onUpdate": "no action"
 				},
 				"categories_updated_by_users_id_fk": {
@@ -1119,7 +1089,7 @@
 					"tableTo": "users",
 					"columnsFrom": ["updated_by"],
 					"columnsTo": ["id"],
-					"onDelete": "no action",
+					"onDelete": "set null",
 					"onUpdate": "no action"
 				}
 			},
@@ -1287,21 +1257,6 @@
 				}
 			},
 			"indexes": {
-				"favorites_user_id_idx": {
-					"name": "favorites_user_id_idx",
-					"columns": [
-						{
-							"expression": "user_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				},
 				"favorites_last_activity_idx": {
 					"name": "favorites_last_activity_idx",
 					"columns": [
@@ -1346,6 +1301,611 @@
 			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.margin_rules": {
+			"name": "margin_rules",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "uuidv7()"
+				},
+				"name": {
+					"name": "name",
+					"type": "varchar(255)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"min_price": {
+					"name": "min_price",
+					"type": "numeric(10, 2)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"max_price": {
+					"name": "max_price",
+					"type": "numeric(10, 2)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"margin_percent": {
+					"name": "margin_percent",
+					"type": "numeric(5, 2)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"sort_order": {
+					"name": "sort_order",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"margin_rules_range_idx": {
+					"name": "margin_rules_range_idx",
+					"columns": [
+						{
+							"expression": "min_price",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "max_price",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"margin_rules_name_unique": {
+					"name": "margin_rules_name_unique",
+					"nullsNotDistinct": false,
+					"columns": ["name"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.offer_brands": {
+			"name": "offer_brands",
+			"schema": "",
+			"columns": {
+				"offer_id": {
+					"name": "offer_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"brand_id": {
+					"name": "brand_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"override_discount_type": {
+					"name": "override_discount_type",
+					"type": "discount_type",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"override_discount_value": {
+					"name": "override_discount_value",
+					"type": "numeric(10, 2)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"offer_brands_offer_idx": {
+					"name": "offer_brands_offer_idx",
+					"columns": [
+						{
+							"expression": "offer_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"offer_brands_brand_idx": {
+					"name": "offer_brands_brand_idx",
+					"columns": [
+						{
+							"expression": "brand_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"offer_brands_offer_id_offers_id_fk": {
+					"name": "offer_brands_offer_id_offers_id_fk",
+					"tableFrom": "offer_brands",
+					"tableTo": "offers",
+					"columnsFrom": ["offer_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"offer_brands_brand_id_brands_id_fk": {
+					"name": "offer_brands_brand_id_brands_id_fk",
+					"tableFrom": "offer_brands",
+					"tableTo": "brands",
+					"columnsFrom": ["brand_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {
+				"offer_brands_offer_id_brand_id_pk": {
+					"name": "offer_brands_offer_id_brand_id_pk",
+					"columns": [
+						"offer_id",
+						"brand_id"
+					]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.offer_categories": {
+			"name": "offer_categories",
+			"schema": "",
+			"columns": {
+				"offer_id": {
+					"name": "offer_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"category_id": {
+					"name": "category_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"override_discount_type": {
+					"name": "override_discount_type",
+					"type": "discount_type",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"override_discount_value": {
+					"name": "override_discount_value",
+					"type": "numeric(10, 2)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"offer_categories_offer_idx": {
+					"name": "offer_categories_offer_idx",
+					"columns": [
+						{
+							"expression": "offer_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"offer_categories_category_idx": {
+					"name": "offer_categories_category_idx",
+					"columns": [
+						{
+							"expression": "category_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"offer_categories_offer_id_offers_id_fk": {
+					"name": "offer_categories_offer_id_offers_id_fk",
+					"tableFrom": "offer_categories",
+					"tableTo": "offers",
+					"columnsFrom": ["offer_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"offer_categories_category_id_categories_id_fk": {
+					"name": "offer_categories_category_id_categories_id_fk",
+					"tableFrom": "offer_categories",
+					"tableTo": "categories",
+					"columnsFrom": [
+						"category_id"
+					],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {
+				"offer_categories_offer_id_category_id_pk": {
+					"name": "offer_categories_offer_id_category_id_pk",
+					"columns": [
+						"offer_id",
+						"category_id"
+					]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.offer_products": {
+			"name": "offer_products",
+			"schema": "",
+			"columns": {
+				"offer_id": {
+					"name": "offer_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"product_id": {
+					"name": "product_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"override_discount_type": {
+					"name": "override_discount_type",
+					"type": "discount_type",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"override_discount_value": {
+					"name": "override_discount_value",
+					"type": "numeric(10, 2)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"offer_products_offer_idx": {
+					"name": "offer_products_offer_idx",
+					"columns": [
+						{
+							"expression": "offer_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"offer_products_product_idx": {
+					"name": "offer_products_product_idx",
+					"columns": [
+						{
+							"expression": "product_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"offer_products_offer_id_offers_id_fk": {
+					"name": "offer_products_offer_id_offers_id_fk",
+					"tableFrom": "offer_products",
+					"tableTo": "offers",
+					"columnsFrom": ["offer_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"offer_products_product_id_products_id_fk": {
+					"name": "offer_products_product_id_products_id_fk",
+					"tableFrom": "offer_products",
+					"tableTo": "products",
+					"columnsFrom": ["product_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {
+				"offer_products_offer_id_product_id_pk": {
+					"name": "offer_products_offer_id_product_id_pk",
+					"columns": [
+						"offer_id",
+						"product_id"
+					]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.offers": {
+			"name": "offers",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "uuidv7()"
+				},
+				"name": {
+					"name": "name",
+					"type": "varchar(100)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"slug": {
+					"name": "slug",
+					"type": "varchar(100)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"type": {
+					"name": "type",
+					"type": "offer_type",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'product'"
+				},
+				"discount_type": {
+					"name": "discount_type",
+					"type": "discount_type",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"discount_value": {
+					"name": "discount_value",
+					"type": "numeric(12, 2)",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'0'"
+				},
+				"starts_at": {
+					"name": "starts_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"ends_at": {
+					"name": "ends_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"is_active": {
+					"name": "is_active",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": false,
+					"default": true
+				},
+				"is_featured": {
+					"name": "is_featured",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": false,
+					"default": false
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"offers_slug_idx": {
+					"name": "offers_slug_idx",
+					"columns": [
+						{
+							"expression": "slug",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"offers_active_dates_idx": {
+					"name": "offers_active_dates_idx",
+					"columns": [
+						{
+							"expression": "is_active",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "starts_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "ends_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"offers_is_featured_idx": {
+					"name": "offers_is_featured_idx",
+					"columns": [
+						{
+							"expression": "is_featured",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"offers_created_by_users_id_fk": {
+					"name": "offers_created_by_users_id_fk",
+					"tableFrom": "offers",
+					"tableTo": "users",
+					"columnsFrom": ["created_by"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"offers_slug_unique": {
+					"name": "offers_slug_unique",
+					"nullsNotDistinct": false,
+					"columns": ["slug"]
+				}
+			},
 			"policies": {},
 			"checkConstraints": {},
 			"isRLSEnabled": false
@@ -1718,6 +2278,15 @@
 					"columnsTo": ["id"],
 					"onDelete": "set null",
 					"onUpdate": "no action"
+				},
+				"orders_cart_id_carts_id_fk": {
+					"name": "orders_cart_id_carts_id_fk",
+					"tableFrom": "orders",
+					"tableTo": "carts",
+					"columnsFrom": ["cart_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -1810,36 +2379,6 @@
 					"concurrently": false,
 					"method": "btree",
 					"with": {}
-				},
-				"product_images_sort_order_idx": {
-					"name": "product_images_sort_order_idx",
-					"columns": [
-						{
-							"expression": "sort_order",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				},
-				"product_images_primary_idx": {
-					"name": "product_images_primary_idx",
-					"columns": [
-						{
-							"expression": "is_primary",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
 				}
 			},
 			"foreignKeys": {
@@ -1899,6 +2438,19 @@
 					"type": "numeric(12, 2)",
 					"primaryKey": false,
 					"notNull": true
+				},
+				"supplier_price": {
+					"name": "supplier_price",
+					"type": "numeric(12, 2)",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'0'"
+				},
+				"role_custom_margins": {
+					"name": "role_custom_margins",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
 				},
 				"stock": {
 					"name": "stock",
@@ -2099,6 +2651,21 @@
 					"method": "btree",
 					"with": {}
 				},
+				"products_supplier_price_idx": {
+					"name": "products_supplier_price_idx",
+					"columns": [
+						{
+							"expression": "supplier_price",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
 				"products_search_vector_idx": {
 					"name": "products_search_vector_idx",
 					"columns": [
@@ -2142,7 +2709,7 @@
 					"tableTo": "users",
 					"columnsFrom": ["created_by"],
 					"columnsTo": ["id"],
-					"onDelete": "no action",
+					"onDelete": "set null",
 					"onUpdate": "no action"
 				},
 				"products_updated_by_users_id_fk": {
@@ -2151,7 +2718,7 @@
 					"tableTo": "users",
 					"columnsFrom": ["updated_by"],
 					"columnsTo": ["id"],
-					"onDelete": "no action",
+					"onDelete": "set null",
 					"onUpdate": "no action"
 				}
 			},
@@ -2222,7 +2789,7 @@
 					"name": "raw_stock",
 					"type": "integer",
 					"primaryKey": false,
-					"notNull": false,
+					"notNull": true,
 					"default": 0
 				},
 				"last_sync_at": {
@@ -2241,14 +2808,14 @@
 					"name": "is_unavailable",
 					"type": "boolean",
 					"primaryKey": false,
-					"notNull": false,
+					"notNull": true,
 					"default": false
 				},
 				"needs_review": {
 					"name": "needs_review",
 					"type": "boolean",
 					"primaryKey": false,
-					"notNull": false,
+					"notNull": true,
 					"default": false
 				},
 				"review_reason": {
@@ -2299,6 +2866,27 @@
 					"concurrently": false,
 					"method": "btree",
 					"with": {}
+				},
+				"product_providers_source_unavail_idx": {
+					"name": "product_providers_source_unavail_idx",
+					"columns": [
+						{
+							"expression": "source",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "is_unavailable",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
 				}
 			},
 			"foreignKeys": {
@@ -2323,6 +2911,100 @@
 					]
 				}
 			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.role_margin_rules": {
+			"name": "role_margin_rules",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "uuidv7()"
+				},
+				"role": {
+					"name": "role",
+					"type": "role_margin_rule_role",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"min_price": {
+					"name": "min_price",
+					"type": "numeric(10, 2)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"max_price": {
+					"name": "max_price",
+					"type": "numeric(10, 2)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"margin_percent": {
+					"name": "margin_percent",
+					"type": "numeric(5, 2)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"sort_order": {
+					"name": "sort_order",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"role_margin_rules_role_range_idx": {
+					"name": "role_margin_rules_role_range_idx",
+					"columns": [
+						{
+							"expression": "role",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "min_price",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "max_price",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
 			"policies": {},
 			"checkConstraints": {},
 			"isRLSEnabled": false
@@ -2407,7 +3089,7 @@
 					"tableTo": "users",
 					"columnsFrom": ["created_by"],
 					"columnsTo": ["id"],
-					"onDelete": "no action",
+					"onDelete": "set null",
 					"onUpdate": "no action"
 				}
 			},
@@ -2813,6 +3495,23 @@
 				"unavailable"
 			]
 		},
+		"public.discount_type": {
+			"name": "discount_type",
+			"schema": "public",
+			"values": [
+				"percentage",
+				"fixed_amount"
+			]
+		},
+		"public.offer_type": {
+			"name": "offer_type",
+			"schema": "public",
+			"values": [
+				"product",
+				"category",
+				"brand"
+			]
+		},
 		"public.order_source": {
 			"name": "order_source",
 			"schema": "public",
@@ -2836,6 +3535,14 @@
 				"transfer",
 				"yape",
 				"plin"
+			]
+		},
+		"public.role_margin_rule_role": {
+			"name": "role_margin_rule_role",
+			"schema": "public",
+			"values": [
+				"customer",
+				"distributor"
 			]
 		}
 	},

@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
+import { AuthModule } from "@/modules/auth";
 import { notFound } from "@/utils/api-helpers";
-import { getUserId } from "@/utils/auth/helpers";
 import { BrandModel, ErrorResponse } from "./model";
 import { BrandService } from "./service";
 
@@ -10,6 +10,7 @@ import { BrandService } from "./service";
 // ═══════════════════════════════════════════════════
 
 export const adminBrandsRoute = new Elysia({ prefix: "/brands" })
+	.use(AuthModule)
 	// ── List ──────────────────────────────────────
 	.get(
 		"/",
@@ -72,8 +73,8 @@ export const adminBrandsRoute = new Elysia({ prefix: "/brands" })
 	// ── Create ────────────────────────────────────
 	.post(
 		"/",
-		async ({ body, request }) => {
-			return BrandService.create(body, await getUserId(request));
+		async ({ body, user }) => {
+			return BrandService.create(body, user.id);
 		},
 		{
 			isAdmin: true,
@@ -92,8 +93,8 @@ export const adminBrandsRoute = new Elysia({ prefix: "/brands" })
 	// ── Update ────────────────────────────────────
 	.patch(
 		"/:id",
-		async ({ params: { id }, body, request }) => {
-			return BrandService.update(id, body, await getUserId(request));
+		async ({ params: { id }, body, user }) => {
+			return BrandService.update(id, body, user.id);
 		},
 		{
 			isAdmin: true,

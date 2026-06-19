@@ -1,8 +1,10 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { users } from "@renovabit/db/schema";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { auth } from "@/utils/auth/auth";
+import { logger } from "@/utils/logger";
 import { R2_BUCKET_NAME, R2_PUBLIC_URL, r2Client } from "@/utils/storage/client";
 import { deleteEntityImage, EXT_MAP } from "@/utils/storage/helpers";
 
@@ -44,7 +46,14 @@ async function list() {
 async function getProfile(userId: string) {
 	const [user] = await db.select(PROFILE_COLUMNS).from(users).where(eq(users.id, userId)).limit(1);
 
-	if (!user) throw new Error("Usuario no encontrado");
+	if (!user) {
+		throw createApiError({
+			code: BackendErrorCodes.NOT_FOUND_ERROR,
+			message: "Usuario no encontrado",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
 	return user;
 }
 
@@ -70,13 +79,24 @@ async function uploadAvatar(userId: string, file: File): Promise<string> {
 
 // ── Update profile ─────────────────────────────────
 
-export class UsernameConflictError extends Error {
-	constructor(username: string) {
-		super(`El nombre de usuario "${username}" ya está en uso. Elige otro.`);
-		this.name = "UsernameConflictError";
-	}
-}
-
+/**
+ * Audit log note: a `profile_changes` table is recommended for production to detect
+ * unauthorized role escalations and email changes. Until the table exists, we
+ * log every change at INFO level so the events are captured in the application
+ * log stream (and any future log aggregator).
+ *
+ * Recommended schema:
+ *   CREATE TABLE profile_changes (
+ *     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ *     user_id UUID NOT NULL REFERENCES users(id),
+ *     field VARCHAR(64) NOT NULL,
+ *     old_value TEXT,
+ *     new_value TEXT,
+ *     changed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ *     changed_by VARCHAR(64) NOT NULL DEFAULT 'user',
+ *     metadata JSONB
+ *   );
+ */
 async function updateProfile(userId: string, input: UpdateProfileInput, headers: Headers) {
 	// Derive username from displayUsername if applicable
 	let resolvedUsername: string | null | undefined = input.username;
@@ -89,7 +109,12 @@ async function updateProfile(userId: string, input: UpdateProfileInput, headers:
 	}
 
 	// Build update fields for Better Auth
-	const updateFields: Record<string, unknown> = {};
+	const updateFields: Partial<
+		Pick<
+			typeof users.$inferInsert,
+			"name" | "lastname" | "username" | "displayUsername" | "phone" | "image"
+		>
+	> = {};
 
 	if (input.name !== undefined) updateFields.name = input.name;
 	if (input.lastname !== undefined) updateFields.lastname = input.lastname || null;
@@ -118,7 +143,13 @@ async function updateProfile(userId: string, input: UpdateProfileInput, headers:
 		if (existing) {
 			// Clean up uploaded avatar if username conflict
 			if (newImageUrl) void deleteEntityImage(newImageUrl);
-			throw new UsernameConflictError(resolvedUsername);
+			throw createApiError({
+				code: BackendErrorCodes.CONFLICT,
+				message: `El nombre de usuario "${resolvedUsername}" ya está en uso. Elige otro.`,
+				metadataSafe: { field: "displayUsername" },
+				logLevel: "info",
+				doNotLog: true,
+			});
 		}
 	}
 
@@ -129,19 +160,48 @@ async function updateProfile(userId: string, input: UpdateProfileInput, headers:
 
 	// Fetch current user for old avatar cleanup
 	const [current] = await db.select({ image: users.image }).from(users).where(eq(users.id, userId));
-	if (!current) throw new Error("Usuario no encontrado");
+	if (!current) {
+		throw createApiError({
+			code: BackendErrorCodes.NOT_FOUND_ERROR,
+			message: "Usuario no encontrado",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
 
 	// Delegate to Better Auth — handles DB update + session refresh in Redis.
 	// Better Auth infers userId from the session in the provided headers.
-	await auth.api.updateUser({
-		body: updateFields,
-		headers,
-	});
+	try {
+		await auth.api.updateUser({
+			body: updateFields,
+			headers,
+		});
+	} catch (err) {
+		// Si la actualización falla, evitamos dejar el avatar recién subido huérfano en R2.
+		if (newImageUrl) {
+			deleteEntityImage(newImageUrl).catch((cleanupErr) =>
+				logger
+					.withError(cleanupErr)
+					.warn("[Users] No se pudo limpiar avatar tras fallo en updateUser"),
+			);
+		}
+		throw err;
+	}
 
 	// Clean up old avatar AFTER successful update
 	if (input.removeImage || input.image) {
 		void deleteEntityImage(current.image);
 	}
+
+	// Audit log: record every field that changed for future profile_changes table.
+	// Captures the diff so the future table can be backfilled from the log stream.
+	logger
+		.withMetadata({
+			event: "profile_updated",
+			userId,
+			changedFields: Object.keys(updateFields),
+		})
+		.info("Profile updated");
 
 	// Return fresh DB profile (not session snapshot)
 	return getProfile(userId);

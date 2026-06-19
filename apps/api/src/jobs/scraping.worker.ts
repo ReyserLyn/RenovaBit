@@ -1,10 +1,14 @@
 import { Worker } from "bullmq";
-import { createNotification, getAdminIds } from "@/modules/notifications/notifications.service";
+import {
+	buildSyncNotification,
+	createNotification,
+	getAdminIds,
+} from "@/modules/notifications/notifications.service";
 import { cleanupOrphanedReports, runSync } from "@/modules/product-processing/sync/sync.service";
 import { scrapingService } from "@/modules/scrapping/service";
 import { broadcastToAdmins } from "@/plugins/websocket";
 import { logger } from "@/utils/logger";
-import { connection } from "@/utils/queue";
+import { connection } from "@/utils/queue/connection";
 import { getRedis } from "@/utils/redis";
 
 type ScrapingJobData = {
@@ -44,12 +48,23 @@ function isRetryableNetworkError(err: unknown): boolean {
 	return RETRYABLE_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-// Cleanup orphaned reports from previous crash
-await cleanupOrphanedReports();
+// Cleanup orphaned reports from previous crash — lazy on first job, not top-level.
+// Top-level await blocks module load and prevents the API from starting if the DB
+// is briefly unavailable at boot (e.g. during a deploy race or DB failover).
+let cleanupPromise: Promise<void> | null = null;
+function ensureCleanupOnBoot(): Promise<void> {
+	if (!cleanupPromise) {
+		cleanupPromise = cleanupOrphanedReports().catch((err) => {
+			logger.withError(err).warn("cleanupOrphanedReports failed on first job");
+		});
+	}
+	return cleanupPromise;
+}
 
 export const scrapingWorker = new Worker<ScrapingJobData>(
 	"scraping",
 	async (job) => {
+		await ensureCleanupOnBoot();
 		const redis = getRedis();
 
 		// Omitir si el job anterior terminó hace < 2 s (evita back-to-back)
@@ -113,20 +128,15 @@ export const scrapingWorker = new Worker<ScrapingJobData>(
 			const targetUsers = job.data.userId ? [job.data.userId] : await getAdminIds();
 
 			for (const userId of targetUsers) {
-				await createNotification({
-					userId,
-					type: "sync_completed",
-					title: "Sincronización completada",
-					message: `${stats.processed} procesados | ${stats.created} creados | ${stats.updated} actualizados | ${stats.errors} errores`,
-					data: {
-						reportId,
-						jobId: job.id,
-						trigger,
-						stats,
-						startedAt,
-						completedAt,
-					},
+				const payload = buildSyncNotification({
+					reportId,
+					jobId: job.id,
+					trigger: trigger === "manual" ? "manual" : "automatic",
+					stats,
+					startedAt,
+					completedAt,
 				});
+				await createNotification({ userId, ...payload });
 			}
 
 			if (trigger === "automatic") {

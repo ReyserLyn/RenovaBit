@@ -9,7 +9,7 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 	// ── Create Order ────────────────────────────
 	.post(
 		"/",
-		async ({ body, request, set }) => {
+		async ({ body, request }) => {
 			const session = await auth.api.getSession({ headers: request.headers });
 			const userId = session?.user.id ?? null;
 
@@ -17,23 +17,21 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 			const guestPhone = typeof body.customerPhone === "string" ? body.customerPhone.trim() : "";
 
 			if (!userId && guestName.length === 0) {
-				set.status = 400;
-				return {
-					errId: "missing-name",
-					code: "INPUT_VALIDATION_ERROR",
+				throw createApiError({
+					code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
 					message: "Debes proporcionar tu nombre para crear el pedido",
-					statusCode: 400,
-				};
+					logLevel: "info",
+					doNotLog: true,
+				});
 			}
 
 			if (!userId && guestPhone.length === 0) {
-				set.status = 400;
-				return {
-					errId: "missing-phone",
-					code: "INPUT_VALIDATION_ERROR",
+				throw createApiError({
+					code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
 					message: "Debes proporcionar tu número de teléfono para crear el pedido",
-					statusCode: 400,
-				};
+					logLevel: "info",
+					doNotLog: true,
+				});
 			}
 
 			return OrderService.create(body, userId);
@@ -65,7 +63,7 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 				});
 			}
 
-			set.headers["cache-control"] = "no-store";
+			set.headers["Cache-Control"] = "no-store";
 
 			return OrderService.listByUser(session.user.id, query.page, query.limit, query.status);
 		},
@@ -121,7 +119,7 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
 				});
 			}
 
-			set.headers["cache-control"] = "no-store";
+			set.headers["Cache-Control"] = "no-store";
 
 			return order;
 		},

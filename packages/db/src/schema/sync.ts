@@ -57,6 +57,41 @@ export type SyncStats = {
 };
 
 /**
+ * Flat primitive map used in `productChanges.oldValue` / `.newValue`.
+ * `null` represents a cleared field (e.g. `{ rawPrice: null }`).
+ */
+export type ChangeValueObject = Record<string, string | number | boolean | null>;
+
+/**
+ * Discriminated union of all known notification payloads.
+ * Why a union: a wider `Record<string, …>` let the worker pass `JSON.stringify(stats)`
+ * (a string) where the consumer expected an object, and TypeScript could not catch it.
+ * Each variant narrows the shape, so the wrong type is now a compile error.
+ *
+ * To add a new notification type:
+ *   1. Add a variant here.
+ *   2. Add a `buildXxxNotification` factory in `notifications.service`.
+ */
+export type NotificationData = SyncNotificationData | OrderNotificationData;
+
+export type SyncNotificationData = {
+	reportId?: string;
+	jobId?: string;
+	trigger?: "manual" | "automatic" | string;
+	startedAt?: string;
+	completedAt?: string;
+	stats?: SyncStats;
+};
+
+export type OrderNotificationData = {
+	orderId?: string;
+	orderNumber?: string;
+	total?: string;
+	reason?: string;
+	timestamp?: string;
+};
+
+/**
  * Auditoría inmutable de cambios por producto.
  * Cada row = un campo que cambió durante un sync o acción admin.
  */
@@ -81,8 +116,8 @@ export const productChanges = pgTable(
 		changeType: varchar("change_type", { length: 50 }).notNull(),
 		field: varchar("field", { length: 50 }),
 
-		oldValue: jsonb("old_value"),
-		newValue: jsonb("new_value"),
+		oldValue: jsonb("old_value").$type<ChangeValueObject | null>(),
+		newValue: jsonb("new_value").$type<ChangeValueObject | null>(),
 
 		reason: text("reason"),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -112,7 +147,7 @@ export const adminNotifications = pgTable(
 		title: varchar("title", { length: 255 }).notNull(),
 		message: text("message"),
 
-		data: jsonb("data"),
+		data: jsonb("data").$type<NotificationData | null>(),
 
 		isRead: boolean("is_read").notNull().default(false),
 		createdAt: timestamp("created_at").notNull().defaultNow(),

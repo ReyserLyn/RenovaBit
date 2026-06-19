@@ -13,7 +13,14 @@ import {
 import { ORDER_SOURCE_TUPLE, ORDER_STATUS_TUPLE, PAYMENT_METHOD_TUPLE } from "../orders";
 import { lifecycleDates, primaryKey } from "./_utils";
 import { users } from "./auth";
+import { carts } from "./cart";
 import { products } from "./products";
+
+export type OrderMetadata = {
+	applied_offer_ids?: string[];
+};
+
+export type OrderAttachments = string[];
 
 // ── Enums ────────────────────────────────────────────
 
@@ -31,7 +38,9 @@ export const orders = pgTable(
 		...primaryKey,
 
 		userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
-		cartId: uuid("cart_id").unique(),
+		cartId: uuid("cart_id")
+			.unique()
+			.references(() => carts.id, { onDelete: "set null" }),
 
 		orderNumber: varchar("order_number", { length: 50 }).notNull().unique(),
 
@@ -50,12 +59,12 @@ export const orders = pgTable(
 		notes: text("notes"),
 		adminNotes: text("admin_notes"),
 
-		metadata: jsonb("metadata").default({}),
+		metadata: jsonb("metadata").$type<OrderMetadata>().default({}),
 
 		confirmedAt: timestamp("confirmed_at"),
 		cancelledAt: timestamp("cancelled_at"),
 		cancelReason: text("cancel_reason"),
-		attachments: jsonb("attachments").default([]),
+		attachments: jsonb("attachments").$type<OrderAttachments>().default([]),
 
 		...lifecycleDates,
 	},

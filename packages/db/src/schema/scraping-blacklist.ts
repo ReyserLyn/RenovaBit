@@ -24,7 +24,7 @@ export const scrapingBlacklist = pgTable(
 		reason: text("reason"),
 
 		/** Admin que añadió la entrada */
-		createdBy: uuid("created_by").references(() => users.id),
+		createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
 
 		...lifecycleDates,
 	},

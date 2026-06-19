@@ -1,10 +1,11 @@
 import { Elysia } from "elysia";
 import { notFound } from "@/utils/api-helpers";
+import { getUserRole } from "@/utils/auth/helpers";
 import { ErrorResponse, ProductModel } from "./model";
 import { ProductService } from "./service";
 
 // ═══════════════════════════════════════════════════
-//  PÚBLICO — sin auth
+//  PÚBLICO — sin auth (precio por rol)
 //  Prefijo: /api/v1/products
 // ═══════════════════════════════════════════════════
 
@@ -12,7 +13,8 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 	// ── List ──────────────────────────────────────
 	.get(
 		"/",
-		async ({ query }) => {
+		async ({ query, request }) => {
+			const role = await getUserRole(request);
 			return ProductService.listPublic({
 				brandId: query.brandId,
 				brandSlugs: query.brands,
@@ -26,6 +28,7 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 				offset: query.offset,
 				limit: query.limit,
 				excludeSlug: query.excludeSlug,
+				role,
 			});
 		},
 		{
@@ -45,8 +48,9 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 	// ── Search (FTS) ──────────────────────────────
 	.get(
 		"/search",
-		async ({ query, set }) => {
+		async ({ query, request, set }) => {
 			set.headers["Cache-Control"] = "no-store";
+			const role = await getUserRole(request);
 			return ProductService.search(
 				query.q,
 				query.limit,
@@ -55,6 +59,7 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 				query.minPrice,
 				query.maxPrice,
 				query.sortBy,
+				role,
 			);
 		},
 		{
@@ -74,8 +79,9 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 	// ── Detail by slug ────────────────────────────
 	.get(
 		"/:slug",
-		async ({ params: { slug } }) => {
-			const product = await ProductService.getBySlugPublic(slug);
+		async ({ params: { slug }, request }) => {
+			const role = await getUserRole(request);
+			const product = await ProductService.getBySlugPublic(slug, role);
 			if (!product) throw notFound("Producto no encontrado");
 			return product;
 		},

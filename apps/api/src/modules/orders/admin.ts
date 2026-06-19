@@ -60,7 +60,7 @@ export const adminOrdersRoute = new Elysia({ prefix: "/orders" })
 	.get(
 		"/:id",
 		async ({ params: { id } }) => {
-			const order = await OrderService.getById(id);
+			const order = await OrderService.getById(id, true);
 			if (!order) {
 				throw createApiError({
 					code: BackendErrorCodes.NOT_FOUND_ERROR,

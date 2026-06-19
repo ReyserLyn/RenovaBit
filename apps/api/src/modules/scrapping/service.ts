@@ -1,3 +1,4 @@
+import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import * as cheerio from "cheerio";
 import { logger } from "@/utils/logger";
 import type { ScrapedItem } from "./model";
@@ -56,7 +57,11 @@ async function fetchProductList(limit: number): Promise<ScrapedItem[]> {
 			});
 
 			if (!res.ok) {
-				throw new Error(`HTTP ${res.status} al obtener listado de productos`);
+				throw createApiError({
+					code: BackendErrorCodes.SERVICE_UNAVAILABLE,
+					message: `Error del proveedor externo (HTTP ${res.status})`,
+					metadata: { providerStatus: res.status },
+				});
 			}
 
 			const html = await res.text();
@@ -112,6 +117,9 @@ async function fetchProductList(limit: number): Promise<ScrapedItem[]> {
 	throw lastError;
 }
 
+/** providerId format: alphanumeric, dash, underscore, 1-64 chars. */
+const PROVIDER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
 /**
  * Verifica si existe una imagen para el producto.
  * ⚠️  Usar con limitación de concurrencia en lotes grandes para evitar rate-limits.
@@ -119,7 +127,11 @@ async function fetchProductList(limit: number): Promise<ScrapedItem[]> {
 async function fetchProductImage(providerId: string): Promise<string | null> {
 	try {
 		const trimmedId = providerId.trim();
-		if (!trimmedId) return null;
+		if (!trimmedId || !PROVIDER_ID_RE.test(trimmedId)) {
+			// Reject anything that isn't a clean alphanumeric ID to prevent
+			// path traversal or abuse via crafted providerId values.
+			return null;
+		}
 
 		// Espaciado aleatorio entre requests para evitar rate-limit
 		const politenessMs =

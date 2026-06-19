@@ -3,6 +3,7 @@ import { t, type UnwrapSchema } from "elysia";
 // ── Constants ──────────────────────────────────────
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"] as const;
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 // ── Request ────────────────────────────────────────
 
@@ -16,6 +17,9 @@ const PresignRequest = t.Object({
 	contentType: t.UnionEnum(ALLOWED_IMAGE_TYPES, {
 		error: "Tipo de imagen no permitido. Usar: jpeg, png, webp, avif",
 	}),
+	maxSizeBytes: t.Optional(
+		t.Integer({ minimum: 1, maximum: MAX_UPLOAD_BYTES, default: MAX_UPLOAD_BYTES }),
+	),
 });
 
 // ── Response ───────────────────────────────────────

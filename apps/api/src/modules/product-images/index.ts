@@ -1,4 +1,3 @@
-import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { Elysia, t } from "elysia";
 import { ErrorResponse, ProductImageModel } from "./model";
 import { ProductImageService } from "./service";
@@ -11,9 +10,12 @@ export const productImagesRoute = new Elysia({ prefix: "/product-images" })
 			return ProductImageService.listByProduct(productId);
 		},
 		{
+			isAdmin: true,
 			query: t.Object({ productId: t.String({ format: "uuid" }) }),
 			response: {
 				200: ProductImageModel.imageListResponse,
+				401: ErrorResponse,
+				403: ErrorResponse,
 			},
 			detail: { summary: "Listar imágenes de un producto", tags: ["Product Images"] },
 		},

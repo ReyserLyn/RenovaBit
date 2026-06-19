@@ -39,6 +39,7 @@
 		"check": "biome check . --write && cd apps/landing && bun run check",
 		"check:biome": "biome check . --write",
 		"check-types": "turbo run check-types",
+		"test": "turbo run test",
 		"clean": "bun run clean:turbo && bun run clean:dist",
 		"clean:all": "bun run clean && bun run clean:node_modules",
 		"clean:turbo": "find . -path ./docker-volumes -prune -o -name \".turbo\" -type d -prune -exec rm -rf {} +",

@@ -1,7 +1,9 @@
+import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import {
 	brands,
 	categories,
+	marginRules,
 	productChanges,
 	productImages,
 	productProviders,
@@ -9,7 +11,8 @@ import {
 	scrapingBlacklist,
 	syncReports,
 } from "@renovabit/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { getEffectiveSalePrice } from "@renovabit/pricing";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import pLimit from "p-limit";
 import slugify from "slugify";
 import type { ScrapedItem } from "@/modules/scrapping/model";
@@ -20,7 +23,6 @@ import { processProductImage, removeImageReviewReason } from "../image-pipeline/
 import type { SyncStats } from "./sync.model";
 
 const PROVIDER_SOURCE = "rematazo";
-const MARKUP = 1.1;
 const AI_CONCURRENCY = 5;
 const IMAGE_CONCURRENCY = 3;
 
@@ -34,8 +36,37 @@ function makeSku(providerId: string): string {
 	return `RB-${providerId}-RM`;
 }
 
-function applyMarkup(rawPrice: string): string {
-	return (Number.parseFloat(rawPrice) * MARKUP).toFixed(2);
+/**
+ * Computes the supplier + sale price pair from a raw supplier price using the
+ * active margin rules (price tiers). Per-product roleCustomMargins do not
+ * apply here (sync imports have no product row to consult).
+ *
+ * Returns `null` when the raw price is missing/zero — callers should skip the
+ * price write in that case.
+ */
+async function computePricingFromRules(
+	rawPrice: string,
+): Promise<{ supplierPrice: string; salePrice: string } | null> {
+	const supplierPrice = Number.parseFloat(rawPrice);
+	if (!Number.isFinite(supplierPrice) || supplierPrice <= 0) return null;
+
+	const rules = await db
+		.select({
+			minPrice: marginRules.minPrice,
+			maxPrice: marginRules.maxPrice,
+			marginPercent: marginRules.marginPercent,
+		})
+		.from(marginRules)
+		.orderBy(desc(marginRules.sortOrder), desc(marginRules.createdAt));
+
+	const { salePrice } = getEffectiveSalePrice(
+		{ supplierPrice: rawPrice, roleCustomMargins: null },
+		"customer",
+		rules,
+		[], // sync products have no role-specific overrides
+	);
+
+	return { supplierPrice: rawPrice, salePrice: salePrice.toFixed(2) };
 }
 
 /** Detecta precios placeholder (9999, 99999…, "2") */
@@ -158,7 +189,12 @@ export async function runSync(
 		.values({ status: "running", trigger, jobId: jobId ?? null })
 		.returning({ id: syncReports.id, startedAt: syncReports.startedAt });
 
-	if (!report) throw new Error("No se pudo crear el reporte de sync");
+	if (!report) {
+		throw createApiError({
+			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
+			message: "No se pudo crear el reporte de sync",
+		});
+	}
 
 	const reportId = report.id;
 	const startedAt = report.startedAt.toISOString();
@@ -312,25 +348,38 @@ async function updateExistingProduct(
 ): Promise<boolean> {
 	// Leer valores actuales del PRODUCTO (no del provider, que siempre está bien)
 	const [product] = await db
-		.select({ price: products.price, stock: products.stock })
+		.select({ price: products.price, supplierPrice: products.supplierPrice, stock: products.stock })
 		.from(products)
 		.where(eq(products.id, productId))
 		.limit(1);
 
-	const currentPrice = product?.price;
+	const currentPrice = product?.price ?? "0";
+	const currentSupplierPrice = product?.supplierPrice ?? "0";
 	const currentStock = product?.stock ?? 0;
 
-	const newPrice = applyMarkup(item.rawPrice);
+	const pricing = await computePricingFromRules(item.rawPrice);
 	const newStock = item.rawStock;
 
-	const priceChanged = currentPrice !== newPrice;
-	const stockChanged = currentStock !== newStock;
+	// If the raw price is invalid, keep the existing supplier + sale price.
+	// If valid, sync both: supplierPrice from raw, salePrice from tier rules.
+	const nextSupplierPrice = pricing?.supplierPrice ?? currentSupplierPrice;
+	const nextSalePrice = pricing?.salePrice ?? currentPrice;
 
-	// Siempre sincronizar
-	await db
-		.update(products)
-		.set({ price: newPrice, stock: newStock })
-		.where(eq(products.id, productId));
+	const priceChanged = currentPrice !== nextSalePrice;
+	const stockChanged = currentStock !== newStock;
+	const supplierChanged = currentSupplierPrice !== nextSupplierPrice;
+
+	// Solo escribir si algo cambió (reduce churn en productChanges)
+	if (supplierChanged || priceChanged || stockChanged) {
+		await db
+			.update(products)
+			.set({
+				supplierPrice: nextSupplierPrice,
+				price: nextSalePrice,
+				stock: newStock,
+			})
+			.where(eq(products.id, productId));
+	}
 
 	await db
 		.update(productProviders)
@@ -388,7 +437,7 @@ async function updateExistingProduct(
 			changeType: "price_changed",
 			field: "raw_price",
 			oldValue: { price: currentPrice },
-			newValue: { price: newPrice },
+			newValue: { price: nextSalePrice },
 		});
 	}
 
@@ -427,7 +476,7 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 	const slug = await ensureUniqueSlug(baseSlug, providerId);
 	const brandId = await findOrCreateBrand(aiResult.brand);
 	const categoryId = await findOrCreateCategory(aiResult.category);
-	const price = applyMarkup(rawPrice);
+	const pricing = await computePricingFromRules(rawPrice);
 	const sku = makeSku(providerId);
 	const imageUrl = await imageLimit(() => scrapingService.fetchProductImage(providerId));
 
@@ -443,7 +492,9 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 			name: aiResult.name,
 			slug,
 			sku,
-			price,
+			price: pricing?.salePrice ?? "0.00",
+			supplierPrice: pricing?.supplierPrice ?? "0",
+			roleCustomMargins: null,
 			stock: rawStock,
 			description: aiResult.description || null,
 			specifications: aiResult.specifications,
@@ -455,7 +506,13 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 		})
 		.returning({ id: products.id });
 
-	if (!product) throw new Error(`No se pudo crear producto ${providerId}`);
+	if (!product) {
+		throw createApiError({
+			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
+			message: `No se pudo crear el producto del proveedor ${providerId}`,
+			metadata: { providerId },
+		});
+	}
 
 	await db.insert(productProviders).values({
 		productId: product.id,

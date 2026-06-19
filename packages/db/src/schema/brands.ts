@@ -16,8 +16,8 @@ export const brands = pgTable(
 		isActive: boolean("is_active").default(true).notNull(),
 		isFeatured: boolean("is_featured").default(false).notNull(),
 
-		createdBy: uuid("created_by").references(() => users.id),
-		updatedBy: uuid("updated_by").references(() => users.id),
+		createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+		updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
 
 		...seoFields,
 		...lifecycleDates,

@@ -1,5 +1,6 @@
 import path from "node:path";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { productImages, products } from "@renovabit/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -106,19 +107,31 @@ async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer; contentT
 	});
 
 	if (!res.ok) {
-		throw new Error(`Error al descargar imagen: HTTP ${res.status}`);
+		throw createApiError({
+			code: BackendErrorCodes.SERVICE_UNAVAILABLE,
+			message: `Error al descargar imagen: HTTP ${res.status}`,
+			metadata: { imageStatus: res.status },
+		});
 	}
 
 	const contentType = res.headers.get("content-type")?.split(";")[0]?.trim() ?? "image/png";
 	if (!contentType.startsWith("image/")) {
-		throw new Error(`Tipo de contenido inválido: ${contentType}`);
+		throw createApiError({
+			code: BackendErrorCodes.BAD_REQUEST,
+			message: `Tipo de contenido inválido: ${contentType}`,
+			metadata: { contentType },
+		});
 	}
 
 	const arrayBuffer = await res.arrayBuffer();
 	const buffer = Buffer.from(arrayBuffer);
 
 	if (buffer.length > MAX_INPUT_BYTES) {
-		throw new Error(`Imagen demasiado grande: ${(buffer.length / 1024 / 1024).toFixed(1)} MB`);
+		throw createApiError({
+			code: BackendErrorCodes.BAD_REQUEST,
+			message: `Imagen demasiado grande: ${(buffer.length / 1024 / 1024).toFixed(1)} MB`,
+			metadata: { maxBytes: MAX_INPUT_BYTES, actualBytes: buffer.length },
+		});
 	}
 
 	return { buffer, contentType };

@@ -1,7 +1,9 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { brands, categories, products } from "@renovabit/db/schema";
-import { and, asc, count, desc, eq, ilike, inArray, like, or, sql } from "drizzle-orm";
+import { brands, products } from "@renovabit/db/schema";
+import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { MAX_BULK_DELETE } from "@/constants";
+import { getCategoryAndDescendantIds } from "@/utils/category-helpers";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
@@ -11,8 +13,6 @@ import type { BrandModel, PublicBrandDetail, PublicBrandListItem } from "./model
 
 type CreateBody = BrandModel["createBody"];
 type UpdateBody = BrandModel["updateBody"];
-
-const MAX_BULK_DELETE = 50;
 const PUBLIC_PRODUCT_CONDITIONS = [
 	eq(products.isActive, true),
 	eq(products.needsReview, false),
@@ -55,22 +55,8 @@ async function listPublic(
 	const searchVector = sql.identifier("search_vector");
 
 	if (categorySlug) {
-		const [category] = await db
-			.select({ id: categories.id, path: categories.path })
-			.from(categories)
-			.where(and(eq(categories.slug, categorySlug), eq(categories.isActive, true)))
-			.limit(1);
-
-		if (!category) return [];
-
-		const pathPrefix = `${category.path ?? "/"}${category.id}/`;
-
-		const descendants = await db
-			.select({ id: categories.id })
-			.from(categories)
-			.where(and(like(categories.path, `${pathPrefix}%`), eq(categories.isActive, true)));
-
-		const categoryIds = [category.id, ...descendants.map((d) => d.id)];
+		const categoryIds = await getCategoryAndDescendantIds(categorySlug);
+		if (categoryIds.length === 0) return [];
 		productConditions.push(inArray(products.categoryId, categoryIds));
 	}
 
@@ -182,13 +168,14 @@ async function create(data: CreateBody, userId: string) {
 	const [item] = await db
 		.insert(brands)
 		.values({
-			...data,
 			name: nextName,
 			slug,
+			description: data.description ?? null,
+			imageUrl: data.imageUrl ?? null,
+			isActive: data.isActive ?? true,
+			isFeatured: data.isFeatured ?? false,
 			createdBy: userId,
 			updatedBy: userId,
-		} as typeof data & {
-			slug: string;
 		})
 		.returning()
 		.catch((err) => handleUniqueViolation(err, "Ya existe una marca con este nombre o slug"));
@@ -362,7 +349,10 @@ async function deleteMany(ids: string[]) {
 		.then((result) => {
 			for (const id of result.deletedIds) {
 				deleteEntityFolder("brands", id).catch((err) =>
-					console.error(`[R2 cleanup] Failed to delete folder for brand ${id}:`, err),
+					logger
+						.withMetadata({ entity: "brand", id })
+						.withError(err)
+						.error("[R2 cleanup] Failed to delete folder"),
 				);
 			}
 			return result;

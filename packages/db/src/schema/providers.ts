@@ -32,15 +32,15 @@ export const productProviders = pgTable(
 		// Datos crudos del proveedor
 		rawName: text("raw_name"),
 		rawPrice: numeric("raw_price", { precision: 12, scale: 2 }),
-		rawStock: integer("raw_stock").default(0),
+		rawStock: integer("raw_stock").default(0).notNull(),
 
 		// Timestamps de sync
 		lastSyncAt: timestamp("last_sync_at"),
 		lastSeenAt: timestamp("last_seen_at"),
 
 		// Flags
-		isUnavailable: boolean("is_unavailable").default(false),
-		needsReview: boolean("needs_review").default(false),
+		isUnavailable: boolean("is_unavailable").default(false).notNull(),
+		needsReview: boolean("needs_review").default(false).notNull(),
 		reviewReason: text("review_reason"),
 
 		rawImageUrl: text("raw_image_url"),
@@ -51,5 +51,6 @@ export const productProviders = pgTable(
 	(table) => [
 		unique("product_providers_external_unique").on(table.source, table.externalId),
 		index("product_providers_product_idx").on(table.productId),
+		index("product_providers_source_unavail_idx").on(table.source, table.isUnavailable),
 	],
 );

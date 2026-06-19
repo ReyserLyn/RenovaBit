@@ -9,6 +9,7 @@ import {
 	products,
 } from "@renovabit/db/schema";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { formatDate, now } from "@/utils/date";
 import type {
 	AddItemBody,
 	FavoriteItemResponse,
@@ -32,16 +33,6 @@ interface BrandCountRow {
 	name: string;
 	slug: string;
 	productCount: number;
-}
-
-// ── Helpers ───────────────────────────────────────────
-
-function now(): Date {
-	return new Date();
-}
-
-function formatDate(date: Date): string {
-	return date.toISOString();
 }
 
 // ═══════════════════════════════════════════════════

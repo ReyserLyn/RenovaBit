@@ -1,7 +1,11 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import type { ProductSpecification } from "@renovabit/db/schema";
 import { brands, categories, productChanges, products, syncReports } from "@renovabit/db/schema";
+import {
+	getEffectiveSalePrice,
+	type ProductRoleCustomMargins,
+	type Role,
+} from "@renovabit/pricing";
 import type { InferSelectModel } from "drizzle-orm";
 import {
 	and,
@@ -10,20 +14,21 @@ import {
 	desc,
 	eq,
 	getTableColumns,
-	gte,
 	ilike,
 	inArray,
-	like,
-	lte,
 	ne,
 	or,
 	sql,
 } from "drizzle-orm";
+import { MAX_BULK_DELETE, SEARCH_PAYLOAD_CAP, SLOW_QUERY_THRESHOLD_MS } from "@/constants";
+import { getCategoryAndDescendantIds } from "@/utils/category-helpers";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
+import { getActiveMarginRules, getActiveRoleMarginRules } from "@/utils/margin-rules";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
 import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
+import { activeOffersForProductSubquery } from "../offers/service";
 import type {
 	BulkDeleteResult,
 	ProductModel,
@@ -47,9 +52,9 @@ export type ProductWithImage = Product & {
 };
 
 /**
- * Opciones de listado compartidas entre admin y público.
- * Los campos específicos (search, offset, limit, excludeSlug) son ignorados
- * por el admin `list()`, que siempre devuelve resultados completos.
+ * Options for public listings. Admin `list()` ignores `limit`/`offset` —
+ * it always returns the full filtered set, and the client-side TanStack
+ * table paginates the result.
  */
 type ListOptions = {
 	brandId?: string;
@@ -65,14 +70,13 @@ type ListOptions = {
 	offset?: number;
 	limit?: number;
 	excludeSlug?: string;
+	role?: Role;
 };
 
 type CreateBody = ProductModel["createBody"];
 type UpdateBody = ProductModel["updateBody"];
 
 // ── Constants ──────────────────────────────────────
-
-const MAX_BULK_DELETE = 50;
 
 /** Condiciones para detalle de producto (seguir mostrando aunque esté agotado) */
 const PUBLIC_DETAIL_CONDITIONS = [
@@ -147,34 +151,6 @@ async function ensureUnique(
 	}
 }
 
-// ── Slug resolution helpers ────────────────────────
-
-/**
- * Dado un slug de categoría, devuelve los IDs de la categoría y
- * todos sus descendientes (via path matching).
- * Si la categoría no tiene hijos, devuelve solo su propio ID.
- */
-async function getDescendantCategoryIds(slug: string): Promise<string[]> {
-	const [category] = await db
-		.select({ id: categories.id, path: categories.path })
-		.from(categories)
-		.where(and(eq(categories.slug, slug), eq(categories.isActive, true)))
-		.limit(1);
-
-	if (!category) return [];
-
-	// BuildPath: parent.path + parent.id + "/"
-	// Hijos de esta categoría tienen path = (category.path ?? "/") + category.id + "/" + ...
-	const pathPrefix = `${category.path ?? "/"}${category.id}/`;
-
-	const descendants = await db
-		.select({ id: categories.id })
-		.from(categories)
-		.where(and(like(categories.path, `${pathPrefix}%`), eq(categories.isActive, true)));
-
-	return [category.id, ...descendants.map((d) => d.id)];
-}
-
 // ── Where clause builder ───────────────────────────
 
 function buildWhere(options: ListOptions, isPublic: boolean, categoryIds?: string[]) {
@@ -202,12 +178,9 @@ function buildWhere(options: ListOptions, isPublic: boolean, categoryIds?: strin
 		const term = `%${escaped}%`;
 		conditions.push(or(ilike(products.name, term), ilike(products.sku, term)) ?? undefined);
 	}
-	if (options.minPrice) {
-		conditions.push(gte(products.price, options.minPrice));
-	}
-	if (options.maxPrice) {
-		conditions.push(lte(products.price, options.maxPrice));
-	}
+	// NOTE: price filter is applied in JS after computing the role-specific price.
+	// The stored `products.price` is the customer price (computed from supplierPrice + margins),
+	// not the buyer's role price, so SQL-level filtering would be wrong for admin/distributor views.
 
 	return conditions.length === 0 ? undefined : and(...conditions);
 }
@@ -222,9 +195,15 @@ const SORT_MAP = {
 	newest: [desc(products.createdAt), asc(products.id)] as const,
 } as const;
 
+type SortByKey = keyof typeof SORT_MAP;
+
+function isSortByKey(value: string): value is SortByKey {
+	return value in SORT_MAP;
+}
+
 function buildOrderBy(sortBy?: string) {
-	if (sortBy && sortBy in SORT_MAP) {
-		return [...SORT_MAP[sortBy as keyof typeof SORT_MAP]];
+	if (sortBy && isSortByKey(sortBy)) {
+		return [...SORT_MAP[sortBy]];
 	}
 	return [desc(products.createdAt)];
 }
@@ -310,7 +289,7 @@ async function listPublic(
 	// ── Resolve slugs → IDs (agregación de descendientes para categorías) ──
 	let categoryIds: string[] | undefined;
 	if (options.categorySlug) {
-		categoryIds = await getDescendantCategoryIds(options.categorySlug);
+		categoryIds = await getCategoryAndDescendantIds(options.categorySlug);
 		if (categoryIds.length === 0) {
 			return { data: [], total: 0, offset: options.offset ?? 0, limit: options.limit ?? 20 };
 		}
@@ -356,7 +335,8 @@ async function listPublic(
 			id: products.id,
 			name: products.name,
 			slug: products.slug,
-			price: sql<string>`${products.price}::text`,
+			supplierPrice: products.supplierPrice,
+			roleCustomMargins: products.roleCustomMargins,
 			stock: sql<number>`GREATEST(0, ${products.stock} - (${getReservedStockSubquery(products.id)})::int)`,
 			sku: products.sku,
 			isFeatured: products.isFeatured,
@@ -378,6 +358,7 @@ async function listPublic(
 			categoryId: categories.id,
 			categoryName: categories.name,
 			categorySlug: categories.slug,
+			offers: activeOffersForProductSubquery(),
 		})
 		.from(products)
 		.leftJoin(brands, eq(products.brandId, brands.id))
@@ -387,34 +368,69 @@ async function listPublic(
 		.offset(offset)
 		.limit(limit);
 
-	const data = rows.map((row) => ({
-		id: row.id,
-		name: row.name,
-		slug: row.slug,
-		price: row.price,
-		stock: row.stock,
-		sku: row.sku,
-		isFeatured: row.isFeatured,
-		primaryImage: row.primaryImageUrl
-			? { url: row.primaryImageUrl, alt: row.primaryImageAlt }
-			: null,
-		brand: row.brandId ? { id: row.brandId, name: row.brandName!, slug: row.brandSlug! } : null,
-		category: row.categoryId
-			? { id: row.categoryId, name: row.categoryName!, slug: row.categorySlug! }
-			: null,
-	}));
+	const [customerRules, roleRules] = await Promise.all([
+		getActiveMarginRules(),
+		getActiveRoleMarginRules(),
+	]);
+	const role: Role = resolvedOptions.role ?? "customer";
+
+	// Filter by role-specific price (post-filter in JS, not SQL — role-aware
+	// pricing can't be expressed in a single SQL WHERE clause)
+	const filteredByMin = options.minPrice ? Number(options.minPrice) : null;
+	const filteredByMax = options.maxPrice ? Number(options.maxPrice) : null;
+
+	const data = rows
+		.map((row) => {
+			const { salePrice } = getEffectiveSalePrice(
+				{
+					supplierPrice: row.supplierPrice,
+					roleCustomMargins: row.roleCustomMargins,
+				},
+				role,
+				customerRules,
+				roleRules,
+			);
+			return {
+				id: row.id,
+				name: row.name,
+				slug: row.slug,
+				price: salePrice.toFixed(2),
+				priceValue: salePrice,
+				stock: row.stock,
+				sku: row.sku,
+				isFeatured: row.isFeatured,
+				primaryImage: row.primaryImageUrl
+					? { url: row.primaryImageUrl, alt: row.primaryImageAlt }
+					: null,
+				brand: row.brandId ? { id: row.brandId, name: row.brandName!, slug: row.brandSlug! } : null,
+				category: row.categoryId
+					? { id: row.categoryId, name: row.categoryName!, slug: row.categorySlug! }
+					: null,
+				offers: row.offers,
+			};
+		})
+		.filter((row) => {
+			if (filteredByMin !== null && row.priceValue < filteredByMin) return false;
+			if (filteredByMax !== null && row.priceValue > filteredByMax) return false;
+			return true;
+		})
+		.map(({ priceValue: _pv, ...rest }) => rest);
 
 	return { data, total, offset, limit };
 }
 
-async function getBySlugPublic(slug: string): Promise<PublicProductDetail | null> {
+async function getBySlugPublic(
+	slug: string,
+	role: Role = "customer",
+): Promise<PublicProductDetail | null> {
 	const [row] = await db
 		.select({
 			id: products.id,
 			name: products.name,
 			slug: products.slug,
 			description: products.description,
-			price: sql<string>`${products.price}::text`,
+			supplierPrice: products.supplierPrice,
+			roleCustomMargins: products.roleCustomMargins,
 			stock: sql<number>`GREATEST(0, ${products.stock} - (${getReservedStockSubquery(products.id)})::int)`,
 			sku: products.sku,
 			specifications: products.specifications,
@@ -439,6 +455,7 @@ async function getBySlugPublic(slug: string): Promise<PublicProductDetail | null
 				WHERE pi.product_id = ${products.id}),
 				'[]'::jsonb
 			)`,
+			offers: activeOffersForProductSubquery(),
 		})
 		.from(products)
 		.leftJoin(brands, eq(products.brandId, brands.id))
@@ -448,15 +465,29 @@ async function getBySlugPublic(slug: string): Promise<PublicProductDetail | null
 
 	if (!row) return null;
 
+	const [customerRules, roleRules] = await Promise.all([
+		getActiveMarginRules(),
+		getActiveRoleMarginRules(),
+	]);
+	const { salePrice } = getEffectiveSalePrice(
+		{
+			supplierPrice: row.supplierPrice,
+			roleCustomMargins: row.roleCustomMargins,
+		},
+		role,
+		customerRules,
+		roleRules,
+	);
+
 	return {
 		id: row.id,
 		name: row.name,
 		slug: row.slug,
 		description: row.description,
-		price: row.price,
+		price: salePrice.toFixed(2),
 		stock: row.stock,
 		sku: row.sku,
-		specifications: (row.specifications ?? []) as ProductSpecification[],
+		specifications: row.specifications ?? [],
 		images: row.images,
 		brand: row.brandId
 			? { id: row.brandId, name: row.brandName!, slug: row.brandSlug!, imageUrl: row.brandImageUrl }
@@ -464,6 +495,7 @@ async function getBySlugPublic(slug: string): Promise<PublicProductDetail | null
 		category: row.categoryId
 			? { id: row.categoryId, name: row.categoryName!, slug: row.categorySlug! }
 			: null,
+		offers: row.offers,
 		createdAt: row.createdAt.toISOString(),
 	};
 }
@@ -491,15 +523,30 @@ async function create(data: CreateBody, userId: string): Promise<Product> {
 	await ensureBrandExists(data.brandId);
 	await ensureCategoryExists(data.categoryId);
 
+	// Always derive `price` from supplierPrice + customer margin; ignore any value sent in the body.
+	const supplierPrice = data.supplierPrice ?? "0";
+	const [customerRules, roleRules] = await Promise.all([
+		getActiveMarginRules(),
+		getActiveRoleMarginRules(),
+	]);
+	const { salePrice } = getEffectiveSalePrice(
+		{ supplierPrice, roleCustomMargins: data.roleCustomMargins ?? null },
+		"customer",
+		customerRules,
+		roleRules,
+	);
+
 	const [item] = await db
 		.insert(products)
 		.values({
 			name: nextName,
 			slug: nextSlug,
 			description: data.description,
-			price: data.price,
+			price: salePrice.toFixed(2),
 			sku: data.sku,
 			stock: data.stock,
+			supplierPrice,
+			roleCustomMargins: data.roleCustomMargins ?? null,
 			brandId: data.brandId,
 			categoryId: data.categoryId,
 			specifications: data.specifications,
@@ -552,7 +599,46 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Pro
 	if (data.brandId !== undefined) await ensureBrandExists(data.brandId);
 	if (data.categoryId !== undefined) await ensureCategoryExists(data.categoryId);
 
-	const baseUpdate = { ...data, name: nextName, slug: nextSlug, updatedBy: userId };
+	// Pricing inputs: `supplierPrice` and `roleCustomMargins`.
+	// `roleCustomMargins` is the single source of truth for per-role overrides.
+	const patch: { supplierPrice?: string; roleCustomMargins?: typeof data.roleCustomMargins } = {};
+	if (data.supplierPrice !== undefined) {
+		patch.supplierPrice = data.supplierPrice;
+	}
+	if (data.roleCustomMargins !== undefined) {
+		patch.roleCustomMargins = data.roleCustomMargins;
+	}
+
+	// Recompute `price` whenever pricing inputs change. `price` is NOT accepted
+	// from the body — it's always derived.
+	const pricingTouched = patch.supplierPrice !== undefined || patch.roleCustomMargins !== undefined;
+	let computedPrice: string | undefined;
+	if (pricingTouched) {
+		const supplierPrice = patch.supplierPrice ?? current.supplierPrice;
+		const roleCustomMargins = patch.roleCustomMargins ?? current.roleCustomMargins;
+		const [customerRules, roleRules] = await Promise.all([
+			getActiveMarginRules(),
+			getActiveRoleMarginRules(),
+		]);
+		const { salePrice } = getEffectiveSalePrice(
+			{ supplierPrice, roleCustomMargins },
+			"customer",
+			customerRules,
+			roleRules,
+		);
+		computedPrice = salePrice.toFixed(2);
+	}
+
+	// Drop fields that are not columns / are auto-computed.
+	const { price: _p, supplierPrice: _sp, ...rest } = data;
+	const baseUpdate = {
+		...rest,
+		...patch,
+		...(computedPrice !== undefined ? { price: computedPrice } : {}),
+		name: nextName,
+		slug: nextSlug,
+		updatedBy: userId,
+	};
 
 	const [item] = await db
 		.update(products)
@@ -590,7 +676,10 @@ async function deleteById(id: string): Promise<Product> {
 
 	// Limpiar carpeta R2 (no bloqueante, errores se loguean)
 	deleteEntityFolder("products", id).catch((err) =>
-		console.error(`[R2 cleanup] Failed to delete folder for product ${id}:`, err),
+		logger
+			.withMetadata({ entity: "product", id })
+			.withError(err)
+			.error("[R2 cleanup] Failed to delete folder"),
 	);
 
 	return deleted;
@@ -640,7 +729,10 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 		.then((result) => {
 			for (const id of result.deletedIds) {
 				deleteEntityFolder("products", id).catch((err) =>
-					console.error(`[R2 cleanup] Failed to delete folder for product ${id}:`, err),
+					logger
+						.withMetadata({ entity: "product", id })
+						.withError(err)
+						.error("[R2 cleanup] Failed to delete folder"),
 				);
 			}
 			return result;
@@ -649,7 +741,7 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 
 // ── Product Changes (historial) ───────────────────
 
-async function getChanges(productId: string) {
+async function getChanges(productId: string, limit = 200, offset = 0) {
 	return db
 		.select({
 			id: productChanges.id,
@@ -667,31 +759,24 @@ async function getChanges(productId: string) {
 		.from(productChanges)
 		.leftJoin(syncReports, eq(productChanges.syncReportId, syncReports.id))
 		.where(eq(productChanges.productId, productId))
-		.orderBy(desc(productChanges.createdAt));
+		.orderBy(desc(productChanges.createdAt))
+		.limit(limit)
+		.offset(offset);
 }
 
 /**
- * Check if a Postgres error is a tsquery syntax error (SQLSTATE 42601)
- * or invalid text representation (SQLSTATE 22P02), which can happen
- * when user input produces a malformed tsquery.
- * Using SQLSTATE codes is precise — avoids swallowing legitimate DB errors
- * like column type mismatches or function signature changes.
+ * True if the error is a tsquery syntax error (SQLSTATE 42601) or invalid text
+ * representation (22P02). Using SQLSTATE codes avoids swallowing legitimate DB errors.
  */
 function isTsqueryError(error: unknown): boolean {
-	return (
-		typeof error === "object" &&
-		error !== null &&
-		((error as { code?: string }).code === "42601" || (error as { code?: string }).code === "22P02")
-	);
+	if (typeof error !== "object" || error === null) return false;
+	const code = Reflect.get(error, "code");
+	return code === "42601" || code === "22P02";
 }
 
 /**
- * Build search ORDER BY clause.
- *
- * In-stock is the PRIMARY sort: an out-of-stock product should never appear
- * above an in-stock one in a search result list. Within each group, results
- * are ordered by FTS relevance, then by SKU prefix match (exact prefix wins),
- * then by id for a stable order.
+ * Search ORDER BY clause. In-stock is the primary sort, then FTS relevance,
+ * then SKU prefix match, then id for stable order.
  *
  * Without in-stock as the primary sort, a short product name like
  * "Laptop HP Intel Core i5 1334U" would beat "Laptop HP 250 G10 Core i5 1334U
@@ -714,7 +799,7 @@ function buildSearchOrder(
 		];
 	}
 
-	const entry = SORT_MAP[sortBy as keyof typeof SORT_MAP];
+	const entry = isSortByKey(sortBy) ? SORT_MAP[sortBy] : undefined;
 	return entry ?? [desc(products.createdAt)];
 }
 
@@ -730,6 +815,7 @@ async function search(
 	minPrice?: string,
 	maxPrice?: string,
 	sortBy?: string,
+	role: Role = "customer",
 ): Promise<{
 	data: ProductSearchResult[];
 	total: number;
@@ -765,7 +851,7 @@ async function search(
 		.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]")
 		.replace(/\+?\d[\d\s-]{7,}/g, "[phone]")
 		// Bound log payload size; schema already caps q at 100 chars, this is defense in depth
-		.slice(0, 256);
+		.slice(0, SEARCH_PAYLOAD_CAP);
 
 	const tsQuery = sql`to_tsquery('spanish', ${prefixQuery})`;
 
@@ -805,14 +891,6 @@ async function search(
 		}
 	}
 
-	// Price range filters
-	if (minPrice) {
-		conditions.push(gte(products.price, minPrice));
-	}
-	if (maxPrice) {
-		conditions.push(lte(products.price, maxPrice));
-	}
-
 	const where = and(...conditions);
 
 	// ── Count total ──
@@ -844,7 +922,8 @@ async function search(
 		name: string;
 		slug: string;
 		sku: string;
-		price: string;
+		supplierPrice: string;
+		roleCustomMargins: ProductRoleCustomMargins | null;
 		isFeatured: boolean;
 		stock: number;
 		isInStock: boolean;
@@ -864,7 +943,8 @@ async function search(
 				name: products.name,
 				slug: products.slug,
 				sku: products.sku,
-				price: sql<string>`${products.price}::text`,
+				supplierPrice: products.supplierPrice,
+				roleCustomMargins: products.roleCustomMargins,
 				isFeatured: products.isFeatured,
 				stock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
 				isInStock: sql<boolean>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0)) > 0`,
@@ -910,13 +990,26 @@ async function search(
 		throw error;
 	}
 
-	const data = rows.map(
-		(row): ProductSearchResult => ({
+	const [customerRules, roleRules] = await Promise.all([
+		getActiveMarginRules(),
+		getActiveRoleMarginRules(),
+	]);
+	const data = rows.map((row): ProductSearchResult => {
+		const { salePrice } = getEffectiveSalePrice(
+			{
+				supplierPrice: row.supplierPrice,
+				roleCustomMargins: row.roleCustomMargins,
+			},
+			role,
+			customerRules,
+			roleRules,
+		);
+		return {
 			id: row.id,
 			name: row.name,
 			slug: row.slug,
 			sku: row.sku,
-			price: row.price,
+			price: salePrice.toFixed(2),
 			isInStock: row.isInStock,
 			isFeatured: row.isFeatured,
 			stock: row.stock,
@@ -926,13 +1019,13 @@ async function search(
 			brand: row.brandName ? { name: row.brandName, slug: row.brandSlug! } : null,
 			category: row.categoryName ? { name: row.categoryName, slug: row.categorySlug! } : null,
 			headline: row.headline,
-		}),
-	);
+		};
+	});
 
 	const durationMs = Math.round(performance.now() - start);
 
 	// Slow query → warn (actionable: investigate query plan, index, or pagination)
-	if (durationMs > 200) {
+	if (durationMs > SLOW_QUERY_THRESHOLD_MS) {
 		logger
 			.withMetadata({ event: "search.slow", query: safeQuery, resultCount: total, durationMs })
 			.warn("search exceeded 200ms threshold");
