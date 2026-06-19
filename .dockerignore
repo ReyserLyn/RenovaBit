@@ -1,0 +1,78 @@
+# Git
+.git
+.gitignore
+.github
+.git/lost-found
+
+# Local config & secrets
+.env
+.env.*
+!.env.example
+.env.api
+.env.admin
+.env.db
+.env.redis
+
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build artifacts & caches
+.next
+out
+build
+dist
+.turbo
+.astro
+.output
+.nitro
+.tanstack
+.wrangler
+.vinxi
+__unconfig*
+dist-ssr
+*.local
+
+# Test artifacts
+coverage
+*.lcov
+.nyc_output
+__tests__
+**/*.test.ts
+**/*.test.tsx
+
+# Local data
+docker-volumes
+
+# Editor / OS
+.vscode
+.idea
+.zed
+.DS_Store
+*.pem
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# AI agent config
+.agents
+.atl
+.claude
+.opencode
+.skills
+skills-lock.json
+
+# Docs (not needed in image)
+*.md
+!README.md
+docs
+
+# Local working files
+.raw
+todos.json
+brand
+
+# Renovabit local
+renovabit-mono
