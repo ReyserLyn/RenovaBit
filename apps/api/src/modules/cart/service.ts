@@ -1,15 +1,18 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { cartItems, carts, productImages, products } from "@renovabit/db/schema";
 import {
-	getEffectiveSalePrice,
-	type ProductRoleCustomMargins,
-	type Role,
-} from "@renovabit/pricing";
+	cartItems,
+	carts,
+	productImages,
+	products,
+	type RoleCustomMargins,
+} from "@renovabit/db/schema";
+import { applyOfferToProduct, getEffectiveSalePrice, type Role } from "@renovabit/pricing";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { OfferService } from "@/modules/offers/service";
 import { formatDate, now } from "@/utils/date";
-import { getActiveMarginRules, getActiveRoleMarginRules } from "@/utils/margin-rules";
+import { getActiveMarginRules } from "@/utils/margin-rules";
 import { getReservedStockForProductInTx, getReservedStockSubquery } from "@/utils/stock";
 import type { CartItemResponse, CartModel, CartResponse, CartTotalResponse } from "./model";
 
@@ -26,25 +29,19 @@ type UpdateCartItemBody = CartModel["updateCartItemBody"];
  */
 function getRoleAwarePrice(
 	supplierPrice: string,
-	roleCustomMargins: ProductRoleCustomMargins | null | undefined,
+	roleCustomMargins: RoleCustomMargins | null | undefined,
 	role: Role,
-	customerRules: ReadonlyArray<{
+	marginRules: ReadonlyArray<{
 		minPrice: string;
 		maxPrice: string | null;
-		marginPercent: string;
-	}>,
-	roleRules: ReadonlyArray<{
-		role: Exclude<Role, "admin">;
-		minPrice: string;
-		maxPrice: string | null;
-		marginPercent: string;
+		customerPct: string;
+		distributorPct: string;
 	}>,
 ): number {
 	const { salePrice } = getEffectiveSalePrice(
 		{ supplierPrice, roleCustomMargins: roleCustomMargins ?? null },
 		role,
-		customerRules,
-		roleRules,
+		marginRules,
 	);
 	return salePrice;
 }
@@ -122,10 +119,7 @@ async function syncCartSummary(cartId: string): Promise<void> {
 }
 
 async function refreshCartItems(cartId: string, role: Role): Promise<void> {
-	const [customerRules, roleRules] = await Promise.all([
-		getActiveMarginRules(),
-		getActiveRoleMarginRules(),
-	]);
+	const marginRules = await getActiveMarginRules();
 
 	const items = await db
 		.select({
@@ -144,6 +138,10 @@ async function refreshCartItems(cartId: string, role: Role): Promise<void> {
 		.leftJoin(products, eq(cartItems.productId, products.id))
 		.where(eq(cartItems.cartId, cartId));
 
+	// Fetch active offers for ALL products in this cart at once
+	const productIds = items.map((i) => i.productId);
+	const activeOffersByProduct = await OfferService.getActiveOffersForProducts(role, productIds);
+
 	const updates = items.map((item) => {
 		let status: "available" | "out_of_stock" | "price_changed" | "unavailable";
 		let statusMessage: string | null = null;
@@ -160,18 +158,23 @@ async function refreshCartItems(cartId: string, role: Role): Promise<void> {
 				status = "out_of_stock";
 				statusMessage = "Producto agotado";
 			} else {
-				// Compute the current role-aware price and compare with the stored add-time price
+				// Compute current role-aware price (without offer)
 				const roleAwarePrice = getRoleAwarePrice(
 					item.supplierPrice ?? "0",
 					item.roleCustomMargins,
 					role,
-					customerRules,
-					roleRules,
+					marginRules,
 				);
-				const roleAwarePriceStr = roleAwarePrice.toFixed(2);
-				if (roleAwarePriceStr !== item.addedAtPrice) {
+
+				// Compute current offer-applied price (F16)
+				const offers = activeOffersByProduct.get(item.productId) ?? [];
+				const offerResult = applyOfferToProduct(roleAwarePrice, offers, role);
+				const currentOfferPriceStr = offerResult.discountedPrice.toFixed(2);
+
+				// Compare with stored addedAtPrice (F11: detect offer expiry / change)
+				if (currentOfferPriceStr !== item.addedAtPrice) {
 					status = "price_changed";
-					statusMessage = `El precio cambió de S/ ${item.addedAtPrice} a S/ ${roleAwarePriceStr}`;
+					statusMessage = `El precio cambió de S/ ${item.addedAtPrice} a S/ ${currentOfferPriceStr}`;
 				} else {
 					status = "available";
 				}
@@ -191,10 +194,7 @@ async function refreshCartItems(cartId: string, role: Role): Promise<void> {
 }
 
 async function getCartWithItems(cartId: string, role: Role): Promise<CartResponse> {
-	const [customerRules, roleRules] = await Promise.all([
-		getActiveMarginRules(),
-		getActiveRoleMarginRules(),
-	]);
+	const marginRules = await getActiveMarginRules();
 
 	const rows = await db
 		.select({
@@ -229,13 +229,43 @@ async function getCartWithItems(cartId: string, role: Role): Promise<CartRespons
 		.where(eq(cartItems.cartId, cartId))
 		.orderBy(asc(cartItems.createdAt));
 
+	// Fetch active offers for all products to compute offer-applied prices
+	const productIds = rows.map((r) => r.productId);
+	const activeOffersByProduct = await OfferService.getActiveOffersForProducts(role, productIds);
+
 	let subtotal = 0;
 	const items: CartItemResponse[] = rows.map((row) => {
 		const roleAwarePrice = row.supplierPrice
-			? getRoleAwarePrice(row.supplierPrice, row.roleCustomMargins, role, customerRules, roleRules)
+			? getRoleAwarePrice(row.supplierPrice, row.roleCustomMargins, role, marginRules)
 			: 0;
 		const roleAwarePriceStr = roleAwarePrice.toFixed(2);
-		subtotal += roleAwarePrice * row.quantity;
+
+		// Compute offer-applied price (F16). Subtotal uses the offer price
+		// so the cart total matches what the user will actually pay.
+		const offers = activeOffersByProduct.get(row.productId) ?? [];
+		const offerResult = applyOfferToProduct(roleAwarePrice, offers, role);
+		const currentOfferPriceStr = offerResult.discountedPrice.toFixed(2);
+		subtotal += offerResult.discountedPrice * row.quantity;
+
+		const priceChanged = row.status === "price_changed";
+
+		// Build applied-offer metadata for the line response (customer-only)
+		const appliedOffers: Array<{
+			id: string;
+			discountValue: number;
+		}> = [];
+		let savedAmount = 0;
+		if (role === "customer" && offers.length > 0) {
+			for (const o of offers) {
+				if (o.id) {
+					appliedOffers.push({
+						id: o.id,
+						discountValue: o.discountValue,
+					});
+				}
+			}
+			savedAmount = Math.round((roleAwarePrice - offerResult.discountedPrice) * 100) / 100;
+		}
 
 		return {
 			id: row.itemId,
@@ -245,7 +275,11 @@ async function getCartWithItems(cartId: string, role: Role): Promise<CartRespons
 			productSku: row.productSku ?? "",
 			quantity: row.quantity,
 			addedAtPrice: row.addedAtPrice,
-			currentPrice: roleAwarePriceStr,
+			currentRolePrice: roleAwarePriceStr,
+			currentOfferPrice: currentOfferPriceStr,
+			priceChanged,
+			appliedOffers,
+			savedAmount,
 			status: row.status,
 			statusMessage: row.statusMessage,
 			primaryImage: row.imageUrl ? { url: row.imageUrl, alt: row.imageAlt } : null,
@@ -316,18 +350,50 @@ async function requireCart(
 async function addItem(cartId: string, data: AddToCartBody, role: Role): Promise<CartResponse> {
 	const quantity = data.quantity ?? 1;
 
-	const [customerRules, roleRules] = await Promise.all([
-		getActiveMarginRules(),
-		getActiveRoleMarginRules(),
-	]);
+	const marginRules = await getActiveMarginRules();
+
+	// Fetch product outside the transaction just to compute the offer-applied price
+	const [productInfo] = await db
+		.select({
+			id: products.id,
+			price: products.price,
+			supplierPrice: products.supplierPrice,
+			roleCustomMargins: products.roleCustomMargins,
+		})
+		.from(products)
+		.where(eq(products.id, data.productId))
+		.limit(1);
+
+	if (!productInfo) {
+		throw createApiError({
+			code: BackendErrorCodes.NOT_FOUND_ERROR,
+			message: "Producto no encontrado",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+
+	// Compute role-aware price + offer-applied price AT ADD TIME
+	const roleAwarePrice = getRoleAwarePrice(
+		productInfo.supplierPrice,
+		productInfo.roleCustomMargins,
+		role,
+		marginRules,
+	);
+	const activeOffers = await OfferService.getActiveOffersForProducts(role, [data.productId]);
+	const offerResult = applyOfferToProduct(
+		roleAwarePrice,
+		activeOffers.get(data.productId) ?? [],
+		role,
+	);
+
+	// Store the FULL offer-applied price as the snapshot (F11+F16: includes offers)
+	const addedAtPrice = offerResult.discountedPrice.toFixed(2);
 
 	await db.transaction(async (tx) => {
 		const [product] = await tx
 			.select({
 				id: products.id,
-				price: products.price,
-				supplierPrice: products.supplierPrice,
-				roleCustomMargins: products.roleCustomMargins,
 				stock: products.stock,
 				isActive: products.isActive,
 				needsReview: products.needsReview,
@@ -367,16 +433,6 @@ async function addItem(cartId: string, data: AddToCartBody, role: Role): Promise
 			});
 		}
 
-		// Compute role-aware price for this product
-		const roleAwarePrice = getRoleAwarePrice(
-			product.supplierPrice,
-			product.roleCustomMargins,
-			role,
-			customerRules,
-			roleRules,
-		);
-		const addedAtPrice = roleAwarePrice.toFixed(2);
-
 		const [existingItem] = await tx
 			.select({ id: cartItems.id, quantity: cartItems.quantity })
 			.from(cartItems)
@@ -393,7 +449,12 @@ async function addItem(cartId: string, data: AddToCartBody, role: Role): Promise
 					doNotLog: true,
 				});
 			}
-			await tx.update(cartItems).set({ quantity: newQty }).where(eq(cartItems.id, existingItem.id));
+			// Update the addedAtPrice since the offer price may have changed
+			// between the first add and now.
+			await tx
+				.update(cartItems)
+				.set({ quantity: newQty, addedAtPrice })
+				.where(eq(cartItems.id, existingItem.id));
 		} else {
 			if (availableStock < quantity) {
 				throw createApiError({
@@ -649,10 +710,7 @@ async function mergeGuestCart(
 }
 
 async function getTotal(cartId: string, role: Role): Promise<CartTotalResponse> {
-	const [customerRules, roleRules] = await Promise.all([
-		getActiveMarginRules(),
-		getActiveRoleMarginRules(),
-	]);
+	const marginRules = await getActiveMarginRules();
 
 	const rows = await db
 		.select({
@@ -669,7 +727,7 @@ async function getTotal(cartId: string, role: Role): Promise<CartTotalResponse> 
 	for (const row of rows) {
 		itemsCount += row.quantity;
 		const roleAwarePrice = row.supplierPrice
-			? getRoleAwarePrice(row.supplierPrice, row.roleCustomMargins, role, customerRules, roleRules)
+			? getRoleAwarePrice(row.supplierPrice, row.roleCustomMargins, role, marginRules)
 			: 0;
 		subtotal += roleAwarePrice * row.quantity;
 	}

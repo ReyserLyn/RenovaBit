@@ -225,6 +225,7 @@ const ProductSearchResult = t.Object({
 	brand: t.Nullable(SearchBrandRef),
 	category: t.Nullable(SearchCategoryRef),
 	headline: t.Nullable(t.String()),
+	offers: t.Array(PublicOfferRef),
 });
 
 const SearchResponse = t.Object({
@@ -338,7 +339,7 @@ export const ProductModel = {
 			}),
 		),
 		limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
-		offset: t.Optional(t.Integer({ minimum: 0, default: 0 })),
+		offset: t.Optional(t.Integer({ minimum: 0, maximum: 10000, default: 0 })),
 	}),
 	searchResponse: SearchResponse,
 

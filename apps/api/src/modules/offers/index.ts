@@ -1,68 +1,40 @@
 /**
- * Offers public routes — active offers listing and detail.
+ * Offers public routes — consolidated listing with products.
  * Mounted at `/api/v1/offers` via `apps/api/src/modules/index.ts`.
  */
-import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
+import { getUserRole } from "@/utils/auth/helpers";
 import { OfferModel } from "./model";
 import { OfferService } from "./service";
 
 export const publicOffersRoute = new Elysia({ prefix: "/offers" })
-	// ── List active offers ──────────────────────
-	.get("/", async () => OfferService.getActive(), {
-		response: {
-			200: OfferModel.offerActiveListResponse,
-		},
-		detail: {
-			summary: "Listar ofertas activas",
-			description: "Devuelve las ofertas activas con conteo de productos",
-			tags: ["Offers"],
-		},
-	})
-	// ── Get active offer by slug ────────────────
+	// ── Consolidated offer list (with products) ──
 	.get(
-		"/:slug",
-		async ({ params: { slug } }) => {
-			const offer = await OfferService.getActiveBySlug(slug);
-
-			if (!offer) {
-				throw createApiError({
-					code: BackendErrorCodes.NOT_FOUND_ERROR,
-					message: "Oferta no encontrada",
-					logLevel: "info",
-					doNotLog: true,
-				});
-			}
-
-			// Include applicable items based on offer type. The detail schema
-			// is a union of {…base, products?|brands?|categories?} — return
-			// the matching branch so the response type stays precise.
-			if (offer.type === "product") {
-				const products = await OfferService.getProducts(offer.id);
-				return { ...offer, products };
-			}
-
-			if (offer.type === "brand") {
-				const brands = await OfferService.getBrands(offer.id);
-				return { ...offer, brands };
-			}
-
-			const categories = await OfferService.getCategories(offer.id);
-			return { ...offer, categories };
+		"/",
+		async ({ query, request }) => {
+			const role = await getUserRole(request);
+			const result = await OfferService.getOffersWithProducts(role, {
+				offset: query.offset,
+				limit: query.limit,
+				isFeatured: query.isFeatured,
+				brandId: query.brandId,
+				offerId: query.offerId,
+				productsOffset: query.productsOffset,
+				productsLimit: query.productsLimit,
+			});
+			return result;
 		},
 		{
-			params: OfferModel.slugParams,
+			query: OfferModel.offerListQuery,
 			response: {
-				200: t.Union([
-					OfferModel.offerWithProductsResponse,
-					OfferModel.offerWithBrandsResponse,
-					OfferModel.offerWithCategoriesResponse,
-				]),
-				404: OfferModel.errorResponse,
+				200: OfferModel.offerListEnrichedResponse,
 			},
 			detail: {
-				summary: "Obtener oferta por slug",
-				description: "Devuelve una oferta activa con sus productos asociados",
+				summary: "Listar ofertas con productos (consolidado)",
+				description:
+					"Devuelve todas las ofertas activas con sus productos enriquecidos (precios por rol). " +
+					"Usar ?offerId=X&productsOffset=Y&productsLimit=Z para paginar productos de una oferta específica. " +
+					"Filtrable por isFeatured y brandId.",
 				tags: ["Offers"],
 			},
 		},

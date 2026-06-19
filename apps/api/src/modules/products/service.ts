@@ -361,7 +361,7 @@ async function listPublic(
 			categoryId: categories.id,
 			categoryName: categories.name,
 			categorySlug: categories.slug,
-			offers: activeOffersForProductSubquery(resolvedOptions.role ?? "customer"),
+			offers: activeOffersForProductSubquery(),
 		})
 		.from(products)
 		.leftJoin(brands, eq(products.brandId, brands.id))
@@ -454,7 +454,7 @@ async function getBySlugPublic(
 				WHERE pi.product_id = ${products.id}),
 				'[]'::jsonb
 			)`,
-			offers: activeOffersForProductSubquery(role),
+			offers: activeOffersForProductSubquery(),
 		})
 		.from(products)
 		.leftJoin(brands, eq(products.brandId, brands.id))
@@ -925,7 +925,6 @@ async function search(
 			id: string;
 			name: string;
 			slug: string;
-			discountType: "percentage" | "fixed_amount";
 			discountValue: string;
 			isFeatured: boolean;
 		}>;
@@ -962,7 +961,7 @@ async function search(
 				headline: sql<
 					string | null
 				>`ts_headline('spanish', ${products.name}, ${tsQuery}, 'MaxFragments=1,MaxWords=15,MinWords=5,StartSel=\u0001,StopSel=\u0002')`,
-				offers: activeOffersForProductSubquery(role),
+				offers: activeOffersForProductSubquery(),
 			})
 			.from(products)
 			.leftJoin(brands, eq(products.brandId, brands.id))

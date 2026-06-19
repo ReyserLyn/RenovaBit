@@ -8,6 +8,12 @@ const CartItemProduct = t.Object({
 	slug: t.String(),
 });
 
+/** A slim reference to an offer applied to a cart line. */
+const AppliedOfferRef = t.Object({
+	id: t.String({ format: "uuid" }),
+	discountValue: t.Number(),
+});
+
 const CartItemResponse = t.Object({
 	id: t.String({ format: "uuid" }),
 	productId: t.String({ format: "uuid" }),
@@ -15,8 +21,18 @@ const CartItemResponse = t.Object({
 	productSlug: t.String(),
 	productSku: t.String(),
 	quantity: t.Integer({ minimum: 0 }),
+	/** Snapshot of the FULL offer-applied price at add time (role-aware + offers) */
 	addedAtPrice: t.String(),
-	currentPrice: t.Nullable(t.String()),
+	/** Current role-aware price (WITHOUT offer discount) */
+	currentRolePrice: t.String(),
+	/** Current role-aware price WITH offer discount applied */
+	currentOfferPrice: t.String(),
+	/** True when the currentOfferPrice differs from addedAtPrice */
+	priceChanged: t.Boolean(),
+	/** Offers applied to this line (empty for non-customer or no active offer) */
+	appliedOffers: t.Array(AppliedOfferRef),
+	/** Absolute amount saved on this line (0 for non-customer or no offer) */
+	savedAmount: t.Number(),
 	status: t.String(),
 	statusMessage: t.Nullable(t.String()),
 	primaryImage: t.Nullable(

@@ -17,7 +17,6 @@ export const PublicOfferRef = t.Object({
 	id: t.String({ format: "uuid" }),
 	name: t.String(),
 	slug: t.String(),
-	discountType: t.Union([t.Literal("percentage"), t.Literal("fixed_amount")]),
 	discountValue: t.String(),
 	isFeatured: t.Boolean(),
 });
@@ -34,8 +33,6 @@ export const OfferListResponse = t.Composite([
 	_OfferRow,
 	t.Object({
 		productCount: t.Integer({ minimum: 0 }),
-		brandCount: t.Integer({ minimum: 0 }),
-		categoryCount: t.Integer({ minimum: 0 }),
 	}),
 ]);
 
@@ -54,49 +51,14 @@ const OfferProductDetail = t.Object({
 	),
 });
 
-/** Admin — brand assigned to an offer, with product count. */
-const OfferBrandDetail = t.Object({
-	brandId: t.String({ format: "uuid" }),
-	name: t.String(),
-	slug: t.String(),
-	productCount: t.Integer({ minimum: 0 }),
-});
-
-/** Admin — category assigned to an offer, with product count. */
-const OfferCategoryDetail = t.Object({
-	categoryId: t.String({ format: "uuid" }),
-	name: t.String(),
-	slug: t.String(),
-	productCount: t.Integer({ minimum: 0 }),
-});
-
 // ── Public: active offer (subset of fields, no createdBy/createdAt/updatedAt) ─
 
-/** Public — active offer with computed counts (used in list). */
-export const OfferActiveResponse = t.Object({
-	id: t.String({ format: "uuid" }),
-	name: t.String(),
-	slug: t.String(),
-	description: t.Nullable(t.String()),
-	type: t.Union([t.Literal("product"), t.Literal("category"), t.Literal("brand")]),
-	discountType: t.Union([t.Literal("percentage"), t.Literal("fixed_amount")]),
-	discountValue: t.String(),
-	isFeatured: t.Boolean(),
-	startsAt: t.Date(),
-	endsAt: t.Date(),
-	productCount: t.Integer({ minimum: 0 }),
-	brandCount: t.Integer({ minimum: 0 }),
-	categoryCount: t.Integer({ minimum: 0 }),
-});
-
-/** Public — basic offer fields (used in detail, then enriched with products/brands/categories). */
+/** Public — basic offer fields (used in detail, then enriched with products). */
 const _OfferBase = t.Object({
 	id: t.String({ format: "uuid" }),
 	name: t.String(),
 	slug: t.String(),
 	description: t.Nullable(t.String()),
-	type: t.Union([t.Literal("product"), t.Literal("category"), t.Literal("brand")]),
-	discountType: t.Union([t.Literal("percentage"), t.Literal("fixed_amount")]),
 	discountValue: t.String(),
 	isFeatured: t.Boolean(),
 	startsAt: t.Date(),
@@ -108,63 +70,48 @@ const OfferProductJunction = t.Object({
 	productId: t.String({ format: "uuid" }),
 });
 
-/** Public — junction row: just { brandId }. */
-const OfferBrandJunction = t.Object({
-	brandId: t.String({ format: "uuid" }),
-});
-
-/** Public — junction row: just { categoryId }. */
-const OfferCategoryJunction = t.Object({
-	categoryId: t.String({ format: "uuid" }),
-});
-
-/** Public — offer + its product assignments (type=product). */
+/** Public — offer + its product assignments. */
 export const OfferWithProductsResponse = t.Composite([
 	_OfferBase,
 	t.Object({ products: t.Array(OfferProductJunction) }),
 ]);
 
-/** Public — offer + its brand assignments (type=brand). */
-export const OfferWithBrandsResponse = t.Composite([
-	_OfferBase,
-	t.Object({ brands: t.Array(OfferBrandJunction) }),
-]);
+// ── Common create fields ─
 
-/** Public — offer + its category assignments (type=category). */
-export const OfferWithCategoriesResponse = t.Composite([
-	_OfferBase,
-	t.Object({ categories: t.Array(OfferCategoryJunction) }),
-]);
-
-// ── Bodies ──────────────────────────────────────────
-
-const _createBody = t.Object({
+const _createCommon = t.Object({
 	name: t.String({ minLength: 1, maxLength: 100 }),
 	slug: t.Optional(t.String({ minLength: 1, maxLength: 100 })),
 	description: t.Optional(t.Nullable(t.String({ maxLength: 2000 }))),
-	discountType: t.Union([t.Literal("percentage"), t.Literal("fixed_amount")]),
-	// percentage: capped at 100 in service.ts (see MAX_OFFER_DISCOUNT_PERCENT)
-	// fixed_amount: validated against per-product price in service.ts (no static max)
-	discountValue: t.Number({ minimum: 0, maximum: 100_000 }),
+	discountValue: t.Number({ minimum: 0.01, maximum: 100 }),
 	startsAt: t.String({ format: "date-time" }),
 	endsAt: t.String({ format: "date-time" }),
 	isActive: t.Optional(t.Boolean()),
 	isFeatured: t.Optional(t.Boolean()),
-	type: t.Optional(t.Union([t.Literal("product"), t.Literal("category"), t.Literal("brand")])),
 	productIds: t.Optional(t.Array(t.String({ format: "uuid" }))),
-	brandIds: t.Optional(t.Array(t.String({ format: "uuid" }))),
-	categoryIds: t.Optional(t.Array(t.String({ format: "uuid" }))),
 	overrides: t.Optional(
 		t.Record(
 			t.String({ format: "uuid" }),
 			t.Object({
-				overrideDiscountType: t.Optional(
-					t.Union([t.Literal("percentage"), t.Literal("fixed_amount")]),
-				),
-				overrideDiscountValue: t.Optional(t.Number({ minimum: 0 })),
+				overrideDiscountValue: t.Optional(t.Nullable(t.Number({ minimum: 0 }))),
 			}),
 		),
 	),
+});
+
+const _createBody = _createCommon;
+
+// ── Update body (Partial, no overrides) ─
+
+const _updateCommon = t.Object({
+	name: t.String({ minLength: 1, maxLength: 100 }),
+	slug: t.Optional(t.String({ minLength: 1, maxLength: 100 })),
+	description: t.Optional(t.Nullable(t.String({ maxLength: 2000 }))),
+	discountValue: t.Number({ minimum: 0.01, maximum: 100 }),
+	startsAt: t.String({ format: "date-time" }),
+	endsAt: t.String({ format: "date-time" }),
+	isActive: t.Optional(t.Boolean()),
+	isFeatured: t.Optional(t.Boolean()),
+	productIds: t.Optional(t.Array(t.String({ format: "uuid" }))),
 });
 
 const _productAssignBody = t.Object({
@@ -173,10 +120,7 @@ const _productAssignBody = t.Object({
 		t.Record(
 			t.String({ format: "uuid" }),
 			t.Object({
-				overrideDiscountType: t.Optional(
-					t.Union([t.Literal("percentage"), t.Literal("fixed_amount")]),
-				),
-				overrideDiscountValue: t.Optional(t.Number({ minimum: 0 })),
+				overrideDiscountValue: t.Optional(t.Nullable(t.Number({ minimum: 0 }))),
 			}),
 		),
 	),
@@ -187,23 +131,97 @@ const _assignResponse = t.Object({
 	assignedCount: t.Integer({ minimum: 0 }),
 });
 
+// ── Consolidated offer list (public) ────────────────
+
+/**
+ * A product item in the consolidated offer list, with role-aware prices.
+ */
+const OfferProductItem = t.Object({
+	id: t.String({ format: "uuid" }),
+	name: t.String(),
+	slug: t.String(),
+	primaryImage: t.Nullable(t.String()),
+	brand: t.Nullable(
+		t.Object({
+			id: t.String({ format: "uuid" }),
+			name: t.String(),
+			slug: t.String(),
+		}),
+	),
+	basePrice: t.Nullable(t.String()),
+	offerPrice: t.Nullable(t.String()),
+	discountPercent: t.Integer({ minimum: 0, maximum: 100 }),
+	inStock: t.Boolean(),
+	stock: t.Integer({ minimum: 0 }),
+});
+
+/**
+ * A page of products within an offer section.
+ */
+const OfferProductPage = t.Object({
+	items: t.Array(OfferProductItem),
+	/** Offset for the next page. Null when all products returned. */
+	nextOffset: t.Nullable(t.Integer({ minimum: 0 })),
+	total: t.Integer({ minimum: 0 }),
+});
+
+/**
+ * An offer in the consolidated list, with its first page of products.
+ */
+const OfferWithProductsListItem = t.Object({
+	id: t.String({ format: "uuid" }),
+	name: t.String(),
+	slug: t.String(),
+	description: t.Nullable(t.String()),
+	discountValue: t.String(),
+	isFeatured: t.Boolean(),
+	startsAt: t.Date(),
+	endsAt: t.Date(),
+	products: OfferProductPage,
+});
+
+/**
+ * Top-level response for GET /offers (consolidated).
+ */
+export const OfferListEnrichedResponse = t.Object({
+	offers: t.Array(OfferWithProductsListItem),
+	filters: t.Object({
+		brands: t.Array(
+			t.Object({
+				id: t.String({ format: "uuid" }),
+				name: t.String(),
+				slug: t.String(),
+			}),
+		),
+	}),
+});
+
+// ── Query schemas (consolidated) ────────────────────
+
+const _offerListQuery = t.Object({
+	offset: t.Optional(t.Integer({ minimum: 0, maximum: 10000, default: 0 })),
+	limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
+	isFeatured: t.Optional(t.String({ pattern: "^(true|false)$" })),
+	/** Filter offers that have products of this brand. */
+	brandId: t.Optional(t.String({ format: "uuid" })),
+	/** Load the next page of products for a specific offer. Requires offerId. */
+	offerId: t.Optional(t.String({ format: "uuid" })),
+	/** Product page offset (requires offerId). */
+	productsOffset: t.Optional(t.Integer({ minimum: 0, maximum: 10000, default: 0 })),
+	/** Product page limit (requires offerId). */
+	productsLimit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
+});
+
 // ── Model ──────────────────────────────────────────
 
 export const OfferModel = {
 	// Bodies
 	createBody: _createBody,
-	updateBody: t.Partial(t.Omit(_createBody, ["overrides"])),
+	updateBody: t.Partial(_updateCommon),
 	productAssignBody: _productAssignBody,
-	brandAssignBody: t.Object({
-		brandIds: t.Array(t.String({ format: "uuid" }), { minItems: 1 }),
-	}),
-	categoryAssignBody: t.Object({
-		categoryIds: t.Array(t.String({ format: "uuid" }), { minItems: 1 }),
-	}),
 
 	// Params
 	idParams: t.Object({ id: t.String({ format: "uuid" }) }),
-	slugParams: t.Object({ slug: t.String({ minLength: 1, maxLength: 100 }) }),
 
 	// Query
 	listQuery: t.Object({
@@ -212,22 +230,28 @@ export const OfferModel = {
 		isFeatured: t.Optional(t.String({ pattern: "^(true|false)$" })),
 		from: t.Optional(t.String({ format: "date" })),
 		to: t.Optional(t.String({ format: "date" })),
+		limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
+		offset: t.Optional(t.Integer({ minimum: 0, maximum: 10000, default: 0 })),
 	}),
 
 	// Admin responses
 	offerResponse: OfferResponse,
-	offerListResponse: t.Array(OfferListResponse),
+	offerListResponse: t.Object({
+		data: t.Array(OfferListResponse),
+		total: t.Integer({ minimum: 0 }),
+	}),
 	offerProductDetailResponse: t.Array(OfferProductDetail),
-	offerBrandDetailResponse: t.Array(OfferBrandDetail),
-	offerCategoryDetailResponse: t.Array(OfferCategoryDetail),
 	assignResponse: _assignResponse,
 
 	// Public responses
-	offerActiveListResponse: t.Array(OfferActiveResponse),
 	productOffersResponse: t.Array(PublicOfferRef),
 	offerWithProductsResponse: OfferWithProductsResponse,
-	offerWithBrandsResponse: OfferWithBrandsResponse,
-	offerWithCategoriesResponse: OfferWithCategoriesResponse,
+
+	// Consolidated list (public)
+	offerListEnrichedResponse: OfferListEnrichedResponse,
+
+	// Public queries
+	offerListQuery: _offerListQuery,
 
 	// Shared
 	errorResponse: ErrorResponse,
@@ -238,5 +262,3 @@ export const OfferModel = {
 export type CreateOfferDto = typeof OfferModel.createBody.static;
 export type UpdateOfferDto = typeof OfferModel.updateBody.static;
 export type OfferProductAssignBody = typeof OfferModel.productAssignBody.static;
-export type OfferBrandAssignBody = typeof OfferModel.brandAssignBody.static;
-export type OfferCategoryAssignBody = typeof OfferModel.categoryAssignBody.static;
