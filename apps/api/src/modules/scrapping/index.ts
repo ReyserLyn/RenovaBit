@@ -1,16 +1,17 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { Elysia } from "elysia";
 import { enqueueManualScraping } from "@/jobs/scraping.queue";
-import { auth } from "@/utils/auth/auth";
+import { AuthModule } from "@/modules/auth";
 import { BlacklistModel, ErrorResponse } from "./blacklist.model";
 import { BlacklistService } from "./blacklist.service";
 import { ScrapingModel } from "./model";
 
 export const scrapingController = new Elysia({ prefix: "/scraping" })
+	.use(AuthModule)
 	// ── Run sync ────────────────────────────────────
 	.post(
 		"/run",
-		async ({ query: { limit }, request }) => {
+		async ({ query: { limit }, user }) => {
 			const parsed = Number.parseInt(limit ?? "300", 10);
 
 			if (Number.isNaN(parsed) || parsed < 1 || parsed > 2000) {
@@ -22,8 +23,7 @@ export const scrapingController = new Elysia({ prefix: "/scraping" })
 				});
 			}
 
-			const session = await auth.api.getSession({ headers: request.headers });
-			const job = await enqueueManualScraping(parsed, session?.user.id);
+			const job = await enqueueManualScraping(parsed, user.id);
 
 			return {
 				success: true,
@@ -74,9 +74,8 @@ export const scrapingController = new Elysia({ prefix: "/scraping" })
 	// ── Add ─────────────────────────────────────────
 	.post(
 		"/blacklist",
-		async ({ body, request }) => {
-			const session = await auth.api.getSession({ headers: request.headers });
-			return BlacklistService.add(body, session?.user.id ?? "");
+		async ({ body, user }) => {
+			return BlacklistService.add(body, user.id);
 		},
 		{
 			isAdmin: true,

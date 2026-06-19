@@ -1,22 +1,34 @@
 import { db } from "@renovabit/db";
 import { sql } from "drizzle-orm";
 import { Elysia } from "elysia";
+import { logger } from "@/utils/logger";
 import { getRedis } from "@/utils/redis";
 import { AppInfoSchema, HealthCheckSchema } from "./model";
 
 type HealthCheck = (typeof HealthCheckSchema)["static"];
 type ServiceKey = "database" | "redis";
 
-async function checkService(
+const HEALTH_TIMEOUT_MS = 3_000;
+
+async function checkWithTimeout(
 	key: ServiceKey,
 	probe: () => Promise<unknown>,
 	health: HealthCheck,
 ): Promise<void> {
 	try {
-		await probe();
-	} catch {
+		await Promise.race([
+			probe(),
+			new Promise<never>((_, reject) => {
+				const timer = setTimeout(() => {
+					reject(new Error(`${key} health check timed out after ${HEALTH_TIMEOUT_MS}ms`));
+				}, HEALTH_TIMEOUT_MS);
+				timer.unref();
+			}),
+		]);
+	} catch (err) {
 		health.services[key] = "down";
 		health.status = "degraded";
+		logger.withMetadata({ service: key }).withError(err).warn("Health check failed");
 	}
 }
 
@@ -45,8 +57,8 @@ export const homeRoute = new Elysia({ name: "home" })
 				services: { database: "ok", redis: "ok" },
 			};
 
-			await checkService("database", () => db.execute(sql`SELECT 1`), health);
-			await checkService("redis", () => getRedis().ping(), health);
+			await checkWithTimeout("database", () => db.execute(sql`SELECT 1`), health);
+			await checkWithTimeout("redis", () => getRedis().ping(), health);
 
 			if (health.status === "degraded") set.status = 503;
 			return health;

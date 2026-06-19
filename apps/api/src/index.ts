@@ -6,7 +6,7 @@ import { CorsPlugin } from "./plugins/cors";
 import { DocsPlugin } from "./plugins/docs";
 import { errorHandler } from "./plugins/error-handler";
 import { LoggerPlugin } from "./plugins/logger";
-import { registerShutdown, shutdownPlugin } from "./plugins/shutdown";
+import { registerShutdown, setAppInstance, shutdownPlugin } from "./plugins/shutdown";
 import { logger } from "./utils/logger";
 
 registerShutdown();
@@ -21,6 +21,8 @@ const app = new Elysia()
 	.use(shutdownPlugin)
 	.onError(errorHandler)
 	.listen(3001);
+
+setAppInstance(app);
 
 logger.info(`🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`);
 
