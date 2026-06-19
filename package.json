@@ -43,7 +43,7 @@
 		"clean": "bun run clean:turbo && bun run clean:dist",
 		"clean:all": "bun run clean && bun run clean:node_modules",
 		"clean:turbo": "find . -path ./docker-volumes -prune -o -name \".turbo\" -type d -prune -exec rm -rf {} +",
-		"clean:dist": "find . -path ./docker-volumes -prune -o -name \"dist\" -type d -prune -exec rm -rf {} +",
+		"clean:dist": "find . \\( -path ./docker-volumes -o -path '*/node_modules' \\) -prune -o -name \"dist\" -type d -prune -exec rm -rf {} +",
 		"clean:node_modules": "find . -path ./docker-volumes -prune -o -name \"node_modules\" -type d -prune -exec rm -rf {} +"
 	},
 	"devDependencies": {
