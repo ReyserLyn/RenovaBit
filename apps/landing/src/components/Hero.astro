@@ -60,7 +60,7 @@ const paymentMethods = ["Yape", "Plin", "transferencia", "efectivo"]
 	>
 		<h1
 			id="hero-headline"
-			class="font-display m-0 max-w-[22ch] text-balance text-[clamp(2.5rem,6vw,4.5rem)] font-bold leading-[1.05] tracking-[-0.03em] text-foreground motion-safe:animate-fade-in-up motion-safe:animate-duration-700 motion-safe:animate-delay-100"
+			class="font-display m-0 max-w-[22ch] text-balance text-[clamp(2.5rem,6vw,4.5rem)] font-bold leading-[1.05] tracking-[-0.03em] text-foreground motion-safe:animate-fade-in-up motion-safe:animate-duration-700 motion-safe:animate-delay-100 motion-reduce:animate-none"
 		>
 			Laptop <HighlightText
 				variant="background"
@@ -73,7 +73,7 @@ const paymentMethods = ["Yape", "Plin", "transferencia", "efectivo"]
 		</h1>
 
 		<p
-			class="m-0 max-w-2xl text-pretty text-[clamp(1.0625rem,1.8vw,1.25rem)] leading-normal text-muted-foreground motion-safe:animate-fade-in-up motion-safe:animate-duration-700 motion-safe:animate-delay-200"
+			class="m-0 max-w-2xl text-pretty text-[clamp(1.0625rem,1.8vw,1.25rem)] leading-normal text-muted-foreground motion-safe:animate-fade-in-up motion-safe:animate-duration-700 motion-safe:animate-delay-200 motion-reduce:animate-none"
 		>
 			Servicio técnico a domicilio en Arequipa — <HighlightText
 				variant="underline"
@@ -87,7 +87,7 @@ const paymentMethods = ["Yape", "Plin", "transferencia", "efectivo"]
 		<ProcessStrip steps={processSteps} baseDelay={300} class="hidden md:flex" />
 
 		<div
-			class="mt-1 flex flex-col items-center justify-center gap-4 md:flex-row md:items-center md:gap-3 motion-safe:animate-fade-in-up motion-safe:animate-duration-700 animate-delay-800"
+			class="mt-1 flex flex-col items-center justify-center gap-4 md:flex-row md:items-center md:gap-3 motion-safe:animate-fade-in-up motion-safe:animate-duration-700 motion-reduce:animate-none animate-delay-800"
 		>
 			<Button
 				as="a"
@@ -118,7 +118,7 @@ const paymentMethods = ["Yape", "Plin", "transferencia", "efectivo"]
 		<ContactStrip class="md:order-first" />
 
 		<p
-			class="m-0 flex flex-wrap items-center justify-center gap-1 text-sm leading-normal text-muted-foreground motion-safe:animate-fade-in-up motion-safe:animate-duration-700 animate-delay-1000"
+			class="m-0 flex flex-wrap items-center justify-center gap-1 text-sm leading-normal text-muted-foreground motion-safe:animate-fade-in-up motion-safe:animate-duration-700 motion-reduce:animate-none animate-delay-1000"
 		>
 			<span>Aceptamos&nbsp;</span>
 			<TypewriterText
@@ -135,7 +135,7 @@ const paymentMethods = ["Yape", "Plin", "transferencia", "efectivo"]
 
 	<!-- Scroll indicator -->
 	<div
-		class="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 flex flex-col items-center gap-2 opacity-60 motion-safe:animate-fade-in motion-safe:animate-duration-700 motion-safe:animate-delay-1200"
+		class="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 flex flex-col items-center gap-2 opacity-60 motion-safe:animate-fade-in motion-safe:animate-duration-700 motion-safe:animate-delay-1200 motion-reduce:animate-none motion-reduce:opacity-40"
 		aria-hidden="true"
 	>
 		<Icon
@@ -149,7 +149,7 @@ const paymentMethods = ["Yape", "Plin", "transferencia", "efectivo"]
 			height="12"
 			viewBox="0 0 12 12"
 			fill="none"
-			class="text-muted-foreground motion-safe:animate-float motion-safe:animate-iteration-count-infinite motion-safe:animate-duration-2000"
+			class="text-muted-foreground motion-safe:animate-float motion-safe:animate-iteration-count-infinite motion-safe:animate-duration-2000 motion-reduce:animate-none"
 			aria-hidden="true"
 		>
 			<path

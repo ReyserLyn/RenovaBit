@@ -11,23 +11,22 @@ interface Props {
 const { whatsappUrl } = Astro.props
 ---
 
-<div class="group md:hidden">
-	<div
-		class="inline-flex size-10 cursor-pointer items-center justify-center rounded-lg text-foreground transition-colors hover:bg-accent has-checked:bg-accent/50"
-		role="button"
-		tabindex="0"
+<div class="group/menu md:hidden">
+	<button
+		type="button"
+		class="inline-flex size-10 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-accent"
 		aria-expanded="false"
+		aria-controls="mobile-menu-panel"
 		aria-label="Abrir menú de navegación"
 		id="mobile-menu-trigger"
 	>
-		<input type="checkbox" id="mobile-menu-toggle" class="peer hidden" autocomplete="off" />
-
-		<Icon name="hugeicons:menu-01" size={22} class="peer-checked:hidden" />
-		<Icon name="hugeicons:cancel-01" size={22} class="hidden peer-checked:inline" />
-	</div>
+		<Icon name="hugeicons:menu-01" size={22} class="group-aria-expanded/menu:hidden" />
+		<Icon name="hugeicons:cancel-01" size={22} class="hidden group-aria-expanded/menu:inline" />
+	</button>
 
 	<Card
-		class="absolute right-4 left-4 top-full mt-3 shadow-2xl backdrop-blur-xl transition-all duration-300 ease-out opacity-0 -translate-y-3 scale-[0.95] pointer-events-none group-has-checked:opacity-100 group-has-checked:translate-y-0 group-has-checked:scale-100 group-has-checked:pointer-events-auto"
+		id="mobile-menu-panel"
+		class="absolute right-0 left-0 top-full z-50 mt-3 shadow-2xl backdrop-blur-xl transition-all duration-300 ease-out opacity-0 -translate-y-3 scale-[0.95] pointer-events-none group-aria-expanded/menu:opacity-100 group-aria-expanded/menu:translate-y-0 group-aria-expanded/menu:scale-100 group-aria-expanded/menu:pointer-events-auto"
 	>
 		<CardContent>
 			<nav class="flex flex-col gap-1" aria-label="Navegación móvil">
@@ -37,7 +36,6 @@ const { whatsappUrl } = Astro.props
 							as="a"
 							variant="ghost"
 							href={item.href}
-							onclick="document.getElementById('mobile-menu-toggle').checked = false"
 							class="w-full justify-start text-foreground/70"
 						>
 							{item.label}
@@ -54,7 +52,6 @@ const { whatsappUrl } = Astro.props
 				target="_blank"
 				rel="noopener noreferrer"
 				aria-label="Contactar por WhatsApp (se abre en nueva pestaña)"
-				onclick="document.getElementById('mobile-menu-toggle').checked = false"
 				class="w-full"
 				size="lg"
 			>
@@ -65,46 +62,36 @@ const { whatsappUrl } = Astro.props
 </div>
 
 <script>
-	const toggle = document.getElementById("mobile-menu-toggle")
 	const trigger = document.getElementById("mobile-menu-trigger")
+	const panel = document.getElementById("mobile-menu-panel")
 
-	if (toggle && toggle instanceof HTMLInputElement && trigger) {
-		// Click en el botón togglea el checkbox
-		trigger.addEventListener("click", (e) => {
-			e.stopPropagation()
-			toggle.checked = !toggle.checked
-			updateAria()
-		})
-
-		// Teclado: Enter o Space
-		trigger.addEventListener("keydown", (e) => {
-			if (e.key === "Enter" || e.key === " ") {
-				e.preventDefault()
-				toggle.checked = !toggle.checked
-				updateAria()
-			}
-		})
-
-		// Escape cierra el menú
-		document.addEventListener("keydown", (e) => {
-			if (e.key === "Escape" && toggle.checked) {
-				toggle.checked = false
-				updateAria()
-			}
-		})
-
-		function updateAria() {
-			if (!toggle || !(toggle instanceof HTMLInputElement)) return
-			if (!trigger) return
-
-			trigger.setAttribute("aria-expanded", String(toggle.checked))
+	if (trigger instanceof HTMLButtonElement && panel) {
+		const setOpen = (open: boolean) => {
+			trigger.setAttribute("aria-expanded", String(open))
 			trigger.setAttribute(
 				"aria-label",
-				toggle.checked ? "Cerrar menú de navegación" : "Abrir menú de navegación",
+				open ? "Cerrar menú de navegación" : "Abrir menú de navegación",
 			)
 		}
 
-		// Si alguien más cambia el checkbox (ej: clic en link del menú)
-		toggle.addEventListener("change", updateAria)
+		const isOpen = () => trigger.getAttribute("aria-expanded") === "true"
+
+		trigger.addEventListener("click", () => {
+			setOpen(!isOpen())
+		})
+
+		document.addEventListener("keydown", (e) => {
+			if (e.key === "Escape" && isOpen()) {
+				setOpen(false)
+				trigger.focus()
+			}
+		})
+
+		// Close menu when a link inside is activated
+		panel.addEventListener("click", (e) => {
+			if (e.target instanceof HTMLAnchorElement) {
+				setOpen(false)
+			}
+		})
 	}
 </script>

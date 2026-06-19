@@ -1,6 +1,5 @@
 ---
 import LogoDark from "@/assets/branding/logo-horizontal-dark.svg"
-import LogoLight from "@/assets/branding/logo-horizontal-light.svg"
 import { cn } from "@/lib/utils"
 
 interface Props {
@@ -38,15 +37,7 @@ const imgAttrs = priority
 		alt="RenovaBit"
 		width={LogoDark.width}
 		height={LogoDark.height}
-		class={cn("hidden dark:block", widths[size])}
-		{...imgAttrs}
-	/>
-	<img
-		src={LogoLight.src}
-		alt="RenovaBit"
-		width={LogoLight.width}
-		height={LogoLight.height}
-		class={cn("dark:hidden", widths[size])}
+		class={cn(widths[size])}
 		{...imgAttrs}
 	/>
 </a>

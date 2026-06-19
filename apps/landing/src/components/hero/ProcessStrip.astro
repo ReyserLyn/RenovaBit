@@ -94,8 +94,8 @@ const items: Item[] = [
 							? "[transform:scaleX(-1)]"
 							: ""
 				const wrapperClass = item.desktopOnly
-					? `hidden md:flex md:items-center md:justify-center md:self-stretch md:px-2 md:text-muted-foreground/30 motion-safe:animate-fade-in motion-safe:animate-duration-700 ${item.delayClass}`
-					: `flex items-center justify-center self-stretch px-1 text-muted-foreground/30 motion-safe:animate-fade-in motion-safe:animate-duration-700 md:px-2 ${item.delayClass}`
+					? `hidden md:flex md:items-center md:justify-center md:self-stretch md:px-2 md:text-muted-foreground/30 motion-safe:animate-fade-in motion-safe:animate-duration-700 motion-reduce:animate-none ${item.delayClass}`
+					: `flex items-center justify-center self-stretch px-1 text-muted-foreground/30 motion-safe:animate-fade-in motion-safe:animate-duration-700 motion-reduce:animate-none md:px-2 ${item.delayClass}`
 				const areaClass = item.gridArea ? `[grid-area:${item.gridArea.replace(/\s/g, "")}]` : ""
 				return (
 					<li class="contents" role="presentation" aria-hidden="true">
@@ -125,7 +125,7 @@ const items: Item[] = [
 			return (
 				<li class="contents" role="listitem">
 					<div
-						class={`group flex w-full flex-1 flex-col items-center gap-1 text-center motion-safe:animate-fade-in-up motion-safe:animate-duration-700 ${item.delayClass} ${areaClass}`}
+						class={`group flex w-full flex-1 flex-col items-center gap-1 text-center motion-safe:animate-fade-in-up motion-safe:animate-duration-700 motion-reduce:animate-none ${item.delayClass} ${areaClass}`}
 					>
 						<span
 							class="font-eyebrow text-[9px] font-medium tracking-[0.18em] text-primary md:text-[10px] md:tracking-[0.22em]"
