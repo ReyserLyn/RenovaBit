@@ -21,7 +21,6 @@ import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import { Switch } from "@renovabit/ui/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@renovabit/ui/components/ui/tooltip";
 import type { ColumnDef, Row } from "@tanstack/react-table";
-import { useCallback } from "react";
 import type { Brand } from "@/features/brands/model";
 import type { Category } from "@/features/categories/model";
 import { DataGridColumnHeader } from "@/shared/components/data-grid/data-grid-column-header";

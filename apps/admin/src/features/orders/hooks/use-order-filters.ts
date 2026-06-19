@@ -1,12 +1,10 @@
+import type { OrderSource, OrderStatus, PaymentMethod } from "@renovabit/db/orders";
 import {
-	type ORDER_STATUS_URL_VALUES,
-	type OrderSource,
-	type OrderStatus,
-	type PAYMENT_METHOD_URL_VALUES,
+	ORDER_STATUS_URL_VALUES,
+	PAYMENT_METHOD_URL_VALUES,
 	PAYMENT_URL_TO_API,
-	type PaymentMethod,
 	STATUS_URL_TO_API,
-} from "@renovabit/db/orders";
+} from "@renovabit/db/orders-meta";
 import { parseAsInteger, parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 
 export const sortFieldValues = [

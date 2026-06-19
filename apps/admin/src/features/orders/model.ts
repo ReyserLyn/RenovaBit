@@ -1,14 +1,15 @@
 import {
-	ORDER_SOURCES,
-	ORDER_STATUS_LABELS,
 	ORDER_STATUS_TRANSITIONS,
 	ORDER_STATUSES,
 	type OrderSource,
 	type OrderStatus,
-	PAYMENT_METHOD_LABELS,
-	type PAYMENT_METHODS,
-	SOURCE_LABELS,
+	PAYMENT_METHODS,
 } from "@renovabit/db/orders";
+import {
+	ORDER_STATUS_LABELS,
+	PAYMENT_METHOD_LABELS,
+	SOURCE_LABELS,
+} from "@renovabit/db/orders-meta";
 import { z } from "zod";
 
 // ── Constants ────────────────────────────────────────────
@@ -79,7 +80,6 @@ export interface OrderDetail {
 	status: OrderStatus;
 	source: OrderSource;
 	paymentMethod: PaymentMethod | null;
-	paymentProofUrl: string | null;
 	customerName: string | null;
 	customerPhone: string | null;
 	customerEmail: string | null;
@@ -87,7 +87,7 @@ export interface OrderDetail {
 	discountTotal: string;
 	total: string;
 	notes: string | null;
-	adminNotes: string | null;
+	adminNotes?: string | null;
 	items: OrderItem[];
 	createdAt: string;
 	confirmedAt: string | null;
