@@ -36,7 +36,7 @@ import { OfferService } from "@/modules/offers/service";
 import { formatDate } from "@/utils/date";
 import { isUniqueViolationOn } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
-import { getActiveMarginRules, getActiveRoleMarginRules } from "@/utils/margin-rules";
+import { getActiveMarginRules } from "@/utils/margin-rules";
 import { getReservedStockForProductInTx } from "@/utils/stock";
 import {
 	deleteEntityAttachment,
@@ -283,10 +283,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 		}
 	}
 
-	const [customerRules, roleRules] = await Promise.all([
-		getActiveMarginRules(),
-		getActiveRoleMarginRules(),
-	]);
+	const marginRules = await getActiveMarginRules();
 
 	for (const item of cartItemsList) {
 		const product = productMap.get(item.productId);
@@ -312,28 +309,33 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 	// Resolve active offers for each product (so we can apply them to the order total).
 	// Fetched outside the transaction: a race with offer expiry mid-checkout is acceptable
 	// since the order is still `pending` and the discount is snapshotted at creation time.
-	const activeOffersByProduct = await OfferService.getActiveOffersForProducts(productIds);
+	const activeOffersByProduct = await OfferService.getActiveOffersForProducts(
+		orderRole,
+		productIds,
+	);
 
-	// Pre-compute per-line pricing so the transaction body only persists it.
-	// Use the buyer's role (or 'customer' for guests) for role-aware pricing.
-	const pricingItems: CartItemInput[] = cartItemsList.map((item) => {
+	// Resolve a product's role-aware unit price once and reuse for both pricing
+	// summary and per-line final price computation.
+	const resolveUnitPrice = (item: (typeof cartItemsList)[number]) => {
 		const product = productMap.get(item.productId);
-		const { salePrice } = getEffectiveSalePrice(
+		return getEffectiveSalePrice(
 			{
 				supplierPrice: product?.supplierPrice ?? "0",
 				roleCustomMargins: product?.roleCustomMargins ?? null,
 			},
 			orderRole,
-			customerRules,
-			roleRules,
-		);
-		return {
-			salePrice,
-			quantity: item.quantity,
-			offers: activeOffersByProduct.get(item.productId) ?? [],
-		};
-	});
-	const pricingResult = calculateOrderTotal({ items: pricingItems });
+			marginRules,
+		).salePrice;
+	};
+
+	// Pre-compute per-line pricing so the transaction body only persists it.
+	// Use the buyer's role (or 'customer' for guests) for role-aware pricing.
+	const pricingItems: CartItemInput[] = cartItemsList.map((item) => ({
+		salePrice: resolveUnitPrice(item),
+		quantity: item.quantity,
+		offers: activeOffersByProduct.get(item.productId) ?? [],
+	}));
+	const pricingResult = calculateOrderTotal({ items: pricingItems }, orderRole);
 
 	const discountTotalValue = pricingResult.offerDiscount;
 	const discountTotalStr = discountTotalValue.toFixed(2);
@@ -342,19 +344,10 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 	// Per-line finalPrice after applying offers; precomputed for the transaction body.
 	const lineFinalPrices = new Map<string, string>();
 	for (const item of cartItemsList) {
-		const product = productMap.get(item.productId);
-		const { salePrice } = getEffectiveSalePrice(
-			{
-				supplierPrice: product?.supplierPrice ?? "0",
-				roleCustomMargins: product?.roleCustomMargins ?? null,
-			},
-			orderRole,
-			customerRules,
-			roleRules,
-		);
+		const salePrice = resolveUnitPrice(item);
 		const offer = activeOffersByProduct.get(item.productId);
 		if (offer && offer.length > 0) {
-			const discounted = applyOfferToProduct(salePrice, offer).discountedPrice;
+			const discounted = applyOfferToProduct(salePrice, offer, orderRole).discountedPrice;
 			lineFinalPrices.set(item.itemId, (discounted * item.quantity).toFixed(2));
 		} else {
 			lineFinalPrices.set(item.itemId, (salePrice * item.quantity).toFixed(2));
@@ -528,25 +521,17 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 
 		// Batch insert all order items in a single statement
 		const orderItemsValues = cartItemsList.map((item) => {
-			const product = productMap.get(item.productId)!;
+			const product = productMap.get(item.productId);
 			const lineFinalPrice = lineFinalPrices.get(item.itemId) ?? "0.00";
 
 			// Recompute the role-aware unit price at order creation time.
 			// The cart's `addedAtPrice` may be stale or based on a different role.
-			const { salePrice: rolePrice } = getEffectiveSalePrice(
-				{
-					supplierPrice: product.supplierPrice,
-					roleCustomMargins: product.roleCustomMargins,
-				},
-				orderRole,
-				customerRules,
-				roleRules,
-			);
+			const rolePrice = resolveUnitPrice(item);
 			return {
 				orderId: order.id,
 				productId: item.productId,
-				productName: product.name,
-				productSku: product.sku,
+				productName: product?.name ?? "",
+				productSku: product?.sku ?? "",
 				quantity: item.quantity,
 				unitPrice: rolePrice.toFixed(2),
 				finalPrice: lineFinalPrice,
@@ -558,18 +543,26 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			.values(orderItemsValues)
 			.returning({ id: orderItems.id });
 
+		// Zip insertedItems with cartItemsList by position. If lengths diverge
+		// the DB returned something we didn't insert — bail out explicitly
+		// rather than indexing with a force-assert.
+		if (insertedItems.length !== cartItemsList.length) {
+			throw createApiError({
+				code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
+				message: "Error al crear el pedido: inconsistencia en la respuesta del DB",
+			});
+		}
+
 		const createdItems = insertedItems.map((inserted, index) => {
-			const item = cartItemsList[index]!;
-			const product = productMap.get(item.productId)!;
-			const { salePrice: rolePrice } = getEffectiveSalePrice(
-				{
-					supplierPrice: product.supplierPrice,
-					roleCustomMargins: product.roleCustomMargins,
-				},
-				orderRole,
-				customerRules,
-				roleRules,
-			);
+			const item = cartItemsList[index];
+			const product = item ? productMap.get(item.productId) : undefined;
+			if (!item || !product) {
+				throw createApiError({
+					code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
+					message: "Error al crear el pedido: inconsistencia en la respuesta del DB",
+				});
+			}
+			const rolePrice = resolveUnitPrice(item);
 			return {
 				id: inserted.id,
 				productId: item.productId,

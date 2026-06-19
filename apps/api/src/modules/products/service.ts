@@ -1,11 +1,14 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { brands, categories, productChanges, products, syncReports } from "@renovabit/db/schema";
 import {
-	getEffectiveSalePrice,
-	type ProductRoleCustomMargins,
-	type Role,
-} from "@renovabit/pricing";
+	brands,
+	categories,
+	productChanges,
+	products,
+	type RoleCustomMargins,
+	syncReports,
+} from "@renovabit/db/schema";
+import { getEffectiveSalePrice, type Role } from "@renovabit/pricing";
 import type { InferSelectModel } from "drizzle-orm";
 import {
 	and,
@@ -24,7 +27,7 @@ import { MAX_BULK_DELETE, SEARCH_PAYLOAD_CAP, SLOW_QUERY_THRESHOLD_MS } from "@/
 import { getCategoryAndDescendantIds } from "@/utils/category-helpers";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
-import { getActiveMarginRules, getActiveRoleMarginRules } from "@/utils/margin-rules";
+import { getActiveMarginRules } from "@/utils/margin-rules";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
 import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
@@ -358,7 +361,7 @@ async function listPublic(
 			categoryId: categories.id,
 			categoryName: categories.name,
 			categorySlug: categories.slug,
-			offers: activeOffersForProductSubquery(),
+			offers: activeOffersForProductSubquery(resolvedOptions.role ?? "customer"),
 		})
 		.from(products)
 		.leftJoin(brands, eq(products.brandId, brands.id))
@@ -368,10 +371,7 @@ async function listPublic(
 		.offset(offset)
 		.limit(limit);
 
-	const [customerRules, roleRules] = await Promise.all([
-		getActiveMarginRules(),
-		getActiveRoleMarginRules(),
-	]);
+	const marginRules = await getActiveMarginRules();
 	const role: Role = resolvedOptions.role ?? "customer";
 
 	// Filter by role-specific price (post-filter in JS, not SQL — role-aware
@@ -387,8 +387,7 @@ async function listPublic(
 					roleCustomMargins: row.roleCustomMargins,
 				},
 				role,
-				customerRules,
-				roleRules,
+				marginRules,
 			);
 			return {
 				id: row.id,
@@ -455,7 +454,7 @@ async function getBySlugPublic(
 				WHERE pi.product_id = ${products.id}),
 				'[]'::jsonb
 			)`,
-			offers: activeOffersForProductSubquery(),
+			offers: activeOffersForProductSubquery(role),
 		})
 		.from(products)
 		.leftJoin(brands, eq(products.brandId, brands.id))
@@ -465,18 +464,14 @@ async function getBySlugPublic(
 
 	if (!row) return null;
 
-	const [customerRules, roleRules] = await Promise.all([
-		getActiveMarginRules(),
-		getActiveRoleMarginRules(),
-	]);
+	const marginRules = await getActiveMarginRules();
 	const { salePrice } = getEffectiveSalePrice(
 		{
 			supplierPrice: row.supplierPrice,
 			roleCustomMargins: row.roleCustomMargins,
 		},
 		role,
-		customerRules,
-		roleRules,
+		marginRules,
 	);
 
 	return {
@@ -525,15 +520,11 @@ async function create(data: CreateBody, userId: string): Promise<Product> {
 
 	// Always derive `price` from supplierPrice + customer margin; ignore any value sent in the body.
 	const supplierPrice = data.supplierPrice ?? "0";
-	const [customerRules, roleRules] = await Promise.all([
-		getActiveMarginRules(),
-		getActiveRoleMarginRules(),
-	]);
+	const marginRules = await getActiveMarginRules();
 	const { salePrice } = getEffectiveSalePrice(
 		{ supplierPrice, roleCustomMargins: data.roleCustomMargins ?? null },
 		"customer",
-		customerRules,
-		roleRules,
+		marginRules,
 	);
 
 	const [item] = await db
@@ -616,15 +607,11 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Pro
 	if (pricingTouched) {
 		const supplierPrice = patch.supplierPrice ?? current.supplierPrice;
 		const roleCustomMargins = patch.roleCustomMargins ?? current.roleCustomMargins;
-		const [customerRules, roleRules] = await Promise.all([
-			getActiveMarginRules(),
-			getActiveRoleMarginRules(),
-		]);
+		const marginRules = await getActiveMarginRules();
 		const { salePrice } = getEffectiveSalePrice(
 			{ supplierPrice, roleCustomMargins },
 			"customer",
-			customerRules,
-			roleRules,
+			marginRules,
 		);
 		computedPrice = salePrice.toFixed(2);
 	}
@@ -923,7 +910,7 @@ async function search(
 		slug: string;
 		sku: string;
 		supplierPrice: string;
-		roleCustomMargins: ProductRoleCustomMargins | null;
+		roleCustomMargins: RoleCustomMargins | null;
 		isFeatured: boolean;
 		stock: number;
 		isInStock: boolean;
@@ -934,6 +921,14 @@ async function search(
 		categoryName: string | null;
 		categorySlug: string | null;
 		headline: string | null;
+		offers: Array<{
+			id: string;
+			name: string;
+			slug: string;
+			discountType: "percentage" | "fixed_amount";
+			discountValue: string;
+			isFeatured: boolean;
+		}>;
 	}> = [];
 
 	try {
@@ -967,6 +962,7 @@ async function search(
 				headline: sql<
 					string | null
 				>`ts_headline('spanish', ${products.name}, ${tsQuery}, 'MaxFragments=1,MaxWords=15,MinWords=5,StartSel=\u0001,StopSel=\u0002')`,
+				offers: activeOffersForProductSubquery(role),
 			})
 			.from(products)
 			.leftJoin(brands, eq(products.brandId, brands.id))
@@ -990,10 +986,7 @@ async function search(
 		throw error;
 	}
 
-	const [customerRules, roleRules] = await Promise.all([
-		getActiveMarginRules(),
-		getActiveRoleMarginRules(),
-	]);
+	const marginRules = await getActiveMarginRules();
 	const data = rows.map((row): ProductSearchResult => {
 		const { salePrice } = getEffectiveSalePrice(
 			{
@@ -1001,8 +994,7 @@ async function search(
 				roleCustomMargins: row.roleCustomMargins,
 			},
 			role,
-			customerRules,
-			roleRules,
+			marginRules,
 		);
 		return {
 			id: row.id,
@@ -1019,6 +1011,7 @@ async function search(
 			brand: row.brandName ? { name: row.brandName, slug: row.brandSlug! } : null,
 			category: row.categoryName ? { name: row.categoryName, slug: row.categorySlug! } : null,
 			headline: row.headline,
+			offers: row.offers,
 		};
 	});
 

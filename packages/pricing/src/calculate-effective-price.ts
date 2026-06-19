@@ -1,7 +1,4 @@
-import type { Role } from "@renovabit/db/schema";
-
-// Re-export Role so @renovabit/pricing consumers can use it without depending on @renovabit/db directly.
-export type { Role };
+import type { Role, RoleCustomMargins } from "@renovabit/db/schema";
 
 import { calculateSalePrice } from "./calculate-margin";
 import { roundCurrency } from "./currency";
@@ -13,24 +10,25 @@ import {
 } from "./margins";
 
 /**
- * Role-specific margin rules (the `role_margin_rules` table).
- * If a rule has no entry for the user's role, we fall back to the customer rules.
+ * `Role` is re-exported from `@renovabit/db/schema` so consumers of
+ * `@renovabit/pricing` (admin UI, storefront, etc.) don't need to add
+ * `@renovabit/db` as a direct dependency just to type a role string.
+ * The value is stable (`"admin" | "customer" | "distributor"`) and comes
+ * from one source of truth.
  */
-export type RoleMarginRule = {
-	role: Exclude<Role, "admin">; // admin never has rules — it always sees raw
-	minPrice: string;
-	maxPrice: string | null;
-	marginPercent: string;
-	sortOrder?: number; // Resolution priority (lower = higher priority). Falls back to 0.
-};
+export type { Role };
 
 /**
- * Per-product override (the `products.roleCustomMargins` JSONB column).
- * `enabled: true` means "use this percent regardless of tier rules".
+ * A single margin rule row covers both non-admin roles. The pricing
+ * lib reads `customerPct` for the `customer` role and `distributorPct`
+ * for the `distributor` role from whichever rule matches the supplier
+ * price. Admin never matches a rule.
  */
-export type ProductRoleCustomMargins = {
-	customer?: { enabled: true; percent: string };
-	distributor?: { enabled: true; percent: string };
+export type MarginRule = {
+	minPrice: string;
+	maxPrice: string | null;
+	customerPct: string;
+	distributorPct: string;
 };
 
 /**
@@ -52,24 +50,23 @@ export function validateSupplierPrice(supplierPrice: string): { price: number } 
  * Resolution order:
  *   1. role === 'admin'              → raw supplierPrice, 0% margin
  *   2. product.roleCustomMargins[role] (per-product override)
- *   3. roleMarginRules lookup for (role, supplierPrice) — non-customer only
- *   4. customerRules lookup (fallback when role-rules miss) — non-customer only
- *   5. DEFAULT_MARGIN_PERCENT (15%) for customer, DEFAULT_DISTRIBUTOR_MARGIN_PERCENT (10%) for distributor
+ *   3. tier rule lookup (one row, both pcts) — read the role's column
+ *   4. DEFAULT_MARGIN_PERCENT (20% customer, 10% distributor) as fallback
  *
  * Admin never gets a margin applied — they see the raw cost.
+ *
+ * The single `marginRules` array replaces the previous two-array design
+ * (base + role-specific). The first rule whose [minPrice, maxPrice) range
+ * contains the supplier price wins; we then read the column matching
+ * the user's role from that row.
  */
 export function getEffectiveSalePrice(
 	product: {
 		supplierPrice: string;
-		roleCustomMargins?: ProductRoleCustomMargins | null;
+		roleCustomMargins?: RoleCustomMargins | null;
 	},
 	role: Role,
-	customerRules: ReadonlyArray<{
-		minPrice: string;
-		maxPrice: string | null;
-		marginPercent: string;
-	}>,
-	roleRules: ReadonlyArray<RoleMarginRule> = [],
+	marginRules: ReadonlyArray<MarginRule>,
 ): { salePrice: number; marginPercent: number; source: string } {
 	const parsed = validateSupplierPrice(product.supplierPrice);
 	if (parsed === null) {
@@ -84,7 +81,7 @@ export function getEffectiveSalePrice(
 
 	// 2. Per-product override for this role
 	// Admin already returned early above, so role is always "customer" or "distributor" here.
-	const custom = product.roleCustomMargins?.[role as "customer" | "distributor"];
+	const custom = product.roleCustomMargins?.[role];
 	if (custom?.enabled) {
 		const pct = Number(custom.percent);
 		if (Number.isFinite(pct) && pct >= 0 && pct <= MAX_CUSTOM_MARGIN_PERCENT) {
@@ -96,79 +93,23 @@ export function getEffectiveSalePrice(
 		}
 	}
 
-	// 3. Role-specific tier rule (only for non-customer; customer uses customerRules directly)
-	if (role === "distributor") {
-		const roleRule = lookupRoleRule("distributor", supplierPrice, roleRules);
-		if (roleRule !== null) {
-			const pct = Number(roleRule.marginPercent);
-			return {
-				salePrice: calculateSalePrice(supplierPrice, pct),
-				marginPercent: pct,
-				source: "role-tier",
-			};
-		}
+	// 3. Tier rule — one row, pick the role's column
+	const rule = lookupMarginRule(supplierPrice, marginRules);
+	if (rule !== null) {
+		const pct = Number(role === "distributor" ? rule.distributorPct : rule.customerPct);
+		return {
+			salePrice: calculateSalePrice(supplierPrice, pct),
+			marginPercent: pct,
+			source: "tier",
+		};
 	}
 
-	// 4. Customer tier rule (also serves as fallback for non-customer roles)
+	// 4. Hardcoded fallback — no rule matched the supplier price (or no rules at all).
 	const fallbackPercent =
 		role === "distributor" ? DEFAULT_DISTRIBUTOR_MARGIN_PERCENT : DEFAULT_MARGIN_PERCENT;
-
-	if (customerRules.length > 0) {
-		const rule = lookupMarginRule(supplierPrice, customerRules);
-		if (rule !== null) {
-			const pct = Number(rule.marginPercent);
-			return {
-				salePrice: calculateSalePrice(supplierPrice, pct),
-				marginPercent: pct,
-				source: "customer-tier",
-			};
-		}
-	}
-
-	// 5. Hardcoded fallback — no rule matched the supplier price (or no rules at all).
-	//    Both paths converge to the same logic and same source label because the
-	//    distinction (empty rules vs. unmatched price) is not meaningful to callers.
 	return {
 		salePrice: calculateSalePrice(supplierPrice, fallbackPercent),
 		marginPercent: fallbackPercent,
 		source: "default-fallback",
 	};
-}
-
-/**
- * Finds the role-specific margin rule for a given (role, supplierPrice).
- *
- * Resolution policy:
- *   1. Filter rules by role
- *   2. Sort by sortOrder ASC (lower = higher priority), then minPrice ASC as tiebreaker
- *   3. Return the first matching rule by price range [minPrice, maxPrice)
- *   4. If no rule matches the price range, return null
- *
- * This means sortOrder controls priority, NOT the order of rules in the array.
- * Two rules with overlapping price ranges are allowed only if they have different
- * sortOrder values (the lower sortOrder wins). The DB-level UNIQUE(role, name) +
- * service-layer overlap check prevent ambiguous overlaps at the same sortOrder.
- */
-function lookupRoleRule(
-	role: Exclude<Role, "admin">,
-	supplierPrice: number,
-	roleRules: ReadonlyArray<RoleMarginRule>,
-): RoleMarginRule | null {
-	const applicable = roleRules
-		.filter((rule) => rule.role === role)
-		.sort((a, b) => {
-			const sortA = a.sortOrder ?? 0;
-			const sortB = b.sortOrder ?? 0;
-			if (sortA !== sortB) return sortA - sortB;
-			return Number(a.minPrice) - Number(b.minPrice);
-		});
-
-	for (const rule of applicable) {
-		const min = Number(rule.minPrice);
-		const max = rule.maxPrice === null ? Infinity : Number(rule.maxPrice);
-		if (supplierPrice >= min && supplierPrice < max) {
-			return rule;
-		}
-	}
-	return null;
 }

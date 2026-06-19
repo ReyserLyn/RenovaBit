@@ -2,9 +2,8 @@
 
 export {
 	getEffectiveSalePrice,
-	type ProductRoleCustomMargins,
+	type MarginRule,
 	type Role,
-	type RoleMarginRule,
 	validateSupplierPrice,
 } from "./calculate-effective-price";
 // ── Margin calculation ─────────────────────────────────

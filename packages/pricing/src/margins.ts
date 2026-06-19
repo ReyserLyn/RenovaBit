@@ -2,10 +2,20 @@
  * Pricing constants — single source of truth.
  */
 
-/** Default margin percent (fallback when no tier rule matches). */
-export const DEFAULT_MARGIN_PERCENT = 15;
+/**
+ * Default margin percent for the customer role.
+ *
+ * Used as the last-resort fallback in `getEffectiveSalePrice` when there
+ * are no tier rules configured. The admin should configure explicit tier
+ * rules (`/admin/margin-rules`) so this constant is only a safety net
+ * for an empty DB.
+ */
+export const DEFAULT_MARGIN_PERCENT = 20;
 
-/** Default margin percent for distributor role (fallback when no role rule matches). */
+/**
+ * Default margin percent for the distributor role.
+ * Same fallback semantics as `DEFAULT_MARGIN_PERCENT`.
+ */
 export const DEFAULT_DISTRIBUTOR_MARGIN_PERCENT = 10;
 
 /** Maximum sanity bound for tier-based margin percent. */
@@ -33,9 +43,8 @@ export const MAX_OFFER_DISCOUNT_PERCENT = 50;
 export const ROLE_RESOLUTION_LABELS = [
 	"admin-raw",
 	"no-supplier-price",
-	"role-tier",
 	"per-product-override",
-	"customer-tier",
+	"tier",
 	"default-fallback",
 ] as const;
 

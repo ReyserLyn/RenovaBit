@@ -2,12 +2,19 @@ import { index, integer, numeric, pgTable, varchar } from "drizzle-orm/pg-core";
 import { lifecycleDates, primaryKey as primaryKeyCol } from "./_utils";
 
 /**
- * Margin rules define pricing tiers based on supplier price ranges.
+ * Margin rules define pricing tiers by supplier-price range, with one
+ * percentage per non-admin role.
  *
- * A product's sale_price is calculated by:
- *   1. Per-product role override (roleCustomMargins)
- *   2. Tier lookup by supplier_price against these rules [min, max)
- *   3. Hardcoded DEFAULT_MARGIN_PERCENT (15%) as fallback
+ *   - Admin: never has rules. They always see the raw supplierPrice.
+ *   - Customer: gets `customerPct` when a rule matches the supplier price.
+ *   - Distributor: gets `distributorPct` when a rule matches.
+ *
+ * A single row covers both roles for the same price range — the only
+ * difference between roles is which column is read at evaluation time.
+ *
+ * Lookup semantics: [minPrice, maxPrice). `maxPrice = null` means +∞.
+ * Order: rows are sorted by `sortOrder ASC, minPrice ASC` at evaluation
+ * time; the first match wins.
  *
  * sale_price itself is NOT stored — it's app-calculated on read.
  */
@@ -16,10 +23,11 @@ export const marginRules = pgTable(
 	{
 		...primaryKeyCol,
 
-		name: varchar("name", { length: 255 }).notNull().unique(),
+		name: varchar("name", { length: 100 }).notNull().unique(),
 		minPrice: numeric("min_price", { precision: 10, scale: 2 }).notNull(),
 		maxPrice: numeric("max_price", { precision: 10, scale: 2 }),
-		marginPercent: numeric("margin_percent", { precision: 5, scale: 2 }).notNull(),
+		customerPct: numeric("customer_pct", { precision: 5, scale: 2 }).notNull(),
+		distributorPct: numeric("distributor_pct", { precision: 5, scale: 2 }).notNull(),
 		sortOrder: integer("sort_order").notNull().default(0),
 
 		...lifecycleDates,

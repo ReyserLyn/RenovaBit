@@ -2,9 +2,13 @@
  * Margin rules admin routes — CRUD for pricing tiers.
  * Prefix: /api/v1/admin/margin-rules
  *
- * Delegates to MarginRulesService for DB operations.
+ * One row covers both non-admin roles: `customerPct` for `customer`,
+ * `distributorPct` for `distributor`. Admin never has rules.
+ *
+ * Delegates to MarginRulesService for DB operations and overlap detection.
  */
 import { Elysia, t } from "elysia";
+import { AuthModule } from "@/modules/auth";
 import { MarginRulesService } from "@/modules/margin-rules/service";
 import { notFound } from "@/utils/api-helpers";
 
@@ -19,28 +23,31 @@ const MarginRuleIdParams = t.Object({
 	id: t.String({ format: "uuid" }),
 });
 
-const MarginRuleResponse = t.Object({
+export const MarginRuleResponse = t.Object({
 	id: t.String({ format: "uuid" }),
 	name: t.String(),
 	minPrice: t.String(),
 	maxPrice: t.Nullable(t.String()),
-	marginPercent: t.String(),
+	customerPct: t.String(),
+	distributorPct: t.String(),
 	sortOrder: t.Integer({ minimum: 0 }),
 	createdAt: t.Date(),
 	updatedAt: t.Date(),
 });
 
-const CreateMarginRuleBody = t.Object({
+export const CreateMarginRuleBody = t.Object({
 	name: t.String({ minLength: 1, maxLength: 100 }),
 	minPrice: t.Number({ minimum: 0 }),
 	maxPrice: t.Optional(t.Nullable(t.Number({ minimum: 0 }))),
-	marginPercent: t.Number({ minimum: 0, maximum: 100 }),
+	customerPct: t.Number({ minimum: 0, maximum: 100 }),
+	distributorPct: t.Number({ minimum: 0, maximum: 100 }),
 	sortOrder: t.Optional(t.Integer({ minimum: 0 })),
 });
 
-const UpdateMarginRuleBody = t.Partial(CreateMarginRuleBody);
+export const UpdateMarginRuleBody = t.Partial(CreateMarginRuleBody);
 
 export const adminMarginRulesRoute = new Elysia({ prefix: "/margin-rules" })
+	.use(AuthModule)
 	// ── List ──────────────────────────────────────
 	.get("/", async () => MarginRulesService.list(), {
 		isAdmin: true,

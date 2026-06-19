@@ -1,34 +1,27 @@
 import { db } from "@renovabit/db";
-import { marginRules, roleMarginRules } from "@renovabit/db/schema";
+import { marginRules } from "@renovabit/db/schema";
 import { asc } from "drizzle-orm";
 
 /**
- * Customer margin rules (the `margin_rules` table). Used for default pricing
- * and as a fallback for non-customer roles when no role-specific rule matches.
+ * Active margin rules used by the pricing lib.
+ *
+ * One row covers both non-admin roles: `customerPct` is read for the
+ * `customer` role, `distributorPct` for the `distributor` role.
+ * Admin never matches a rule (they always see the raw supplierPrice).
+ *
+ * Ordered by `sortOrder ASC` first (lower = higher priority), then
+ * `minPrice ASC` as a stable tiebreaker. The first row whose range
+ * contains the supplier price wins.
  */
 export async function getActiveMarginRules() {
 	return db
 		.select({
 			minPrice: marginRules.minPrice,
 			maxPrice: marginRules.maxPrice,
-			marginPercent: marginRules.marginPercent,
+			customerPct: marginRules.customerPct,
+			distributorPct: marginRules.distributorPct,
+			sortOrder: marginRules.sortOrder,
 		})
 		.from(marginRules)
-		.orderBy(asc(marginRules.minPrice));
-}
-
-/**
- * Role-specific margin rules (the `role_margin_rules` table). Currently
- * `customer` and `distributor` are valid; `admin` never has rules (always raw).
- */
-export async function getActiveRoleMarginRules() {
-	return db
-		.select({
-			role: roleMarginRules.role,
-			minPrice: roleMarginRules.minPrice,
-			maxPrice: roleMarginRules.maxPrice,
-			marginPercent: roleMarginRules.marginPercent,
-		})
-		.from(roleMarginRules)
-		.orderBy(asc(roleMarginRules.minPrice));
+		.orderBy(asc(marginRules.sortOrder), asc(marginRules.minPrice));
 }

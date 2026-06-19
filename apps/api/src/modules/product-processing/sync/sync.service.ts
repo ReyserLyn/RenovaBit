@@ -3,7 +3,6 @@ import { db } from "@renovabit/db";
 import {
 	brands,
 	categories,
-	marginRules,
 	productChanges,
 	productImages,
 	productProviders,
@@ -12,12 +11,13 @@ import {
 	syncReports,
 } from "@renovabit/db/schema";
 import { getEffectiveSalePrice } from "@renovabit/pricing";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import pLimit from "p-limit";
 import slugify from "slugify";
 import type { ScrapedItem } from "@/modules/scrapping/model";
 import { scrapingService } from "@/modules/scrapping/service";
 import { logger } from "@/utils/logger";
+import { getActiveMarginRules } from "@/utils/margin-rules";
 import { extractFromRawName } from "../ai/ai.service";
 import { processProductImage, removeImageReviewReason } from "../image-pipeline/process";
 import type { SyncStats } from "./sync.model";
@@ -50,20 +50,12 @@ async function computePricingFromRules(
 	const supplierPrice = Number.parseFloat(rawPrice);
 	if (!Number.isFinite(supplierPrice) || supplierPrice <= 0) return null;
 
-	const rules = await db
-		.select({
-			minPrice: marginRules.minPrice,
-			maxPrice: marginRules.maxPrice,
-			marginPercent: marginRules.marginPercent,
-		})
-		.from(marginRules)
-		.orderBy(desc(marginRules.sortOrder), desc(marginRules.createdAt));
+	const rules = await getActiveMarginRules();
 
 	const { salePrice } = getEffectiveSalePrice(
 		{ supplierPrice: rawPrice, roleCustomMargins: null },
 		"customer",
 		rules,
-		[], // sync products have no role-specific overrides
 	);
 
 	return { supplierPrice: rawPrice, salePrice: salePrice.toFixed(2) };

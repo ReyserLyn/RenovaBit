@@ -10,7 +10,6 @@ export * from "./orders";
 export * from "./products";
 export * from "./providers";
 export * from "./role-custom-margins";
-export * from "./role-margin-rules";
 export * from "./roles";
 export * from "./scraping-blacklist";
 export * from "./sync";
