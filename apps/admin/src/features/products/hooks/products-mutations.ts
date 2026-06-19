@@ -25,6 +25,8 @@ export function useCreateProduct() {
 				description: data.description ?? null,
 				sku: data.sku,
 				price: data.price,
+				supplierPrice: data.supplierPrice ?? "",
+				roleCustomMargins: data.roleCustomMargins ?? null,
 				stock: data.stock ?? 0,
 				reservedStock: 0,
 				availableStock: data.stock ?? 0,

@@ -1,3 +1,5 @@
+import type { RoleCustomMargins } from "@renovabit/db/schema";
+import { MAX_CUSTOM_MARGIN_PERCENT } from "@renovabit/pricing";
 import { z } from "zod";
 
 // ── Constants ────────────────────────────────────────────
@@ -22,6 +24,8 @@ export interface Product {
 	description: string | null;
 	sku: string;
 	price: string;
+	supplierPrice: string;
+	roleCustomMargins: RoleCustomMargins | null;
 	stock: number;
 	reservedStock?: number;
 	availableStock?: number;
@@ -101,6 +105,14 @@ export const createProductSchema = z.object({
 			error: `El SKU no puede superar ${PRODUCT_SKU_MAX} caracteres`,
 		}),
 	price: z.string().min(1, { error: "El precio es obligatorio" }),
+	supplierPrice: z.string(),
+	roleCustomMargins: z
+		.object({
+			customer: z.object({ enabled: z.literal(true), percent: z.string() }).optional(),
+			distributor: z.object({ enabled: z.literal(true), percent: z.string() }).optional(),
+		})
+		.nullable()
+		.optional(),
 	stock: z.number().int().min(0).optional(),
 	brandId: z.uuid().nullable().optional(),
 	categoryId: z.uuid().nullable().optional(),
@@ -172,6 +184,37 @@ export const productFormSchema = z.object({
 		.regex(/^\d+(\.\d{1,2})?$/, {
 			error: "El precio debe ser un número válido (ej: 99.99)",
 		}),
+	supplierPrice: z.string().regex(/^\d+(\.\d{1,2})?$/, {
+		error: "El precio debe ser un número válido (ej: 99.99)",
+	}),
+	customerEnabled: z.boolean(),
+	customerPercent: z
+		.string()
+		.refine((v) => v === "" || /^\d+(\.\d{1,2})?$/.test(v), {
+			error: "El margen debe ser un número válido (ej: 25)",
+		})
+		.refine(
+			(v) => {
+				if (v === "") return true;
+				const n = Number(v);
+				return Number.isFinite(n) && n >= 0 && n <= MAX_CUSTOM_MARGIN_PERCENT;
+			},
+			{ error: `El margen no puede superar ${MAX_CUSTOM_MARGIN_PERCENT}%` },
+		),
+	distributorEnabled: z.boolean(),
+	distributorPercent: z
+		.string()
+		.refine((v) => v === "" || /^\d+(\.\d{1,2})?$/.test(v), {
+			error: "El margen debe ser un número válido (ej: 25)",
+		})
+		.refine(
+			(v) => {
+				if (v === "") return true;
+				const n = Number(v);
+				return Number.isFinite(n) && n >= 0 && n <= MAX_CUSTOM_MARGIN_PERCENT;
+			},
+			{ error: `El margen no puede superar ${MAX_CUSTOM_MARGIN_PERCENT}%` },
+		),
 	stock: z.number().int().min(0, { error: "El stock no puede ser negativo" }),
 	brandId: z.uuid().nullable().optional(),
 	categoryId: z.uuid().nullable().optional(),
@@ -201,3 +244,21 @@ export type ProductFormValues = z.infer<typeof productFormSchema>;
 export type CreateProductValues = z.infer<typeof createProductSchema>;
 export type UpdateProductValues = z.infer<typeof updateProductSchema>;
 export type BulkDeleteValues = z.infer<typeof bulkDeleteSchema>;
+
+// ── Transforms ───────────────────────────────────────────
+
+export function toRoleCustomMargins(state: {
+	customerEnabled: boolean;
+	customerPercent: string;
+	distributorEnabled: boolean;
+	distributorPercent: string;
+}): RoleCustomMargins | null {
+	const out: RoleCustomMargins = {};
+	if (state.customerEnabled && state.customerPercent.length > 0) {
+		out.customer = { enabled: true, percent: state.customerPercent };
+	}
+	if (state.distributorEnabled && state.distributorPercent.length > 0) {
+		out.distributor = { enabled: true, percent: state.distributorPercent };
+	}
+	return Object.keys(out).length === 0 ? null : out;
+}

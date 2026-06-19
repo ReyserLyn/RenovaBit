@@ -45,6 +45,8 @@ export function ProductEditDialog({ product, open, onOpenChange }: ProductEditDi
 								description: product.description,
 								sku: product.sku,
 								price: product.price,
+								supplierPrice: product.supplierPrice,
+								roleCustomMargins: product.roleCustomMargins,
 								stock: product.stock,
 								brandId: product.brandId,
 								categoryId: product.categoryId,

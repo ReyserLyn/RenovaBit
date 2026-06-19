@@ -14,6 +14,15 @@
 			"@renovabit/ui/*": [
 				"../../packages/ui/src/*"
 			],
+			"@renovabit/pricing": [
+				"../../packages/pricing/src/index.ts"
+			],
+			"@renovabit/db": [
+				"../../packages/db/src/index.ts"
+			],
+			"@renovabit/db/*": [
+				"../../packages/db/src/*"
+			],
 			"@renovabit/backend-client": [
 				"../../packages/backend-client/src/index.ts"
 			],

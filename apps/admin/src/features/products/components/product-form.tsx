@@ -23,6 +23,12 @@ import {
 	Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import type { RoleCustomMargins } from "@renovabit/db/schema";
+import {
+	getEffectiveSalePrice,
+	MAX_CUSTOM_MARGIN_PERCENT,
+	roundCurrency,
+} from "@renovabit/pricing";
 import { Button } from "@renovabit/ui/components/ui/button";
 import {
 	Dialog,
@@ -54,6 +60,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useBrands } from "@/features/brands/hooks";
 import { useCategories } from "@/features/categories/hooks";
+import { useMarginRules } from "@/features/margin-rules/hooks/use-margin-rules";
 import { getFieldErrorId, normalizeFieldErrors } from "@/shared/lib/form/form-utils";
 import { generateSlug } from "@/shared/lib/slug";
 import { uploadImage } from "@/shared/lib/storage/storage-service";
@@ -72,8 +79,10 @@ import {
 	type ProductFormValues,
 	type ProductSpecification,
 	productFormSchema,
+	toRoleCustomMargins,
 } from "../model";
 import { productImagesService } from "../service/product-images.service";
+import { ProductMarginPreview } from "./product-margin-preview";
 
 // ── Constants ────────────────────────────────────────────
 
@@ -183,6 +192,11 @@ function getDefaultFormValues(props: ProductFormProps): ProductFormValues {
 			description: props.product.description ?? "",
 			sku: props.product.sku,
 			price: props.product.price,
+			supplierPrice: props.product.supplierPrice ?? "",
+			customerEnabled: props.product.roleCustomMargins?.customer?.enabled ?? false,
+			customerPercent: props.product.roleCustomMargins?.customer?.percent ?? "",
+			distributorEnabled: props.product.roleCustomMargins?.distributor?.enabled ?? false,
+			distributorPercent: props.product.roleCustomMargins?.distributor?.percent ?? "",
 			stock: props.product.stock,
 			brandId: props.product.brandId,
 			categoryId: props.product.categoryId,
@@ -216,6 +230,8 @@ interface ProductFormEditProps {
 		description: string | null;
 		sku: string;
 		price: string;
+		supplierPrice: string;
+		roleCustomMargins: RoleCustomMargins | null;
 		stock: number;
 		brandId: string | null;
 		categoryId: string | null;
@@ -273,6 +289,7 @@ export function ProductForm(props: ProductFormProps) {
 	const brands = brandsData ?? [];
 	const categories = categoriesData ?? [];
 
+	const { data: marginRules } = useMarginRules();
 	// Notificar al wrapper cuando cambia isSubmitting
 	useEffect(() => {
 		if (onSubmittingChange && prevSubmittingRef.current !== isSubmitting) {
@@ -309,12 +326,20 @@ export function ProductForm(props: ProductFormProps) {
 
 			try {
 				// 1. Create or update product FIRST (evita imágenes huérfanas)
+				const roleCustomMargins = toRoleCustomMargins({
+					customerEnabled: value.customerEnabled,
+					customerPercent: value.customerPercent,
+					distributorEnabled: value.distributorEnabled,
+					distributorPercent: value.distributorPercent,
+				});
 				const result = await onMutation({
 					name: value.name,
 					slug: value.slug,
 					description: toApiValue(value.description),
 					sku: value.sku,
 					price: value.price,
+					supplierPrice: value.supplierPrice,
+					roleCustomMargins,
 					stock: value.stock,
 					brandId: value.brandId ?? null,
 					categoryId: value.categoryId ?? null,
@@ -519,6 +544,184 @@ export function ProductForm(props: ProductFormProps) {
 	}
 
 	// ── Render helpers ─────────────────────────────────
+	function RoleOverrideSection({
+		role,
+		label,
+		placeholder,
+	}: {
+		role: "customer" | "distributor";
+		label: string;
+		placeholder: string;
+	}) {
+		const [bufferValue, setBufferValue] = useState("");
+		const percentFieldName = `${role}Percent` as const;
+		const enabledFieldName = `${role}Enabled` as const;
+
+		const setPercent = (value: string) => {
+			if (role === "customer") form.setFieldValue("customerPercent", value);
+			else form.setFieldValue("distributorPercent", value);
+		};
+		const getPercent = (): string => {
+			if (role === "customer") {
+				const v = form.getFieldValue("customerPercent");
+				return typeof v === "string" ? v : "";
+			}
+			const v = form.getFieldValue("distributorPercent");
+			return typeof v === "string" ? v : "";
+		};
+		const setEnabled = (value: boolean) => {
+			if (role === "customer") form.setFieldValue("customerEnabled", value);
+			else form.setFieldValue("distributorEnabled", value);
+		};
+
+		return (
+			<form.Subscribe
+				selector={(state) => ({
+					enabled:
+						role === "customer" ? state.values.customerEnabled : state.values.distributorEnabled,
+					percent:
+						role === "customer" ? state.values.customerPercent : state.values.distributorPercent,
+					supplierPrice: state.values.supplierPrice,
+				})}
+			>
+				{({ enabled, percent, supplierPrice }) => {
+					const safePercent = percent ?? "";
+					const safeSupplier = supplierPrice ?? "";
+					const supplierPriceNum = Number(safeSupplier);
+					const hasValidSupplier = Number.isFinite(supplierPriceNum) && supplierPriceNum > 0;
+
+					const effective = hasValidSupplier
+						? getEffectiveSalePrice(
+								{
+									supplierPrice: safeSupplier,
+									roleCustomMargins:
+										enabled && safePercent.length > 0
+											? ({
+													[role]: { enabled: true, percent: safePercent },
+												} as Record<string, { enabled: true; percent: string }>)
+											: undefined,
+								},
+								role,
+								marginRules ?? [],
+							)
+						: null;
+
+					return (
+						<>
+							<form.Field name={enabledFieldName}>
+								{(field) => (
+									<Field orientation="horizontal" className="items-center justify-between gap-4">
+										<div className="flex min-w-0 flex-col gap-1">
+											<FieldLabel htmlFor={field.name} className="cursor-pointer">
+												{label} — margen personalizado
+											</FieldLabel>
+										</div>
+										<Switch
+											id={field.name}
+											size="sm"
+											checked={field.state.value}
+											onCheckedChange={(checked) => {
+												field.handleChange(checked);
+												if (!checked) {
+													setPercent("");
+													setBufferValue("");
+												}
+											}}
+											disabled={isSubmitting}
+										/>
+									</Field>
+								)}
+							</form.Field>
+
+							{enabled && (
+								<div className="flex flex-col gap-2 pl-0 sm:flex-row sm:pl-8">
+									<form.Field name={percentFieldName}>
+										{(subField) => {
+											const wasSubmitted = subField.form.state.submissionAttempts > 0;
+											const isInvalid =
+												(subField.state.meta.isTouched || wasSubmitted) &&
+												subField.state.meta.errors.length > 0;
+											const errorMessageId = getFieldErrorId(PRODUCT_FORM_ID, subField.name);
+
+											return (
+												<Field className="flex-1" data-invalid={isInvalid}>
+													<FieldLabel htmlFor={subField.name}>Margen (%)</FieldLabel>
+													<div className="flex items-center gap-2">
+														<Input
+															id={subField.name}
+															name={subField.name}
+															type="text"
+															inputMode="decimal"
+															value={subField.state.value ?? ""}
+															onChange={(e) => subField.handleChange(e.target.value)}
+															onBlur={subField.handleBlur}
+															placeholder={placeholder}
+															disabled={isSubmitting}
+															className="font-mono tabular-nums"
+															aria-invalid={isInvalid}
+															aria-describedby={isInvalid ? errorMessageId : undefined}
+														/>
+														<span className="text-muted-foreground shrink-0 text-sm">%</span>
+														<Button
+															type="button"
+															variant="ghost"
+															size="sm"
+															onClick={() => {
+																setEnabled(false);
+																setPercent("");
+																setBufferValue("");
+															}}
+															disabled={isSubmitting}
+														>
+															Restablecer
+														</Button>
+													</div>
+													{isInvalid && (
+														<FieldError
+															id={errorMessageId}
+															errors={normalizeFieldErrors(subField.state.meta.errors)}
+														/>
+													)}
+												</Field>
+											);
+										}}
+									</form.Field>
+
+									<Field className="flex-1">
+										<FieldLabel>Precio final (S/)</FieldLabel>
+										<Input
+											type="text"
+											inputMode="decimal"
+											value={bufferValue || (effective?.salePrice.toString() ?? "")}
+											onChange={(e) => setBufferValue(e.target.value)}
+											onBlur={() => {
+												if (!hasValidSupplier) return;
+												const finalPrice = Number(bufferValue);
+												if (!Number.isFinite(finalPrice) || finalPrice <= 0) return;
+												const newPercent = (finalPrice / supplierPriceNum - 1) * 100;
+												const clamped = Math.max(
+													0,
+													Math.min(newPercent, MAX_CUSTOM_MARGIN_PERCENT),
+												);
+												const rounded = roundCurrency(clamped);
+												const roundedStr = String(rounded);
+												if (roundedStr !== getPercent()) {
+													setPercent(roundedStr);
+												}
+												setBufferValue("");
+											}}
+											disabled={isSubmitting}
+											className="font-mono tabular-nums"
+										/>
+									</Field>
+								</div>
+							)}
+						</>
+					);
+				}}
+			</form.Subscribe>
+		);
+	}
 
 	return (
 		<form
@@ -755,7 +958,7 @@ export function ProductForm(props: ProductFormProps) {
 										onChange={(e) => field.handleChange(e.target.value)}
 										onBlur={field.handleBlur}
 										placeholder="99.99"
-										disabled={isSubmitting}
+										disabled
 										className="font-mono tabular-nums"
 										aria-invalid={isInvalid}
 										aria-describedby={isInvalid ? errorMessageId : undefined}
@@ -812,6 +1015,85 @@ export function ProductForm(props: ProductFormProps) {
 						}}
 					</form.Field>
 				</div>
+			</FieldGroup>
+
+			<Separator />
+
+			{/* ═════════════════════════════════════════════
+					MARGEN Y PRECIO
+				═════════════════════════════════════════════ */}
+			<header className="flex flex-col">
+				<h3 className="font-medium text-foreground text-sm">Margen y precio</h3>
+				<FieldDescription>
+					Define el costo de compra y márgenes personalizados por rol.
+				</FieldDescription>
+			</header>
+
+			<FieldGroup>
+				{/* ── Supplier Price ── */}
+				<form.Field name="supplierPrice">
+					{(field) => {
+						const wasSubmitted = field.form.state.submissionAttempts > 0;
+						const isInvalid =
+							(field.state.meta.isTouched || wasSubmitted) && field.state.meta.errors.length > 0;
+						const errorMessageId = getFieldErrorId(PRODUCT_FORM_ID, field.name);
+
+						return (
+							<Field data-invalid={isInvalid}>
+								<FieldLabel htmlFor={field.name}>Costo (S/)</FieldLabel>
+								<FieldDescription>Precio de compra al proveedor.</FieldDescription>
+								<Input
+									id={field.name}
+									name={field.name}
+									type="text"
+									inputMode="decimal"
+									value={field.state.value}
+									onChange={(e) => field.handleChange(e.target.value)}
+									onBlur={field.handleBlur}
+									placeholder="99.99"
+									disabled={isSubmitting}
+									className="font-mono tabular-nums"
+									aria-invalid={isInvalid}
+									aria-describedby={isInvalid ? errorMessageId : undefined}
+								/>
+								{isInvalid && (
+									<FieldError
+										id={errorMessageId}
+										errors={normalizeFieldErrors(field.state.meta.errors)}
+									/>
+								)}
+							</Field>
+						);
+					}}
+				</form.Field>
+
+				{/* ── Customer Override ── */}
+				<RoleOverrideSection role="customer" label="Cliente" placeholder="Ej: 25" />
+
+				{/* ── Distributor Override ── */}
+				<RoleOverrideSection role="distributor" label="Distribuidor" placeholder="Ej: 10" />
+
+				{/* ── Preview Card ── */}
+				<form.Subscribe
+					selector={(state) => ({
+						supplierPrice: state.values.supplierPrice,
+						customerEnabled: state.values.customerEnabled,
+						customerPercent: state.values.customerPercent,
+						distributorEnabled: state.values.distributorEnabled,
+						distributorPercent: state.values.distributorPercent,
+					})}
+				>
+					{(values) => (
+						<ProductMarginPreview
+							supplierPrice={values.supplierPrice}
+							customerEnabled={values.customerEnabled}
+							customerPercent={values.customerPercent}
+							distributorEnabled={values.distributorEnabled}
+							distributorPercent={values.distributorPercent}
+							marginRules={marginRules}
+						/>
+					)}
+				</form.Subscribe>
 			</FieldGroup>
 
 			<Separator />
