@@ -1,12 +1,16 @@
-/**
- * Local copy of the role enum. We don't import from `@renovabit/db` to avoid
- * a circular workspace dep — keep this list in sync with `packages/db/src/schema/roles.ts`.
- */
-export type Role = "admin" | "customer" | "distributor";
+import type { Role } from "@renovabit/db/schema";
+
+// Re-export Role so @renovabit/pricing consumers can use it without depending on @renovabit/db directly.
+export type { Role };
 
 import { calculateSalePrice } from "./calculate-margin";
+import { roundCurrency } from "./currency";
 import { lookupMarginRule } from "./lookup-margin-rule";
-import { DEFAULT_MARGIN_PERCENT, MAX_CUSTOM_MARGIN_PERCENT } from "./margins";
+import {
+	DEFAULT_DISTRIBUTOR_MARGIN_PERCENT,
+	DEFAULT_MARGIN_PERCENT,
+	MAX_CUSTOM_MARGIN_PERCENT,
+} from "./margins";
 
 /**
  * Role-specific margin rules (the `role_margin_rules` table).
@@ -17,6 +21,7 @@ export type RoleMarginRule = {
 	minPrice: string;
 	maxPrice: string | null;
 	marginPercent: string;
+	sortOrder?: number; // Resolution priority (lower = higher priority). Falls back to 0.
 };
 
 /**
@@ -30,8 +35,8 @@ export type ProductRoleCustomMargins = {
 
 /**
  * Validates a supplier price string. Returns the parsed number or null if invalid.
- * Accepts finite, non-negative numeric strings. Rejects empty, non-numeric,
- * and negative values, replacing them with 0 / "no-supplier-price".
+ * Accepts finite, positive numeric strings. Rejects empty, non-numeric,
+ * zero, and negative values, replacing them with 0 / "no-supplier-price".
  */
 export function validateSupplierPrice(supplierPrice: string): { price: number } | null {
 	const price = Number(supplierPrice);
@@ -49,7 +54,7 @@ export function validateSupplierPrice(supplierPrice: string): { price: number } 
  *   2. product.roleCustomMargins[role] (per-product override)
  *   3. roleMarginRules lookup for (role, supplierPrice) — non-customer only
  *   4. customerRules lookup (fallback when role-rules miss) — non-customer only
- *   5. DEFAULT_MARGIN_PERCENT (15%)
+ *   5. DEFAULT_MARGIN_PERCENT (15%) for customer, DEFAULT_DISTRIBUTOR_MARGIN_PERCENT (10%) for distributor
  *
  * Admin never gets a margin applied — they see the raw cost.
  */
@@ -72,23 +77,22 @@ export function getEffectiveSalePrice(
 	}
 	const supplierPrice = parsed.price;
 
-	// 1. Admin = raw
+	// 1. Admin = raw (rounded to 2dp for consistency)
 	if (role === "admin") {
-		return { salePrice: supplierPrice, marginPercent: 0, source: "admin-raw" };
+		return { salePrice: roundCurrency(supplierPrice), marginPercent: 0, source: "admin-raw" };
 	}
 
 	// 2. Per-product override for this role
-	if (role === "customer" || role === "distributor") {
-		const custom = product.roleCustomMargins?.[role];
-		if (custom?.enabled) {
-			const pct = Number(custom.percent);
-			if (Number.isFinite(pct) && pct >= 0 && pct <= MAX_CUSTOM_MARGIN_PERCENT) {
-				return {
-					salePrice: calculateSalePrice(supplierPrice, pct),
-					marginPercent: pct,
-					source: "per-product-override",
-				};
-			}
+	// Admin already returned early above, so role is always "customer" or "distributor" here.
+	const custom = product.roleCustomMargins?.[role as "customer" | "distributor"];
+	if (custom?.enabled) {
+		const pct = Number(custom.percent);
+		if (Number.isFinite(pct) && pct >= 0 && pct <= MAX_CUSTOM_MARGIN_PERCENT) {
+			return {
+				salePrice: calculateSalePrice(supplierPrice, pct),
+				marginPercent: pct,
+				source: "per-product-override",
+			};
 		}
 	}
 
@@ -106,6 +110,9 @@ export function getEffectiveSalePrice(
 	}
 
 	// 4. Customer tier rule (also serves as fallback for non-customer roles)
+	const fallbackPercent =
+		role === "distributor" ? DEFAULT_DISTRIBUTOR_MARGIN_PERCENT : DEFAULT_MARGIN_PERCENT;
+
 	if (customerRules.length > 0) {
 		const rule = lookupMarginRule(supplierPrice, customerRules);
 		if (rule !== null) {
@@ -116,32 +123,47 @@ export function getEffectiveSalePrice(
 				source: "customer-tier",
 			};
 		}
-		// 5. No matching customer rule — hardcoded fallback
-		return {
-			salePrice: calculateSalePrice(supplierPrice, DEFAULT_MARGIN_PERCENT),
-			marginPercent: DEFAULT_MARGIN_PERCENT,
-			source: "default-fallback",
-		};
 	}
 
-	// 5. No rules at all
+	// 5. Hardcoded fallback — no rule matched the supplier price (or no rules at all).
+	//    Both paths converge to the same logic and same source label because the
+	//    distinction (empty rules vs. unmatched price) is not meaningful to callers.
 	return {
-		salePrice: calculateSalePrice(supplierPrice, DEFAULT_MARGIN_PERCENT),
-		marginPercent: DEFAULT_MARGIN_PERCENT,
-		source: "no-rules",
+		salePrice: calculateSalePrice(supplierPrice, fallbackPercent),
+		marginPercent: fallbackPercent,
+		source: "default-fallback",
 	};
 }
 
 /**
  * Finds the role-specific margin rule for a given (role, supplierPrice).
+ *
+ * Resolution policy:
+ *   1. Filter rules by role
+ *   2. Sort by sortOrder ASC (lower = higher priority), then minPrice ASC as tiebreaker
+ *   3. Return the first matching rule by price range [minPrice, maxPrice)
+ *   4. If no rule matches the price range, return null
+ *
+ * This means sortOrder controls priority, NOT the order of rules in the array.
+ * Two rules with overlapping price ranges are allowed only if they have different
+ * sortOrder values (the lower sortOrder wins). The DB-level UNIQUE(role, name) +
+ * service-layer overlap check prevent ambiguous overlaps at the same sortOrder.
  */
 function lookupRoleRule(
 	role: Exclude<Role, "admin">,
 	supplierPrice: number,
 	roleRules: ReadonlyArray<RoleMarginRule>,
 ): RoleMarginRule | null {
-	for (const rule of roleRules) {
-		if (rule.role !== role) continue;
+	const applicable = roleRules
+		.filter((rule) => rule.role === role)
+		.sort((a, b) => {
+			const sortA = a.sortOrder ?? 0;
+			const sortB = b.sortOrder ?? 0;
+			if (sortA !== sortB) return sortA - sortB;
+			return Number(a.minPrice) - Number(b.minPrice);
+		});
+
+	for (const rule of applicable) {
 		const min = Number(rule.minPrice);
 		const max = rule.maxPrice === null ? Infinity : Number(rule.maxPrice);
 		if (supplierPrice >= min && supplierPrice < max) {

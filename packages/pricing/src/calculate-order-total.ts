@@ -1,3 +1,4 @@
+import type { Role } from "./calculate-effective-price";
 import { applyOfferToProduct, type OfferInput } from "./calculate-offer";
 
 /**
@@ -49,28 +50,33 @@ export type OrderTotalResult = {
  * @param input - Cart items with pre-calculated salePrices
  * @returns Complete pricing breakdown
  */
-export function calculateOrderTotal(input: OrderTotalInput): OrderTotalResult {
+export function calculateOrderTotal(
+	input: OrderTotalInput,
+	role: Role = "customer",
+): OrderTotalResult {
 	const { items } = input;
 
-	// Step 1: Calculate subtotal (sum of sale_price × quantity)
-	const subtotal = items.reduce<number>((sum, item) => {
-		return sum + item.salePrice * item.quantity;
-	}, 0);
+	// Step 1: Calculate subtotal (sum of sale_price × quantity), rounded to 2 decimals
+	const subtotal =
+		Math.round(items.reduce<number>((sum, item) => sum + item.salePrice * item.quantity, 0) * 100) /
+		100;
 
-	// Step 2: Resolve offers per item
+	// Step 2: Resolve offers per item (offers only apply to customers)
 	let offerDiscount = 0;
 
 	for (const item of items) {
 		if (item.offers && item.offers.length > 0) {
-			const result = applyOfferToProduct(item.salePrice, item.offers);
+			const result = applyOfferToProduct(item.salePrice, item.offers, role);
 			const originalLine = item.salePrice * item.quantity;
 			const discountedLine = result.discountedPrice * item.quantity;
 			offerDiscount += originalLine - discountedLine;
 		}
 	}
 
-	// Step 3: Calculate final total (floored at 0)
-	const total = Math.max(0, subtotal - offerDiscount);
+	offerDiscount = Math.round(offerDiscount * 100) / 100;
+
+	// Step 3: Calculate final total (floored at 0, rounded to 2 decimals)
+	const total = Math.round(Math.max(0, subtotal - offerDiscount) * 100) / 100;
 
 	return {
 		subtotal,

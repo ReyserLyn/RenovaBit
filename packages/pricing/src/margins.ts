@@ -36,7 +36,6 @@ export const ROLE_RESOLUTION_LABELS = [
 	"role-tier",
 	"per-product-override",
 	"customer-tier",
-	"no-rules",
 	"default-fallback",
 ] as const;
 

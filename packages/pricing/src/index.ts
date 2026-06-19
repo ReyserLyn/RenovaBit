@@ -14,6 +14,8 @@ export { applyOfferToProduct } from "./calculate-offer";
 export type { CartItemInput, OrderTotalInput, OrderTotalResult } from "./calculate-order-total";
 // ── Order total ────────────────────────────────────────
 export { calculateOrderTotal } from "./calculate-order-total";
+// ── Currency ───────────────────────────────────────────
+export { roundCurrency } from "./currency";
 export { lookupMarginRule } from "./lookup-margin-rule";
 export type { RoleResolutionSource } from "./margins";
 // ── Constants ──────────────────────────────────────────

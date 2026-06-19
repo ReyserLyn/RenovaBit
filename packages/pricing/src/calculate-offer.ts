@@ -1,3 +1,5 @@
+import type { Role } from "./calculate-effective-price";
+import { roundCurrency } from "./currency";
 import { MAX_OFFER_DISCOUNT_PERCENT } from "./margins";
 
 /**
@@ -25,11 +27,33 @@ export type OfferResult = {
  * Applies a list of offers to a single product's sale price.
  * Multiple offers stack, capped at MAX_OFFER_DISCOUNT_PERCENT of the sale price.
  *
- * @param salePrice - The product's base sale price
- * @param offers - Array of resolved offers to apply
+ * ROLE CONTRACT (hardened):
+ *   - `customer`    → Offers ARE applied. `discountedPrice` ≤ `salePrice`,
+ *                     `totalDiscount` ≥ 0. The cart/order displays the offer price.
+ *   - `distributor` → Offers are IGNORED. Returns `{ discountedPrice: salePrice, totalDiscount: 0 }`.
+ *                     Distributor discount is structural (role margin), not promotional.
+ *   - `admin`       → Offers are IGNORED. Returns `{ discountedPrice: salePrice, totalDiscount: 0 }`.
+ *                     Admin sees raw price (no margin, no offer).
+ *
+ * For non-customer roles the product is returned unchanged regardless of
+ * what `offers` contains: `discountedPrice === product.basePrice` and
+ * `appliedOffers === []` at the caller level.
+ *
+ * @param salePrice - The product's base sale price (role-aware margin already applied)
+ * @param offers - Array of resolved offers to apply (ignored for non-customer)
+ * @param role - The user's role. If not 'customer', offers are always skipped.
  * @returns The discounted price and total discount amount
  */
-export function applyOfferToProduct(salePrice: number, offers: OfferInput[]): OfferResult {
+export function applyOfferToProduct(
+	salePrice: number,
+	offers: OfferInput[],
+	role: Role = "customer",
+): OfferResult {
+	// Business rule: offers only apply to customers
+	if (role !== "customer") {
+		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
+	}
+
 	if (salePrice <= 0 || offers.length === 0) {
 		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
 	}
@@ -43,8 +67,8 @@ export function applyOfferToProduct(salePrice: number, offers: OfferInput[]): Of
 	}, 0);
 
 	const cap = salePrice * (MAX_OFFER_DISCOUNT_PERCENT / 100);
-	const cappedDiscount = Math.min(totalRawDiscount, cap);
-	const discountedPrice = Math.max(0, salePrice - cappedDiscount);
+	const cappedDiscount = roundCurrency(Math.min(totalRawDiscount, cap));
+	const discountedPrice = roundCurrency(Math.max(0, salePrice - cappedDiscount));
 
 	return { discountedPrice, totalDiscount: cappedDiscount };
 }

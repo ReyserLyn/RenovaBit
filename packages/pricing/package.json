@@ -12,6 +12,9 @@
 		"check-types": "tsc --noEmit",
 		"test": "bun test src"
 	},
+	"dependencies": {
+		"@renovabit/db": "*"
+	},
 	"devDependencies": {
 		"@renovabit/biome-config": "*",
 		"@renovabit/ts-config": "*",

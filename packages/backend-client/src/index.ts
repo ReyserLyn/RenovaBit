@@ -15,3 +15,12 @@ export function createApiClient(baseUrl: string): ApiClient {
 		},
 	});
 }
+
+export {
+	ApiClientError,
+	type ApiErrorResponse,
+	type BackendErrorCode,
+	extractApiError,
+	isApiClientError,
+	unwrapResponse,
+} from "./api-errors";
