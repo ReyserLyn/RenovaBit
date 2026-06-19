@@ -26,7 +26,6 @@
 		"@tailwindcss/vite": "catalog:",
 		"astro": "^6.4.4",
 		"astro-icon": "^1.1.5",
-		"astro-theme-toggle": "^0.8.1",
 		"prettier": "catalog:",
 		"prettier-plugin-astro": "catalog:",
 		"tailwindcss": "^4.3.0",
