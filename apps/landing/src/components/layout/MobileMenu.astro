@@ -1,6 +1,6 @@
 ---
 import { Icon } from "astro-icon/components"
-import { NAV_ITEMS } from "@/constants"
+import { NAV_ITEMS, isExternalHref } from "@/constants"
 import Button from "../ui/Button.astro"
 import { Card, CardContent } from "../ui/card"
 
@@ -31,16 +31,29 @@ const { whatsappUrl } = Astro.props
 		<CardContent>
 			<nav class="flex flex-col gap-1" aria-label="Navegación móvil">
 				{
-					NAV_ITEMS.map((item) => (
-						<Button
-							as="a"
-							variant="ghost"
-							href={item.href}
-							class="w-full justify-start text-foreground/70"
-						>
-							{item.label}
-						</Button>
-					))
+					NAV_ITEMS.map((item) => {
+						const external = isExternalHref(item.href)
+						return (
+							<Button
+								as="a"
+								variant="ghost"
+								href={item.href}
+								target={external ? "_blank" : undefined}
+								rel={external ? "noopener noreferrer" : undefined}
+								aria-label={external ? `${item.label} (se abre en nueva pestaña)` : undefined}
+								class="w-full justify-start text-foreground/70"
+							>
+								{item.label}
+								{external && (
+									<Icon
+										name="hugeicons:link-square-02"
+										class="size-3.5 opacity-70"
+										aria-hidden="true"
+									/>
+								)}
+							</Button>
+						)
+					})
 				}
 			</nav>
 

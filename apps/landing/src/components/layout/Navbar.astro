@@ -1,5 +1,6 @@
 ---
-import { CONTACT, NAV_ITEMS } from "@/constants"
+import { Icon } from "astro-icon/components"
+import { CONTACT, NAV_ITEMS, isExternalHref } from "@/constants"
 
 import Logo from "../ui/Logo.astro"
 import Button from "../ui/Button.astro"
@@ -19,17 +20,30 @@ const currentPath = Astro.url.pathname
 		<!-- Desktop nav -->
 		<div class="hidden items-center gap-4 md:flex">
 			{
-				NAV_ITEMS.map((item) => (
-					<Button
-						as="a"
-						variant="ghost"
-						href={item.href}
-						aria-current={currentPath === item.href ? "page" : undefined}
-						class="text-foreground/70 aria-[current=page]:bg-accent aria-[current=page]:text-foreground"
-					>
-						{item.label}
-					</Button>
-				))
+				NAV_ITEMS.map((item) => {
+					const external = isExternalHref(item.href)
+					return (
+						<Button
+							as="a"
+							variant="ghost"
+							href={item.href}
+							target={external ? "_blank" : undefined}
+							rel={external ? "noopener noreferrer" : undefined}
+							aria-label={external ? `${item.label} (se abre en nueva pestaña)` : undefined}
+							aria-current={!external && currentPath === item.href ? "page" : undefined}
+							class="text-foreground/70 aria-[current=page]:bg-accent aria-[current=page]:text-foreground"
+						>
+							{item.label}
+							{external && (
+								<Icon
+									name="hugeicons:link-square-02"
+									class="size-3.5 opacity-70"
+									aria-hidden="true"
+								/>
+							)}
+						</Button>
+					)
+				})
 			}
 		</div>
 
