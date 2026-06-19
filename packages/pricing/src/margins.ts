@@ -34,7 +34,7 @@ export const MAX_MARGIN_PERCENT = 100;
 export const MAX_CUSTOM_MARGIN_PERCENT = 1000;
 
 /** Maximum allowed discount from stacked offers, as percent of product sale_price. */
-export const MAX_OFFER_DISCOUNT_PERCENT = 50;
+export const MAX_OFFER_DISCOUNT_PERCENT = 100;
 
 /**
  * Valid source strings returned by `getEffectiveSalePrice`.

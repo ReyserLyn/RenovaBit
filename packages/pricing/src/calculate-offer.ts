@@ -9,7 +9,6 @@ import { MAX_OFFER_DISCOUNT_PERCENT } from "./margins";
  */
 export type OfferInput = {
 	id?: string;
-	discountType: "percentage" | "fixed_amount";
 	discountValue: number;
 };
 
@@ -24,46 +23,23 @@ export type OfferResult = {
 };
 
 /**
- * Applies a list of offers to a single product's sale price.
+ * Pure function that computes the offer price from a list of offers,
+ * unconditionally (no role checking).
+ *
  * Multiple offers stack, capped at MAX_OFFER_DISCOUNT_PERCENT of the sale price.
  *
- * ROLE CONTRACT (hardened):
- *   - `customer`    → Offers ARE applied. `discountedPrice` ≤ `salePrice`,
- *                     `totalDiscount` ≥ 0. The cart/order displays the offer price.
- *   - `distributor` → Offers are IGNORED. Returns `{ discountedPrice: salePrice, totalDiscount: 0 }`.
- *                     Distributor discount is structural (role margin), not promotional.
- *   - `admin`       → Offers are IGNORED. Returns `{ discountedPrice: salePrice, totalDiscount: 0 }`.
- *                     Admin sees raw price (no margin, no offer).
- *
- * For non-customer roles the product is returned unchanged regardless of
- * what `offers` contains: `discountedPrice === product.basePrice` and
- * `appliedOffers === []` at the caller level.
- *
- * @param salePrice - The product's base sale price (role-aware margin already applied)
- * @param offers - Array of resolved offers to apply (ignored for non-customer)
- * @param role - The user's role. If not 'customer', offers are always skipped.
+ * @param salePrice - The product's base sale price
+ * @param offers - Array of offers to apply (all are percentage-based)
  * @returns The discounted price and total discount amount
  */
-export function applyOfferToProduct(
-	salePrice: number,
-	offers: OfferInput[],
-	role: Role = "customer",
-): OfferResult {
-	// Business rule: offers only apply to customers
-	if (role !== "customer") {
-		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
-	}
-
+export function computeOfferPrice(salePrice: number, offers: OfferInput[]): OfferResult {
 	if (salePrice <= 0 || offers.length === 0) {
 		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
 	}
 
 	const totalRawDiscount = offers.reduce<number>((sum, offer) => {
 		const effectiveValue = Math.max(0, offer.discountValue);
-		const discount =
-			offer.discountType === "percentage" ? salePrice * (effectiveValue / 100) : effectiveValue;
-
-		return sum + discount;
+		return sum + salePrice * (effectiveValue / 100);
 	}, 0);
 
 	const cap = salePrice * (MAX_OFFER_DISCOUNT_PERCENT / 100);
@@ -71,4 +47,44 @@ export function applyOfferToProduct(
 	const discountedPrice = roundCurrency(Math.max(0, salePrice - cappedDiscount));
 
 	return { discountedPrice, totalDiscount: cappedDiscount };
+}
+
+/**
+ * Applies a list of offers to a single product's sale price, respecting user role.
+ *
+ * ROLE CONTRACT:
+ *   - `admin`       → No offers applied. Returns `salePrice` unchanged.
+ *   - `customer`    → Offers ARE applied. Returns computed offer price.
+ *   - `distributor` → Returns the better (lower) of `salePrice` vs `offerPrice`.
+ *                      The distributor only sees the offer if it beats their tier price.
+ *   - default       → Defensive: returns `salePrice` unchanged.
+ *
+ * @param salePrice - The product's base sale price (role-aware margin already applied)
+ * @param offers - Array of resolved offers to apply
+ * @param role - The user's role
+ * @returns The discounted price and total discount amount
+ */
+export function applyOfferToProduct(
+	salePrice: number,
+	offers: OfferInput[],
+	role: Role = "customer",
+): OfferResult {
+	if (role === "admin") {
+		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
+	}
+
+	if (role === "customer") {
+		return computeOfferPrice(salePrice, offers);
+	}
+
+	if (role === "distributor") {
+		const offerResult = computeOfferPrice(salePrice, offers);
+		if (offerResult.discountedPrice < salePrice) {
+			return offerResult;
+		}
+		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
+	}
+
+	// Defensive: unknown role — return price unchanged
+	return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
 }

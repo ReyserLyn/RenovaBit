@@ -4,7 +4,7 @@ import { brands } from "./schema/brands";
 import { cartItems, carts } from "./schema/cart";
 import { categories } from "./schema/categories";
 import { favoriteItems, favorites } from "./schema/favorites";
-import { offerBrands, offerCategories, offerProducts, offers } from "./schema/offers";
+import { offerProducts, offers } from "./schema/offers";
 import { orderItems, orders } from "./schema/orders";
 import { productImages, products } from "./schema/products";
 import { productProviders } from "./schema/providers";
@@ -15,14 +15,12 @@ import { adminNotifications, productChanges, syncReports } from "./schema/sync";
 
 export const brandsRelations = relations(brands, ({ many }) => ({
 	products: many(products),
-	offerBrands: many(offerBrands),
 }));
 
 // ── Categories ───────────────────────────────────────
 
 export const categoriesRelations = relations(categories, ({ many, one }) => ({
 	products: many(products),
-	offerCategories: many(offerCategories),
 	parent: one(categories, {
 		fields: [categories.parentId],
 		references: [categories.id],
@@ -108,8 +106,6 @@ export const offersRelations = relations(offers, ({ one, many }) => ({
 		references: [users.id],
 	}),
 	offerProducts: many(offerProducts),
-	offerBrands: many(offerBrands),
-	offerCategories: many(offerCategories),
 }));
 
 export const offerProductsRelations = relations(offerProducts, ({ one }) => ({
@@ -120,28 +116,6 @@ export const offerProductsRelations = relations(offerProducts, ({ one }) => ({
 	product: one(products, {
 		fields: [offerProducts.productId],
 		references: [products.id],
-	}),
-}));
-
-export const offerBrandsRelations = relations(offerBrands, ({ one }) => ({
-	offer: one(offers, {
-		fields: [offerBrands.offerId],
-		references: [offers.id],
-	}),
-	brand: one(brands, {
-		fields: [offerBrands.brandId],
-		references: [brands.id],
-	}),
-}));
-
-export const offerCategoriesRelations = relations(offerCategories, ({ one }) => ({
-	offer: one(offers, {
-		fields: [offerCategories.offerId],
-		references: [offers.id],
-	}),
-	category: one(categories, {
-		fields: [offerCategories.categoryId],
-		references: [categories.id],
 	}),
 }));
 
