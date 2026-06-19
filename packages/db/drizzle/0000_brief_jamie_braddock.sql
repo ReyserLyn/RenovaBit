@@ -5,7 +5,6 @@ CREATE TYPE "public"."offer_type" AS ENUM('product', 'category', 'brand');--> st
 CREATE TYPE "public"."order_source" AS ENUM('web', 'whatsapp');--> statement-breakpoint
 CREATE TYPE "public"."order_status" AS ENUM('pending', 'confirmed', 'cancelled', 'refunded');--> statement-breakpoint
 CREATE TYPE "public"."payment_method" AS ENUM('cash', 'transfer', 'yape', 'plin');--> statement-breakpoint
-CREATE TYPE "public"."role_margin_rule_role" AS ENUM('customer', 'distributor');--> statement-breakpoint
 CREATE TABLE "accounts" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"account_id" text NOT NULL,
@@ -147,10 +146,11 @@ CREATE TABLE "favorites" (
 --> statement-breakpoint
 CREATE TABLE "margin_rules" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
-	"name" varchar(255) NOT NULL,
+	"name" varchar(100) NOT NULL,
 	"min_price" numeric(10, 2) NOT NULL,
 	"max_price" numeric(10, 2),
-	"margin_percent" numeric(5, 2) NOT NULL,
+	"customer_pct" numeric(5, 2) NOT NULL,
+	"distributor_pct" numeric(5, 2) NOT NULL,
 	"sort_order" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
@@ -307,19 +307,6 @@ CREATE TABLE "product_providers" (
 	CONSTRAINT "product_providers_external_unique" UNIQUE("source","external_id")
 );
 --> statement-breakpoint
-CREATE TABLE "role_margin_rules" (
-	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
-	"role" "role_margin_rule_role" NOT NULL,
-	"name" text NOT NULL,
-	"min_price" numeric(10, 2) NOT NULL,
-	"max_price" numeric(10, 2),
-	"margin_percent" numeric(5, 2) NOT NULL,
-	"sort_order" integer DEFAULT 0 NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "role_margin_rules_role_name_unique" UNIQUE("role","name")
-);
---> statement-breakpoint
 CREATE TABLE "scraping_blacklist" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"source" varchar(100) NOT NULL,
@@ -453,7 +440,6 @@ CREATE INDEX "products_supplier_price_idx" ON "products" USING btree ("supplier_
 CREATE INDEX "products_search_vector_idx" ON "products" USING gin ("search_vector");--> statement-breakpoint
 CREATE INDEX "product_providers_product_idx" ON "product_providers" USING btree ("product_id");--> statement-breakpoint
 CREATE INDEX "product_providers_source_unavail_idx" ON "product_providers" USING btree ("source","is_unavailable");--> statement-breakpoint
-CREATE INDEX "role_margin_rules_role_range_idx" ON "role_margin_rules" USING btree ("role","min_price","max_price");--> statement-breakpoint
 CREATE INDEX "scraping_blacklist_source_idx" ON "scraping_blacklist" USING btree ("source");--> statement-breakpoint
 CREATE INDEX "admin_notifications_user_idx" ON "admin_notifications" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "admin_notifications_unread_idx" ON "admin_notifications" USING btree ("user_id","is_read") WHERE "admin_notifications"."is_read" = false;--> statement-breakpoint

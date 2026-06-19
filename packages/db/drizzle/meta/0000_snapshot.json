@@ -1,5 +1,5 @@
 {
-	"id": "6c043979-a029-4b43-9a71-7ec1ecd3e35c",
+	"id": "8c38c690-5ce2-40e8-8f60-1df0b7ac7e37",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"version": "7",
 	"dialect": "postgresql",
@@ -1318,7 +1318,7 @@
 				},
 				"name": {
 					"name": "name",
-					"type": "varchar(255)",
+					"type": "varchar(100)",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -1334,8 +1334,14 @@
 					"primaryKey": false,
 					"notNull": false
 				},
-				"margin_percent": {
-					"name": "margin_percent",
+				"customer_pct": {
+					"name": "customer_pct",
+					"type": "numeric(5, 2)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"distributor_pct": {
+					"name": "distributor_pct",
 					"type": "numeric(5, 2)",
 					"primaryKey": false,
 					"notNull": true
@@ -2922,112 +2928,6 @@
 			"checkConstraints": {},
 			"isRLSEnabled": false
 		},
-		"public.role_margin_rules": {
-			"name": "role_margin_rules",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "uuidv7()"
-				},
-				"role": {
-					"name": "role",
-					"type": "role_margin_rule_role",
-					"typeSchema": "public",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"name": {
-					"name": "name",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"min_price": {
-					"name": "min_price",
-					"type": "numeric(10, 2)",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"max_price": {
-					"name": "max_price",
-					"type": "numeric(10, 2)",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"margin_percent": {
-					"name": "margin_percent",
-					"type": "numeric(5, 2)",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"sort_order": {
-					"name": "sort_order",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 0
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				},
-				"updated_at": {
-					"name": "updated_at",
-					"type": "timestamp",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {
-				"role_margin_rules_role_range_idx": {
-					"name": "role_margin_rules_role_range_idx",
-					"columns": [
-						{
-							"expression": "role",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "min_price",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "max_price",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {
-				"role_margin_rules_role_name_unique": {
-					"name": "role_margin_rules_role_name_unique",
-					"nullsNotDistinct": false,
-					"columns": ["role", "name"]
-				}
-			},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
-		},
 		"public.scraping_blacklist": {
 			"name": "scraping_blacklist",
 			"schema": "",
@@ -3554,14 +3454,6 @@
 				"transfer",
 				"yape",
 				"plin"
-			]
-		},
-		"public.role_margin_rule_role": {
-			"name": "role_margin_rule_role",
-			"schema": "public",
-			"values": [
-				"customer",
-				"distributor"
 			]
 		}
 	},
