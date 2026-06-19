@@ -7,7 +7,7 @@ import { NotificationDetail } from "@/features/notifications/components/notifica
 import { NotificationTable } from "@/features/notifications/components/notification-table";
 import { useMarkAsRead } from "@/features/notifications/hooks/notification-mutations";
 import { notificationKeys } from "@/features/notifications/hooks/notification-queries";
-import type { AppNotification, NotificationData } from "@/features/notifications/model";
+import type { AppNotification } from "@/features/notifications/model";
 import { notificationDataSchema } from "@/features/notifications/model";
 import { PageHeader } from "@/shared/components/layout/page-header";
 

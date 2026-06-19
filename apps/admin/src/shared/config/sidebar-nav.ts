@@ -1,8 +1,8 @@
 import {
 	Chart01Icon,
-	CouponPercentIcon,
 	DashboardSquare01Icon,
 	DeliveryBox01Icon,
+	DiscountTag02Icon,
 	Settings01Icon,
 	ShoppingCartCheck02Icon,
 	StarIcon,
@@ -15,7 +15,7 @@ export const sidebarNavigation = {
 		{ name: "Pedidos", url: "/pedidos", icon: ShoppingCartCheck02Icon },
 		{ name: "Productos", url: "/productos", icon: DeliveryBox01Icon },
 		{ name: "Usuarios", url: "/usuarios", icon: UserMultiple02Icon },
-		{ name: "Cupones", url: "/cupones", icon: CouponPercentIcon },
+		{ name: "Ofertas", url: "/ofertas", icon: DiscountTag02Icon },
 		{ name: "Ventas e informes", url: "/ventas", icon: Chart01Icon },
 	],
 	sections: [
@@ -41,15 +41,6 @@ export const sidebarNavigation = {
 			],
 		},
 		{
-			title: "Marketing",
-			url: "/cupones",
-			icon: CouponPercentIcon,
-			items: [
-				{ title: "Cupones", url: "/cupones" },
-				{ title: "Ofertas", url: "/ofertas" },
-			],
-		},
-		{
 			title: "Contenido",
 			url: "/productos-destacados",
 			icon: StarIcon,
@@ -70,6 +61,7 @@ export const sidebarNavigation = {
 			icon: Settings01Icon,
 			items: [
 				{ title: "General", url: "/configuracion" },
+				{ title: "Reglas de margen", url: "/margin-rules" },
 				{ title: "Usuarios", url: "/usuarios" },
 			],
 		},

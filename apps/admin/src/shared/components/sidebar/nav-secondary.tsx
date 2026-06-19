@@ -16,7 +16,7 @@ import {
 	SidebarMenuSubItem,
 } from "@renovabit/ui/components/ui/sidebar";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { memo, useEffect, useState } from "react";
+import { memo } from "react";
 import type { SidebarSection } from "@/shared/config/sidebar-nav";
 
 type NavSecondaryProps = {
