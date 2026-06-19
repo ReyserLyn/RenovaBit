@@ -63,10 +63,37 @@ const canonicalUrl = new URL(Astro.url.pathname, SITE.url).toString()
 	</head>
 
 	<body class="bg-background text-foreground font-sans antialiased">
+		<a href="#main" class="skip-link">Saltar al contenido principal</a>
+
 		<slot name="header" />
 
-		<main class="flex min-h-svh w-full flex-col">
+		<main id="main" tabindex="-1" class="flex min-h-svh w-full flex-col">
 			<slot />
 		</main>
-	</body>
+	</body><style>
+		/* WCAG 2.4.1 — skip link: hidden until focused, then appears at the top */
+		.skip-link {
+			position: absolute;
+			top: 0.5rem;
+			left: 0.5rem;
+			z-index: 100;
+			padding: 0.625rem 1rem;
+			background: var(--primary);
+			color: var(--primary-foreground);
+			border-radius: var(--radius);
+			font-weight: 500;
+			text-decoration: none;
+			transform: translateY(-200%);
+			transition: transform 150ms ease-out;
+		}
+		.skip-link:focus {
+			transform: translateY(0);
+			outline: 2px solid var(--ring);
+			outline-offset: 2px;
+		}
+		/* Let the skip target actually receive focus from the anchor jump */
+		main:focus {
+			outline: none;
+		}
+	</style>
 </html>
