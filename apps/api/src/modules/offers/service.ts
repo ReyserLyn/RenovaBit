@@ -798,7 +798,7 @@ async function getOffersWithProducts(
 				.innerJoin(offers, eq(offers.id, offerProducts.offerId))
 				.leftJoin(brands, eq(products.brandId, brands.id))
 				.where(prodWhere)
-				.orderBy(asc(products.name), asc(products.id))
+				.orderBy(asc(products.price), asc(products.id))
 				.offset(prodOffset)
 				.limit(fetchLimit);
 

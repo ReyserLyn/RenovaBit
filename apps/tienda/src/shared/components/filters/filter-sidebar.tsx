@@ -66,7 +66,7 @@ export interface FilterSidebarProps {
 export function FilterSidebar({
 	brands,
 	indexItems,
-	sortValue = "relevance",
+	sortValue = "price_asc",
 	selectedBrandSlugs = [],
 	minPrice = "",
 	maxPrice = "",

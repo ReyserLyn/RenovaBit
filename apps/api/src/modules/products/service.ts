@@ -213,7 +213,7 @@ function buildOrderBy(sortBy?: string) {
 	if (sortBy && isSortByKey(sortBy)) {
 		return [...SORT_MAP[sortBy]];
 	}
-	return [desc(products.createdAt)];
+	return [asc(products.price), asc(products.id)];
 }
 
 // ═══════════════════════════════════════════════════
