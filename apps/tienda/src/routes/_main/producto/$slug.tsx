@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAddToCart } from "@/features/cart/hooks/mutations";
+import { useFavoriteStatusMap } from "@/features/favorites/hooks/queries";
 import { PriceDisplay } from "@/features/products/components/price-display";
 import { RelatedProducts } from "@/features/products/components/related-products";
 import { productQueries } from "@/features/products/hooks/queries";
@@ -103,6 +104,7 @@ function ProductPage() {
 		...productQueries.bySlug(slug),
 		initialData: initialProduct,
 	});
+	const favoriteStatuses = useFavoriteStatusMap(product ? [product.id] : []);
 
 	const [qty, setQty] = useState(1);
 	const addToCart = useAddToCart();
@@ -179,6 +181,7 @@ function ProductPage() {
 						{/* Favorito */}
 						<FavoriteButton
 							productId={product.id}
+							isFavorite={favoriteStatuses[product.id] ?? false}
 							snapshot={{
 								productId: product.id,
 								productName: product.name,

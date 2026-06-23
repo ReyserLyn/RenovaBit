@@ -10,6 +10,7 @@ import {
 } from "@renovabit/ui/components/ui/empty";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useFavoriteStatusMap } from "@/features/favorites/hooks/queries";
 import { OfferSection } from "@/features/offers/components/offer-section";
 import { type GetOffersInput, getOffersWithProductsServerFn } from "@/features/offers/hooks/server";
 import type { OffersListResponse } from "@/features/offers/types";
@@ -104,23 +105,29 @@ function OfertasPage() {
 		setResponse(initialData);
 	}, [initialData]);
 
-	// Strip the URL hash when a brand filter is active: the offer in the hash
-	// may not be in the filtered list, leaving a dead `#offer-xyz` fragment.
-	// Goes through the router's navigate so the framework stays in sync.
+	// Strip the URL hash only when the anchored offer isn't in the currently
+	// visible list. Otherwise the hash stays as a shareable deep link.
 	useEffect(() => {
-		const hasBrandFilter = (filterState.selectedBrandSlugs?.length ?? 0) > 0;
-		if (!hasBrandFilter) return;
-		if (!router.state.location.hash) return;
+		const hash = router.state.location.hash;
+		if (!hash) return;
+		const anchoredId = hash.slice(1);
+		const stillVisible = response.offers.some((o) => `offer-${o.slug}` === anchoredId);
+		if (stillVisible) return;
 		router.navigate({
 			to: router.state.location.pathname,
 			search: (prev) => prev,
 			hash: "",
 			replace: true,
 		});
-	}, [filterState.selectedBrandSlugs, router]);
+	}, [response.offers, router]);
 
 	const offers = response.offers;
 	const brands = response.filters.brands;
+
+	// Batched favorite status: one query for the union of all visible
+	// product ids across all offers, instead of N per-card queries.
+	const allProductIds = offers.flatMap((o) => o.products.items.map((p) => p.id));
+	const favoriteStatuses = useFavoriteStatusMap(allProductIds);
 
 	// Index always reflects the currently visible offers (after API-side filtering).
 	// The user navigates via the index, so the hash anchor stays valid.
@@ -210,6 +217,7 @@ function OfertasPage() {
 								filteredProducts={offer.products}
 								isLoadingMore={loadingOfferId === offer.id}
 								onLoadMore={() => handleLoadMore(offer.id)}
+								favoriteStatuses={favoriteStatuses}
 							/>
 						))
 					)}

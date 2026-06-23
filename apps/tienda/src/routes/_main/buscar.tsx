@@ -2,6 +2,7 @@ import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-quer
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { brandQueries } from "@/features/brands/hooks/queries";
+import { useFavoriteStatusMap } from "@/features/favorites/hooks/queries";
 import { ProductCard } from "@/features/products/components/product-card";
 import type { ProductListItem } from "@/features/products/types";
 import { type SearchFilters, searchQueries } from "@/features/search/hooks/queries";
@@ -177,6 +178,8 @@ function SearchResults({ q, search }: { q: string; search: BuscarSearch }) {
 	const products = data.pages.flatMap((page) => page.data);
 	const totalProducts = data.pages[0]?.total ?? 0;
 
+	const favoriteStatuses = useFavoriteStatusMap(products.map((p) => p.id));
+
 	const hasActiveFilters = !!(
 		filters.brands ||
 		filters.sortBy ||
@@ -265,7 +268,10 @@ function SearchResults({ q, search }: { q: string; search: BuscarSearch }) {
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
 							{mappedProducts.map((product) => (
 								<div key={product.id}>
-									<ProductCard product={product} />
+									<ProductCard
+										product={product}
+										isFavorite={favoriteStatuses[product.id] ?? false}
+									/>
 								</div>
 							))}
 						</div>

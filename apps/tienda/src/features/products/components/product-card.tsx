@@ -12,9 +12,10 @@ import type { ProductListItem } from "../types";
 
 interface ProductCardProps {
 	product: ProductListItem;
+	isFavorite: boolean;
 }
 
-export function ProductCard({ product }: ProductCardProps) {
+export function ProductCard({ product, isFavorite }: ProductCardProps) {
 	const addToCart = useAddToCart();
 	// isInStock from search results overrides stock-based calculation
 	const isAvailable = product.isInStock !== undefined ? product.isInStock : product.stock > 0;
@@ -55,6 +56,7 @@ export function ProductCard({ product }: ProductCardProps) {
 			{/* ── Botón favorito ─────────────────── */}
 			<FavoriteButton
 				productId={product.id}
+				isFavorite={isFavorite}
 				snapshot={{
 					productId: product.id,
 					productName: product.name,
@@ -65,7 +67,7 @@ export function ProductCard({ product }: ProductCardProps) {
 					isInStock: product.isInStock ?? product.stock > 0,
 					primaryImage: product.primaryImage,
 					brand: product.brand,
-					category: product.category,
+					category: product.category ?? null,
 				}}
 				className="absolute right-2 top-2 z-10 size-8"
 			/>

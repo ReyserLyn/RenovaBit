@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCartSsr } from "@/shared/lib/stores/cart-ssr-context";
 
 type CountdownStatus = "upcoming" | "active" | "ending" | "ended";
 
@@ -19,19 +20,22 @@ function formatDuration(ms: number): { days: number; hours: number; minutes: num
 	return { days, hours, minutes };
 }
 
+function formatParts(days: number, hours: number, minutes: number) {
+	const parts: string[] = [];
+	if (days > 0) parts.push(`${days}d`);
+	if (hours > 0) parts.push(`${hours}h`);
+	parts.push(`${minutes}m`);
+	return parts.join(" ");
+}
+
 function computeLabel(now: number, startsAt: number, endsAt: number): CountdownResult {
 	if (now >= endsAt) {
 		return { label: "Finalizada", status: "ended" };
 	}
 
 	if (now < startsAt) {
-		const diff = startsAt - now;
-		const { days, hours, minutes } = formatDuration(diff);
-		const parts: string[] = [];
-		if (days > 0) parts.push(`${days}d`);
-		if (hours > 0) parts.push(`${hours}h`);
-		parts.push(`${minutes}m`);
-		return { label: `Comienza en ${parts.join(" ")}`, status: "upcoming" };
+		const { days, hours, minutes } = formatDuration(startsAt - now);
+		return { label: `Comienza en ${formatParts(days, hours, minutes)}`, status: "upcoming" };
 	}
 
 	// Active (now >= startsAt && now < endsAt)
@@ -41,12 +45,7 @@ function computeLabel(now: number, startsAt: number, endsAt: number): CountdownR
 	}
 
 	const { days, hours, minutes } = formatDuration(remaining);
-	const parts: string[] = [];
-	if (days > 0) parts.push(`${days}d`);
-	if (hours > 0) parts.push(`${hours}h`);
-	parts.push(`${minutes}m`);
-
-	return { label: `Termina en ${parts.join(" ")}`, status: "active" };
+	return { label: `Termina en ${formatParts(days, hours, minutes)}`, status: "active" };
 }
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
@@ -66,33 +65,26 @@ function getPrefersReducedMotionSnapshot(): boolean {
 const getServerSnapshot = () => false;
 
 export function useOfferCountdown(startsAt: string | Date, endsAt: string | Date): CountdownResult {
+	const { serverNow } = useCartSsr();
 	const isReducedMotion = useSyncExternalStore(
 		subscribePrefersReducedMotion,
 		getPrefersReducedMotionSnapshot,
 		getServerSnapshot,
 	);
 
-	const interval = isReducedMotion ? 60_000 : 1_000;
-
-	// Initialize `now` to null on both server and first client render so the
-	// initial markup matches → no hydration mismatch. The real value is set
-	// inside useEffect (client-only).
-	const [now, setNow] = useState<number | null>(null);
+	// Seed `now` with the request-time timestamp so the server render and
+	// the first client paint show the same label. After mount the client
+	// switches to the live clock via the effect.
+	const [now, setNow] = useState<number | null>(serverNow);
 
 	useEffect(() => {
 		setNow(Date.now());
-		const timer = setInterval(() => setNow(Date.now()), interval);
+		const timer = setInterval(() => setNow(Date.now()), isReducedMotion ? 60_000 : 1_000);
 		return () => clearInterval(timer);
-	}, [interval]);
+	}, [isReducedMotion]);
 
-	return useMemo<CountdownResult>(() => {
-		const startsAtMs = parseDate(startsAt);
-		const endsAtMs = parseDate(endsAt);
-
-		// Before mount (SSR + first client render): compute against endsAt so
-		// the label is stable and never shows "ended" prematurely. The visible
-		// text will be replaced on the first effect tick.
-		const effectiveNow = now ?? endsAtMs;
-		return computeLabel(effectiveNow, startsAtMs, endsAtMs);
-	}, [now, startsAt, endsAt]);
+	return useMemo<CountdownResult>(
+		() => computeLabel(now ?? serverNow ?? Date.now(), parseDate(startsAt), parseDate(endsAt)),
+		[now, serverNow, startsAt, endsAt],
+	);
 }

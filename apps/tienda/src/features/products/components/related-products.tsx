@@ -7,6 +7,7 @@ import {
 } from "@renovabit/ui/components/ui/carousel";
 import { useQuery } from "@tanstack/react-query";
 import Autoplay from "embla-carousel-autoplay";
+import { useFavoriteStatusMap } from "@/features/favorites/hooks/queries";
 import { ProductCard } from "@/features/products/components/product-card";
 import { productQueries } from "@/features/products/hooks/queries";
 
@@ -20,6 +21,7 @@ export function RelatedProducts({ currentSlug, categorySlug }: RelatedProductsPr
 	const { data: products } = useQuery(
 		productQueries.list({ categorySlug, excludeSlug: currentSlug }, 8),
 	);
+	const favoriteStatuses = useFavoriteStatusMap(products?.map((p) => p.id) ?? []);
 
 	if (!products || products.length === 0) return null;
 
@@ -45,7 +47,7 @@ export function RelatedProducts({ currentSlug, categorySlug }: RelatedProductsPr
 								key={product.id}
 								className="basis-1/1 sm:basis-1/3 lg:basis-1/4 xl:basis-1/5"
 							>
-								<ProductCard product={product} />
+								<ProductCard product={product} isFavorite={favoriteStatuses[product.id] ?? false} />
 							</CarouselItem>
 						))}
 					</CarouselContent>

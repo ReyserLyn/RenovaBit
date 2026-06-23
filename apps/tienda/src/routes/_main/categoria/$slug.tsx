@@ -3,6 +3,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { brandQueries } from "@/features/brands/hooks/queries";
 import { categoryQueries } from "@/features/categories/hooks/queries";
+import { useFavoriteStatusMap } from "@/features/favorites/hooks/queries";
 import { ProductCard } from "@/features/products/components/product-card";
 import { type ProductListFilters, productQueries } from "@/features/products/hooks/queries";
 import { Breadcrumbs } from "@/shared/components/breadcrumbs";
@@ -116,6 +117,8 @@ function CategoryPage() {
 	const products = data.pages.flatMap((page) => page.data);
 	const totalProducts = data.pages[0]?.total ?? 0;
 
+	const favoriteStatuses = useFavoriteStatusMap(products.map((p) => p.id));
+
 	const hasActiveFilters = !!(
 		productFilters.brands ||
 		productFilters.sortBy ||
@@ -152,7 +155,10 @@ function CategoryPage() {
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
 							{products.map((product) => (
 								<div key={product.id}>
-									<ProductCard product={product} />
+									<ProductCard
+										product={product}
+										isFavorite={favoriteStatuses[product.id] ?? false}
+									/>
 								</div>
 							))}
 						</div>

@@ -221,16 +221,6 @@ async function create(data: CreateOfferDto, userId: string) {
 		});
 	}
 
-	// ── Discount-value validation ──
-	if (data.discountValue > 100) {
-		throw createApiError({
-			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-			message: "El descuento porcentual no puede ser mayor a 100%",
-			logLevel: "info",
-			doNotLog: true,
-		});
-	}
-
 	// ── Date validation ──
 	assertDateRange(data.startsAt, data.endsAt);
 
@@ -249,7 +239,7 @@ async function create(data: CreateOfferDto, userId: string) {
 				discountValue: String(data.discountValue),
 				startsAt: new Date(data.startsAt),
 				endsAt: new Date(data.endsAt),
-				isActive: data.isActive ?? true,
+				isActive: data.isActive ?? false,
 				isFeatured: data.isFeatured ?? false,
 				createdBy: userId || null,
 			})
@@ -298,9 +288,12 @@ async function create(data: CreateOfferDto, userId: string) {
 async function update(id: string, data: UpdateOfferDto, userId: string) {
 	const current = await getByIdStrict(id);
 
-	// ── Date validation (only when both dates are provided) ──
-	if (data.startsAt !== undefined && data.endsAt !== undefined) {
-		assertDateRange(data.startsAt, data.endsAt);
+	// ── Date validation: check the merged range so a single-bound update
+	//     can't produce an inverted window (e.g. endsAt < stored startsAt). ──
+	if (data.startsAt !== undefined || data.endsAt !== undefined) {
+		const nextStartsAt = data.startsAt ?? current.startsAt;
+		const nextEndsAt = data.endsAt ?? current.endsAt;
+		assertDateRange(nextStartsAt, nextEndsAt);
 	}
 
 	// ── FK validation (before junction replacement) ──
@@ -339,16 +332,6 @@ async function update(id: string, data: UpdateOfferDto, userId: string) {
 				});
 			}
 			updateData.slug = nextSlug;
-		}
-
-		// ── Discount-value validation (belt + suspenders) ──
-		if (data.discountValue !== undefined && data.discountValue > 100) {
-			throw createApiError({
-				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-				message: "El descuento porcentual no puede ser mayor a 100%",
-				logLevel: "info",
-				doNotLog: true,
-			});
 		}
 
 		const hasMainUpdates = Object.keys(updateData).length > 0;
@@ -743,7 +726,11 @@ async function getOffersWithProducts(
 		})
 		.from(offers)
 		.where(offerWhere)
-		.orderBy(desc(offers.createdAt))
+		.orderBy(
+			desc(sql`COALESCE(${offers.isFeatured}, false)`),
+			asc(offers.endsAt),
+			desc(offers.createdAt),
+		)
 		.offset(options.offerId ? 0 : (options.offset ?? 0))
 		.limit(options.offerId ? 1 : (options.limit ?? 20));
 
@@ -843,11 +830,12 @@ async function getOffersWithProducts(
 					const effectivePrice = offerResult.discountedPrice;
 					const offerPriceStr =
 						offerResult.discountedPrice < salePrice ? offerResult.discountedPrice.toFixed(2) : null;
-
+					// discountPercent is null when no offer applies (or admin) so the
+					// client can skip rendering the badge. Mirrors products/service.ts.
 					const discountPercent =
-						salePrice > 0
+						offerPriceStr !== null
 							? Math.round(((salePrice - offerResult.discountedPrice) / salePrice) * 100)
-							: 0;
+							: null;
 
 					return {
 						row,
@@ -929,13 +917,18 @@ async function getOffersWithProducts(
  * and brand filtering.
  */
 async function getAllBrandsWithActiveOffers(): Promise<
-	Array<{ id: string; name: string; slug: string }>
+	Array<{ id: string; name: string; slug: string; productCount: number }>
 > {
 	const now = new Date();
-	const rows = await db
-		.selectDistinct({ id: brands.id, name: brands.name, slug: brands.slug })
-		.from(brands)
-		.innerJoin(products, eq(products.brandId, brands.id))
+	// Count distinct products per brand that are linked to a live offer.
+	// Uses a subquery so each brand row is one line (avoids the row
+	// explosion you'd get with select + groupBy on a multi-join).
+	const countSq = db
+		.select({
+			brandId: products.brandId,
+			count: sql<number>`COUNT(DISTINCT ${products.id})::int`.as("count"),
+		})
+		.from(products)
 		.innerJoin(offerProducts, eq(offerProducts.productId, products.id))
 		.innerJoin(
 			offers,
@@ -946,6 +939,18 @@ async function getAllBrandsWithActiveOffers(): Promise<
 				gte(offers.endsAt, now),
 			),
 		)
+		.groupBy(products.brandId)
+		.as("brand_offer_counts");
+
+	const rows = await db
+		.select({
+			id: brands.id,
+			name: brands.name,
+			slug: brands.slug,
+			productCount: countSq.count,
+		})
+		.from(brands)
+		.innerJoin(countSq, eq(countSq.brandId, brands.id))
 		.orderBy(asc(brands.name));
 	return rows;
 }

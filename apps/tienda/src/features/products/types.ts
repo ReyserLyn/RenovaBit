@@ -44,10 +44,10 @@ export interface ProductListItem {
 	discountPercent?: number | null;
 	stock: number;
 	sku: string;
-	isFeatured: boolean;
 	primaryImage: ProductPrimaryImage | null;
 	brand: ProductBrandRef | null;
-	category: ProductCategoryRef | null;
+	isFeatured?: boolean;
+	category?: ProductCategoryRef | null;
 	/** Texto destacado con marcadores &lt;b&gt; de ts_headline (solo búsqueda FTS) */
 	headline?: string | null;
 	/** Disponibilidad considerando reservas (solo búsqueda FTS) */

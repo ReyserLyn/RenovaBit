@@ -6,6 +6,7 @@ import { cn } from "@renovabit/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { useRemoveCartItem, useUpdateCartItem } from "@/features/cart/hooks/mutations";
 import type { CartResponse } from "@/features/cart/hooks/queries";
+import { getEffectiveLinePrice } from "@/features/cart/lib/pricing";
 import { formatPrice } from "@/shared/lib/format";
 
 type CartItemData = NonNullable<CartResponse>["items"][number];
@@ -26,13 +27,12 @@ export function CartItem({ item }: CartItemProps) {
 				? "No disponible"
 				: null;
 
-	// ── Role-aware pricing (T3) ──
-	const rolePrice = Number.parseFloat(item.currentRolePrice);
-	const offerPrice = Number.parseFloat(item.currentOfferPrice);
-	const savedAmount = Math.max(0, rolePrice - offerPrice);
-	const effectiveUnitPrice = savedAmount > 0 ? offerPrice : rolePrice;
-	const lineTotal = (effectiveUnitPrice * item.quantity).toFixed(2);
-	const totalSaved = savedAmount * item.quantity;
+	const {
+		unitPrice: effectiveUnitPrice,
+		unitSaved: savedAmount,
+		lineTotal,
+		lineSaved,
+	} = getEffectiveLinePrice(item);
 
 	return (
 		<div className={cn("flex gap-3 border-b border-border pb-3", isUnavailable && "opacity-60")}>
@@ -127,7 +127,7 @@ export function CartItem({ item }: CartItemProps) {
 									aria-live="polite"
 									className="mt-0.5 block text-[0.6rem] leading-tight text-success"
 								>
-									Ahorraste {formatPrice(totalSaved.toFixed(2))}
+									Ahorraste {formatPrice(lineSaved)}
 								</span>
 							)}
 						</div>

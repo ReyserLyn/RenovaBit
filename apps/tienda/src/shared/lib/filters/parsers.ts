@@ -18,7 +18,7 @@ export const SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
 	{ value: "newest", label: "Más nuevos" },
 ];
 
-const sortValueSet = new Set(SORT_VALUES);
+const sortValueSet = new Set<SortOption>(SORT_VALUES);
 
 export function isSortOption(value: string): value is SortOption {
 	return sortValueSet.has(value as SortOption);

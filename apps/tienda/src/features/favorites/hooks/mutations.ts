@@ -2,14 +2,32 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiClientError, api, unwrapResponse } from "@/shared/lib/api";
 import { resolveErrorMessage } from "@/shared/lib/api/error-utils";
-import type { FavoriteListResponse } from "./queries";
+import type { FavoriteListResponse, FavoriteStatusBatchResponse } from "./queries";
 import { type FavoriteSnapshot, favoritesKeys } from "./queries";
 
 function invalidateFavoritesQueries(queryClient: ReturnType<typeof useQueryClient>) {
 	queryClient.invalidateQueries({ queryKey: favoritesKeys.all });
 }
 
-// ── Helpers ─────────────────────────────────────────────
+/** Key of a single-product status cache entry. */
+function statusKeyForProduct(productId: string) {
+	return [...favoritesKeys.all, "statuses", [productId]];
+}
+
+/** Key of a status-batch cache entry (the listing form). */
+const STATUSES_KEY_ROOT = [...favoritesKeys.all, "statuses"] as const;
+
+// ── Optimistic helpers ──────────────────────────────────────
+
+function setFavoriteStatus(
+	queryClient: ReturnType<typeof useQueryClient>,
+	productId: string,
+	value: boolean,
+) {
+	queryClient.setQueriesData<FavoriteStatusBatchResponse>({ queryKey: STATUSES_KEY_ROOT }, (old) =>
+		old ? { statuses: { ...old.statuses, [productId]: value } } : old,
+	);
+}
 
 function buildOptimisticItem(snapshot: FavoriteSnapshot) {
 	return {
@@ -18,8 +36,6 @@ function buildOptimisticItem(snapshot: FavoriteSnapshot) {
 		productName: snapshot.productName,
 		productSlug: snapshot.productSlug,
 		productSku: snapshot.productSku,
-		// Optimistic update shows the snapshot price as both base + offer.
-		// The real role-aware price resolves on the next refetch.
 		basePrice: snapshot.price,
 		offerPrice: null,
 		discountPercent: null,
@@ -47,15 +63,15 @@ function prependToInfiniteCaches(
 		},
 		(old) => {
 			if (!old?.pages?.length) return old;
-			const newPages = [...old.pages];
-			const firstPage = newPages[0];
+			const [firstPage, ...rest] = old.pages;
 			if (!firstPage) return old;
-			newPages[0] = {
-				...firstPage,
-				data: [item, ...firstPage.data],
-				total: firstPage.total + 1,
+			return {
+				...old,
+				pages: [
+					{ ...firstPage, data: [item, ...firstPage.data], total: firstPage.total + 1 },
+					...rest,
+				],
 			};
-			return { ...old, pages: newPages };
 		},
 	);
 }
@@ -69,20 +85,14 @@ export function useAddFavorite() {
 		mutationFn: ({ productId }: { productId: string; snapshot: FavoriteSnapshot }) =>
 			unwrapResponse(api.api.v1.favorites.items.post({ productId })),
 		onMutate: ({ productId, snapshot }) => {
-			// 1. Optimistic status query
-			queryClient.setQueryData(favoritesKeys.detail(productId), {
-				isFavorite: true,
-			});
-			// 2. Seed ALL infinite caches so navigation is instant
+			setFavoriteStatus(queryClient, productId, true);
 			prependToInfiniteCaches(queryClient, buildOptimisticItem(snapshot));
 		},
 		onSuccess: () => {
 			invalidateFavoritesQueries(queryClient);
 		},
 		onError: (error, { productId }) => {
-			queryClient.invalidateQueries({
-				queryKey: favoritesKeys.detail(productId),
-			});
+			queryClient.invalidateQueries({ queryKey: statusKeyForProduct(productId) });
 			invalidateFavoritesQueries(queryClient);
 			if (error instanceof ApiClientError && error.code === "NOT_FOUND_ERROR") {
 				toast.error("Producto no encontrado");
@@ -102,17 +112,13 @@ export function useRemoveFavorite() {
 		mutationFn: (productId: string) =>
 			unwrapResponse(api.api.v1.favorites.items({ productId }).delete()),
 		onMutate: (productId) => {
-			queryClient.setQueryData(favoritesKeys.detail(productId), {
-				isFavorite: false,
-			});
+			setFavoriteStatus(queryClient, productId, false);
 		},
 		onSuccess: () => {
 			invalidateFavoritesQueries(queryClient);
 		},
 		onError: (error, productId) => {
-			queryClient.invalidateQueries({
-				queryKey: favoritesKeys.detail(productId),
-			});
+			queryClient.invalidateQueries({ queryKey: statusKeyForProduct(productId) });
 			toast.error(resolveErrorMessage(error));
 		},
 	});

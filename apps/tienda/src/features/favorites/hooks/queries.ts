@@ -1,5 +1,7 @@
 import { infiniteQueryOptions, keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { api, getApiSsrHeaders, unwrapResponse } from "@/shared/lib/api";
+import { useCartSsr } from "@/shared/lib/stores/cart-ssr-context";
 import { getFavoritesServerFn } from "./server";
 
 // ── Types inferred from API ──────────────────────────────────
@@ -7,6 +9,10 @@ import { getFavoritesServerFn } from "./server";
 type _FavoritesListResponse =
 	Awaited<ReturnType<typeof api.api.v1.favorites.get>> extends { data: infer T } ? T : never;
 export type FavoriteListResponse = NonNullable<_FavoritesListResponse>;
+
+type _FavoriteStatusBatchResponse =
+	Awaited<ReturnType<typeof api.api.v1.favorites.status.get>> extends { data: infer T } ? T : never;
+export type FavoriteStatusBatchResponse = NonNullable<_FavoriteStatusBatchResponse>;
 
 // ── Filters ──────────────────────────────────────────────────
 
@@ -42,20 +48,47 @@ export const favoritesKeys = {
 	all: ["favorites"] as const,
 	infinite: (filters?: FavoritesFilters) =>
 		[...favoritesKeys.all, "infinite", filters ?? {}] as const,
-	detail: (productId: string) => [...favoritesKeys.all, "detail", productId] as const,
+	/**
+	 * Key for the batched status map. The sorted productIds list is the
+	 * identity of the query — any re-order of the same ids hits the same
+	 * cache entry, so a re-render that re-shuffles the array doesn't
+	 * invalidate the result.
+	 */
+	statuses: (productIds: ReadonlyArray<string>) =>
+		[...favoritesKeys.all, "statuses", [...productIds].sort()] as const,
 };
 
-// ── Favorite Status ────────────────────────────────────────────
-
-export function useFavoriteStatus(productId: string) {
-	return useQuery({
-		queryKey: favoritesKeys.detail(productId),
+/**
+ * Hook for product listings. Runs one batched query for the full visible
+ * productIds array and returns a `productId → isFavorite` map. Undefined
+ * entries mean "not favorite" (anonymous session or not yet loaded).
+ */
+export function useFavoriteStatusMap(
+	productIds: ReadonlyArray<string>,
+): Readonly<Record<string, boolean>> {
+	const { session } = useCartSsr();
+	const { data } = useQuery({
+		queryKey: favoritesKeys.statuses(productIds),
 		queryFn: async () => {
 			const headers = await getApiSsrHeaders();
-			return unwrapResponse(api.api.v1.favorites.items({ productId }).status.get({ headers }));
+			return unwrapResponse(
+				api.api.v1.favorites.status.get({
+					headers,
+					query: { productIds: [...productIds] },
+				}),
+			);
 		},
+		// Skip the network call entirely for anonymous sessions. The
+		// /status endpoint requires auth and would 401 otherwise.
+		enabled: !!session?.user && productIds.length > 0,
 		staleTime: 1000 * 60 * 5,
 	});
+	return useMemo(() => {
+		const map: Record<string, boolean> = {};
+		for (const id of productIds) map[id] = false;
+		if (data?.statuses) Object.assign(map, data.statuses);
+		return map;
+	}, [productIds, data]);
 }
 
 // ── Query Options ─────────────────────────────────────────────

@@ -4,12 +4,12 @@ import { Button } from "@renovabit/ui/components/ui/button";
 import { Separator } from "@renovabit/ui/components/ui/separator";
 import { useNavigate } from "@tanstack/react-router";
 import type { CartResponse } from "@/features/cart/hooks/queries";
+import { getEffectiveLinePrice } from "@/features/cart/lib/pricing";
 import { summarizeAvailableCartItems } from "@/features/cart/lib/summary";
 import { formatPrice } from "@/shared/lib/format";
 import { CartItem } from "./cart-item";
 
 type NonNullCart = NonNullable<CartResponse>;
-type CartItem = NonNullCart["items"][number];
 
 interface CartDrawerContentProps {
 	cart: NonNullCart;
@@ -17,40 +17,16 @@ interface CartDrawerContentProps {
 	onNavigate?: () => void;
 }
 
-/** Compute effective line price from role-aware pricing fields */
-function effectivePrice(item: CartItem): number {
-	const rolePrice = Number.parseFloat(item.currentRolePrice);
-	const offerPrice = Number.parseFloat(item.currentOfferPrice);
-	const saved = Math.max(0, rolePrice - offerPrice);
-	return saved > 0 ? offerPrice : rolePrice;
-}
-
 export function CartDrawerContent({ cart, isLoading, onNavigate }: CartDrawerContentProps) {
 	const navigate = useNavigate();
-	const { availableItems, availableItemsCount } = summarizeAvailableCartItems(cart.items);
+	const { availableItems, availableItemsCount, totalSaved } = summarizeAvailableCartItems(
+		cart.items,
+	);
 
-	// Role-aware subtotal and savings for available items (T4)
-	let effectiveSubtotal = 0;
-	let totalSavedAmount = 0;
-	let hasPriceChange = false;
-
-	for (const item of availableItems) {
-		const unitPrice = effectivePrice(item);
-		effectiveSubtotal += unitPrice * item.quantity;
-
-		const saved = Math.max(
-			0,
-			Number.parseFloat(item.currentRolePrice) - Number.parseFloat(item.currentOfferPrice),
-		);
-		totalSavedAmount += saved * item.quantity;
-
-		if (item.priceChanged) {
-			hasPriceChange = true;
-		}
-	}
-
-	const availableSubtotal = effectiveSubtotal.toFixed(2);
-	const totalSaved = totalSavedAmount > 0 ? totalSavedAmount.toFixed(2) : null;
+	const hasPriceChange = availableItems.some((item) => item.priceChanged);
+	const availableSubtotal = availableItems
+		.reduce((sum, item) => sum + getEffectiveLinePrice(item).unitPrice * item.quantity, 0)
+		.toFixed(2);
 
 	const handleNavigateCart = () => {
 		onNavigate?.();

@@ -93,7 +93,7 @@ const _createCommon = t.Object({
 		t.Record(
 			t.String({ format: "uuid" }),
 			t.Object({
-				overrideDiscountValue: t.Optional(t.Nullable(t.Number({ minimum: 0 }))),
+				overrideDiscountValue: t.Optional(t.Nullable(t.Number({ minimum: 0, maximum: 100 }))),
 			}),
 		),
 	),
@@ -121,7 +121,7 @@ const _productAssignBody = t.Object({
 		t.Record(
 			t.String({ format: "uuid" }),
 			t.Object({
-				overrideDiscountValue: t.Optional(t.Nullable(t.Number({ minimum: 0 }))),
+				overrideDiscountValue: t.Optional(t.Nullable(t.Number({ minimum: 0, maximum: 100 }))),
 			}),
 		),
 	),
@@ -152,7 +152,7 @@ const OfferProductItem = t.Object({
 	),
 	basePrice: t.Nullable(t.String()),
 	offerPrice: t.Nullable(t.String()),
-	discountPercent: t.Integer({ minimum: 0, maximum: 100 }),
+	discountPercent: t.Nullable(t.Integer({ minimum: 0, maximum: 100 })),
 	inStock: t.Boolean(),
 	stock: t.Integer({ minimum: 0 }),
 });
@@ -193,6 +193,7 @@ export const OfferListEnrichedResponse = t.Object({
 				id: t.String({ format: "uuid" }),
 				name: t.String(),
 				slug: t.String(),
+				productCount: t.Integer({ minimum: 0 }),
 			}),
 		),
 	}),

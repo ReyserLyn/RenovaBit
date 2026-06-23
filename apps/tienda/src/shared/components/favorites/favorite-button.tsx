@@ -3,22 +3,27 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { cn } from "@renovabit/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useAddFavorite, useRemoveFavorite } from "@/features/favorites/hooks/mutations";
-import { type FavoriteSnapshot, useFavoriteStatus } from "@/features/favorites/hooks/queries";
+import { type FavoriteSnapshot } from "@/features/favorites/hooks/queries";
 import { authSessionQueryOptions } from "@/shared/lib/auth/auth-session";
 
 interface FavoriteButtonProps {
 	productId: string;
+	/** Pre-resolved favorite status from the parent's batched query. */
+	isFavorite: boolean;
 	snapshot: FavoriteSnapshot;
 	className?: string;
 	size?: number;
 }
 
-export function FavoriteButton({ productId, snapshot, className, size = 18 }: FavoriteButtonProps) {
+export function FavoriteButton({
+	productId,
+	isFavorite,
+	snapshot,
+	className,
+	size = 18,
+}: FavoriteButtonProps) {
 	const { data: session } = useQuery(authSessionQueryOptions());
 	const isAuthenticated = !!session?.user;
-
-	const { data: status } = useFavoriteStatus(productId);
-	const isFavorite = status?.isFavorite ?? false;
 
 	const addFavorite = useAddFavorite();
 	const removeFavorite = useRemoveFavorite();
@@ -44,6 +49,7 @@ export function FavoriteButton({ productId, snapshot, className, size = 18 }: Fa
 			onClick={handleClick}
 			disabled={isPending}
 			aria-label={isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}
+			aria-pressed={isFavorite}
 			className={cn(
 				"flex cursor-pointer items-center justify-center rounded-full backdrop-blur-xs transition-all duration-200",
 				"hover:scale-110 active:scale-90",

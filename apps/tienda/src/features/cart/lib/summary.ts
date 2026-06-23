@@ -1,11 +1,7 @@
 import type { CartResponse } from "@/features/cart/hooks/queries";
+import { getEffectiveLinePrice } from "@/features/cart/lib/pricing";
 
 type CartItem = NonNullable<CartResponse>["items"][number];
-
-function toNumber(price: string): number {
-	const value = Number.parseFloat(price);
-	return Number.isNaN(value) ? 0 : value;
-}
 
 export function isAvailableCartItem(item: CartItem): boolean {
 	return item.status === "available";
@@ -13,22 +9,23 @@ export function isAvailableCartItem(item: CartItem): boolean {
 
 export function summarizeAvailableCartItems(items: CartItem[]) {
 	const availableItems = items.filter(isAvailableCartItem);
-	const itemsCount = availableItems.reduce((sum, item) => sum + item.quantity, 0);
 
-	// Use role-aware pricing: currentOfferPrice if offers apply, else currentRolePrice
-	const subtotal = availableItems
-		.reduce((sum, item) => {
-			const rolePrice = toNumber(item.currentRolePrice);
-			const offerPrice = toNumber(item.currentOfferPrice);
-			const effectivePrice = offerPrice < rolePrice ? offerPrice : rolePrice;
-			return sum + effectivePrice * item.quantity;
-		}, 0)
-		.toFixed(2);
+	let subtotal = 0;
+	let saved = 0;
+	for (const item of availableItems) {
+		const { unitPrice, unitSaved } = getEffectiveLinePrice(item);
+		subtotal += unitPrice * item.quantity;
+		saved += unitSaved * item.quantity;
+	}
+
+	const itemsCount = availableItems.reduce((sum, item) => sum + item.quantity, 0);
+	const hasUnavailableItems = availableItems.length < items.length;
 
 	return {
 		availableItems,
 		availableItemsCount: itemsCount,
-		availableSubtotal: subtotal,
-		hasUnavailableItems: availableItems.length < items.length,
+		availableSubtotal: subtotal.toFixed(2),
+		totalSaved: saved > 0 ? saved.toFixed(2) : null,
+		hasUnavailableItems,
 	};
 }

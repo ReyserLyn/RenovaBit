@@ -13,18 +13,31 @@ const parseAsBrandSlugs = createParser({
 	serialize: (value) => value.join(","),
 });
 
-export interface FilterState {
+/** Base state always returned. */
+interface FilterStateBase {
 	minPrice: string;
 	maxPrice: string;
 	hasActiveFilters: boolean;
 	onPriceChange: (min: string, max: string) => void;
 	onClearAll: () => void;
-
-	sortValue?: string;
-	onSortChange?: (value: string) => void;
-	selectedBrandSlugs?: string[];
-	onBrandToggle?: (slug: string) => void;
 }
+
+/** State when `sortable: true`. */
+interface FilterStateWithSort extends FilterStateBase {
+	sortValue: string;
+	onSortChange: (value: string) => void;
+}
+
+/** State when `brandFilter: true`. */
+interface FilterStateWithBrands extends FilterStateBase {
+	selectedBrandSlugs: string[];
+	onBrandToggle: (slug: string) => void;
+}
+
+/** Public type — flags narrow which optional fields are present. */
+export type FilterState = FilterStateBase &
+	Partial<FilterStateWithSort> &
+	Partial<FilterStateWithBrands>;
 
 export interface FilterStateOptions {
 	sortable?: boolean;
@@ -38,6 +51,20 @@ function toggleBrand(current: string[], slug: string): string[] {
 	return [...next].sort();
 }
 
+export function useFilterState(): FilterStateBase;
+export function useFilterState(options: {
+	sortable: true;
+	brandFilter?: false;
+}): FilterStateWithSort;
+export function useFilterState(options: {
+	sortable?: false;
+	brandFilter: true;
+}): FilterStateWithBrands;
+export function useFilterState(options: {
+	sortable: true;
+	brandFilter: true;
+}): FilterStateWithSort & FilterStateWithBrands;
+export function useFilterState(options?: FilterStateOptions): FilterState;
 export function useFilterState(options?: FilterStateOptions): FilterState {
 	const [filters, setFilters] = useQueryStates({
 		precio_min: parseAsString.withDefault(""),

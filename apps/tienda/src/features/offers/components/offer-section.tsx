@@ -19,6 +19,11 @@ interface OfferSectionProps {
 	filteredProducts: OfferProductPage;
 	isLoadingMore: boolean;
 	onLoadMore: () => void;
+	/**
+	 * Pre-resolved favorite statuses from the parent's batched query. When
+	 * omitted every card falls back to "not favorite".
+	 */
+	favoriteStatuses?: Readonly<Record<string, boolean>>;
 }
 
 export function OfferSection({
@@ -26,6 +31,7 @@ export function OfferSection({
 	filteredProducts,
 	isLoadingMore,
 	onLoadMore,
+	favoriteStatuses,
 }: OfferSectionProps) {
 	const { label, status } = useOfferCountdown(offer.startsAt, offer.endsAt);
 	const isEnded = status === "ended";
@@ -52,6 +58,7 @@ export function OfferSection({
 						{filteredProducts.items.map((product) => (
 							<ProductCard
 								key={product.id}
+								isFavorite={favoriteStatuses?.[product.id] ?? false}
 								product={{
 									id: product.id,
 									name: product.name,
@@ -63,13 +70,10 @@ export function OfferSection({
 									discountPercent: isEnded ? 0 : product.discountPercent,
 									stock: product.stock,
 									sku: product.sku,
-									isFeatured: false,
 									primaryImage: product.primaryImage
 										? { url: product.primaryImage, alt: null }
 										: null,
 									brand: product.brand ?? null,
-									category: null,
-									offers: [],
 								}}
 							/>
 						))}
