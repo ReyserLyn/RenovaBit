@@ -181,7 +181,7 @@ function OfertasPage() {
 			<div className="space-y-2">
 				<h1 className="text-3xl font-bold tracking-tight">Ofertas</h1>
 				<p className="text-muted-foreground max-w-2xl text-base">
-					Las mejores ofertas para vos. Descuentos en productos, marcas y categorías.
+					Las mejores ofertas para ti. Descuentos en productos, marcas y categorías.
 				</p>
 			</div>
 
