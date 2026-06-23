@@ -1,4 +1,5 @@
-import { type OrderStatus, STATUS_URL_TO_API } from "@renovabit/db/orders";
+import type { OrderStatus } from "@renovabit/db/orders";
+import { STATUS_URL_TO_API } from "@renovabit/db/orders-meta";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api, unwrapResponse } from "@/shared/lib/api";
 

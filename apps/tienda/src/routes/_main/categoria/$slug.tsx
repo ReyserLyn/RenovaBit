@@ -1,6 +1,5 @@
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { createSerializer } from "nuqs";
 import { useMemo } from "react";
 import { brandQueries } from "@/features/brands/hooks/queries";
 import { categoryQueries } from "@/features/categories/hooks/queries";
@@ -11,16 +10,10 @@ import { FilterSidebar } from "@/shared/components/filters/filter-sidebar";
 import { InfiniteScrollSentinel } from "@/shared/components/infinite-scroll-sentinel";
 import { isApiClientError } from "@/shared/lib/api";
 import { getSiteUrl } from "@/shared/lib/env";
-import { mapSortToApi, productFilterParsers } from "@/shared/lib/filters/parsers";
+import { mapSortToApi } from "@/shared/lib/filters/parsers";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
+import { useCategoryFilterState } from "@/shared/lib/hooks/use-filter-state";
 import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
-
-const serializeCatalogSearch = createSerializer(productFilterParsers, {
-	processUrlSearchParams: (params) => {
-		params.sort();
-		return params;
-	},
-});
 
 function buildFilters(categorySlug: string, s: CatalogSearch): ProductListFilters {
 	return {
@@ -33,20 +26,20 @@ function buildFilters(categorySlug: string, s: CatalogSearch): ProductListFilter
 }
 
 function buildCanonicalCategoryUrl(categorySlug: string, s: CatalogSearch): string {
-	const marcas =
+	const params = new URLSearchParams();
+	if (s.marcas) {
 		s.marcas
-			?.split(",")
+			.split(",")
 			.map((value) => value.trim())
-			.filter(Boolean) ?? [];
-
-	const href = serializeCatalogSearch(`/categoria/${categorySlug}`, {
-		marcas: marcas.length > 0 ? marcas : null,
-		orden: mapSortToApi(s.orden) ?? null,
-		precio_min: s.precio_min || null,
-		precio_max: s.precio_max || null,
-	});
-
-	return `${getSiteUrl()}${href}`;
+			.filter(Boolean)
+			.forEach((m) => params.append("marcas", m));
+	}
+	if (s.orden && s.orden !== "relevance") params.set("orden", s.orden);
+	if (s.precio_min) params.set("precio_min", s.precio_min);
+	if (s.precio_max) params.set("precio_max", s.precio_max);
+	params.sort();
+	const qs = params.toString();
+	return `${getSiteUrl()}/categoria/${categorySlug}${qs ? `?${qs}` : ""}`;
 }
 
 export const Route = createFileRoute("/_main/categoria/$slug")({
@@ -110,6 +103,7 @@ function CategoryPage() {
 	const search = Route.useSearch();
 	const { data: category } = useSuspenseQuery(categoryQueries.bySlug(slug));
 	const { data: availableBrands = [] } = useSuspenseQuery(brandQueries.byCategorySlug(slug));
+	const filterState = useCategoryFilterState();
 
 	const productFilters = useMemo<ProductListFilters>(
 		() => buildFilters(slug, search),
@@ -151,7 +145,7 @@ function CategoryPage() {
 				</p>
 			</div>
 			<div className="flex flex-col gap-6 lg:flex-row">
-				<FilterSidebar brands={availableBrands} />
+				<FilterSidebar brands={availableBrands} {...filterState} />
 				<div className="min-w-0 flex-1 space-y-6">
 					{products.length > 0 ? (
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">

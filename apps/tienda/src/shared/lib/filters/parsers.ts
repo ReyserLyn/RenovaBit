@@ -1,5 +1,3 @@
-import { parseAsArrayOf, parseAsString, parseAsStringLiteral } from "nuqs";
-
 export const SORT_VALUES = [
 	"relevance",
 	"price_asc",
@@ -20,20 +18,21 @@ export const SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
 	{ value: "newest", label: "Más nuevos" },
 ];
 
-const sortValueSet = new Set<string>(SORT_VALUES);
+const sortValueSet = new Set(SORT_VALUES);
 
 export function isSortOption(value: string): value is SortOption {
-	return sortValueSet.has(value);
+	return sortValueSet.has(value as SortOption);
 }
 
-export function mapSortToApi(orden?: string): SortOption | undefined {
-	if (!orden || orden === "relevance") return undefined;
-	return isSortOption(orden) ? orden : undefined;
+function isSortOptionExceptRelevance(value: string): value is Exclude<SortOption, "relevance"> {
+	return value !== "relevance" && sortValueSet.has(value as SortOption);
 }
 
-export const productFilterParsers = {
-	orden: parseAsStringLiteral(SORT_VALUES).withDefault("relevance"),
-	precio_min: parseAsString.withDefault(""),
-	precio_max: parseAsString.withDefault(""),
-	marcas: parseAsArrayOf(parseAsString).withDefault([]),
-};
+/**
+ * Map the UI sort to the API value. "relevance" is the default and is
+ * omitted from the API call, so the return type excludes it.
+ */
+export function mapSortToApi(orden?: string): Exclude<SortOption, "relevance"> | undefined {
+	if (!orden) return undefined;
+	return isSortOptionExceptRelevance(orden) ? orden : undefined;
+}

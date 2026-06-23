@@ -1,4 +1,3 @@
-import { cn } from "@renovabit/ui/lib/utils";
 import SearchAutocomplete from "@/features/search/components/search-autocomplete";
 
 type InputSearchProps = {

@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAddToCart } from "@/features/cart/hooks/mutations";
+import { PriceDisplay } from "@/features/products/components/price-display";
 import { RelatedProducts } from "@/features/products/components/related-products";
 import { productQueries } from "@/features/products/hooks/queries";
 import { Breadcrumbs } from "@/shared/components/breadcrumbs";
@@ -244,7 +245,12 @@ function ProductPage() {
 
 					{/* Precio + Stock */}
 					<div className="flex items-baseline gap-4">
-						<p className="text-4xl font-bold tracking-tight">{formatPrice(product.price)}</p>
+						<PriceDisplay
+							basePrice={product.price}
+							offerPrice={product.offerPrice}
+							discountPercent={product.discountPercent}
+							size="xl"
+						/>
 						<span className={cn("text-sm font-medium", stockColor)}>{stockLabel}</span>
 					</div>
 

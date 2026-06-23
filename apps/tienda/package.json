@@ -16,6 +16,7 @@
 		"@hugeicons/core-free-icons": "catalog:",
 		"@hugeicons/react": "catalog:",
 		"@renovabit/backend-client": "*",
+		"@renovabit/pricing": "*",
 		"@renovabit/ui": "*",
 		"@tailwindcss/vite": "catalog:",
 		"@tanstack/react-form": "1.33.0",

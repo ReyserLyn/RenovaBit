@@ -1,4 +1,3 @@
-export { api } from "./api-client";
 export {
 	ApiClientError,
 	type ApiErrorResponse,
@@ -6,4 +5,5 @@ export {
 	extractApiError,
 	isApiClientError,
 	unwrapResponse,
-} from "./api-errors";
+} from "@renovabit/backend-client";
+export { api } from "./api-client";

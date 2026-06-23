@@ -1,6 +1,6 @@
 import { ArrowRight01Icon, ShoppingBag01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ORDER_STATUS_URL_VALUES } from "@renovabit/db/orders";
+import { ORDER_STATUS_URL_VALUES } from "@renovabit/db/orders-meta";
 import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Button } from "@renovabit/ui/components/ui/button";
 import {

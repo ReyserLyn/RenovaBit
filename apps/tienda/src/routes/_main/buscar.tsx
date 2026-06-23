@@ -11,6 +11,7 @@ import { isApiClientError } from "@/shared/lib/api";
 import { getSiteUrl } from "@/shared/lib/env";
 import { mapSortToApi } from "@/shared/lib/filters/parsers";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
+import { useSearchFilterState } from "@/shared/lib/hooks/use-filter-state";
 import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
 
 type BuscarSearch = CatalogSearch & {
@@ -47,10 +48,6 @@ export const Route = createFileRoute("/_main/buscar")({
 
 		try {
 			const filters = buildSearchFilters(q, deps);
-			// SSR: await BOTH queries so the page renders with data on first paint.
-			// Mirrors the category-page pattern at /categoria/$slug — use useSuspenseQuery
-			// + await the prefetch; never `void` a query whose absence on first paint
-			// would leave a hole in the layout.
 			await queryClient.ensureInfiniteQueryData(searchQueries.infiniteResults(filters));
 			await queryClient.ensureQueryData(brandQueries.bySearchTerm({ q }));
 			return { q };
@@ -172,12 +169,10 @@ function SearchResults({ q, search }: { q: string; search: BuscarSearch }) {
 		[q, search.marcas, search.orden, search.precio_min, search.precio_max, search],
 	);
 
-	// SSR: both queries are awaited in the loader (products AND brands) and consumed
-	// here via useSuspenseQuery / useSuspenseInfiniteQuery. No `useQuery` with
-	// placeholderData — that's what caused the "all brands then filtered" flash.
 	const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage } =
 		useSuspenseInfiniteQuery(searchQueries.infiniteResults(filters));
 	const { data: brands } = useSuspenseQuery(brandQueries.bySearchTerm({ q }));
+	const filterState = useSearchFilterState();
 
 	const products = data.pages.flatMap((page) => page.data);
 	const totalProducts = data.pages[0]?.total ?? 0;
@@ -197,6 +192,8 @@ function SearchResults({ q, search }: { q: string; search: BuscarSearch }) {
 				name: p.name,
 				slug: p.slug,
 				price: p.price,
+				offerPrice: p.offerPrice,
+				discountPercent: p.discountPercent,
 				stock: p.stock,
 				sku: p.sku,
 				isFeatured: p.isFeatured,
@@ -211,6 +208,7 @@ function SearchResults({ q, search }: { q: string; search: BuscarSearch }) {
 					: null,
 				headline: p.headline,
 				isInStock: p.isInStock,
+				offers: p.offers,
 			})),
 		[products],
 	);
@@ -250,11 +248,6 @@ function SearchResults({ q, search }: { q: string; search: BuscarSearch }) {
 		<div className="flex flex-1 flex-col gap-6 py-6">
 			<div className="space-y-2">
 				<h1 className="text-3xl font-bold tracking-tight">Resultados para: {q}</h1>
-				{/*
-				 * aria-live is scoped to the count paragraph only. Wrapping the entire results
-				 * section (filter sidebar + product grid + infinite-scroll sentinel) would cause
-				 * the whole panel to re-announce on every filter change or page fetch.
-				 */}
 				<p
 					role="status"
 					aria-live="polite"
@@ -266,7 +259,7 @@ function SearchResults({ q, search }: { q: string; search: BuscarSearch }) {
 			</div>
 
 			<div className="flex flex-col gap-6 lg:flex-row">
-				<FilterSidebar brands={brands} />
+				<FilterSidebar brands={brands} {...filterState} />
 				<div className="min-w-0 flex-1 space-y-6">
 					{products.length > 0 ? (
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">

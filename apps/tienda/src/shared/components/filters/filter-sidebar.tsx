@@ -21,9 +21,8 @@ import {
 } from "@renovabit/ui/components/ui/select";
 import { Separator } from "@renovabit/ui/components/ui/separator";
 import { cn } from "@renovabit/ui/lib/utils";
-import { useQueryStates } from "nuqs";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { isSortOption, productFilterParsers, SORT_OPTIONS } from "@/shared/lib/filters/parsers";
+import { isSortOption, SORT_OPTIONS } from "@/shared/lib/filters/parsers";
 import { useDebouncedValue } from "@/shared/lib/hooks/use-debounced-value";
 
 const PRICE_INPUT_PATTERN = /^\d*(\.\d{0,2})?$/;
@@ -32,30 +31,62 @@ export interface BrandFilterItem {
 	id: string;
 	name: string;
 	slug: string;
-	productCount: number;
+	productCount?: number;
 }
 
-interface FilterSidebarProps {
+export interface IndexItem {
+	id: string;
+	label: string;
+}
+
+/**
+ * Controlled sidebar. Each section renders only if the page provides
+ * the corresponding handler — no `showSort`/`showBrand` flags and no
+ * noop handlers. Pass `undefined` (or just omit) to hide a section.
+ */
+export interface FilterSidebarProps {
+	// Data
 	brands?: BrandFilterItem[];
+	indexItems?: IndexItem[];
+	sortValue?: string;
+	selectedBrandSlugs?: string[];
+	minPrice?: string;
+	maxPrice?: string;
+	hasActiveFilters?: boolean;
+
+	// Handlers (optional — section visibility is derived from presence)
+	onSortChange?: (value: string) => void;
+	onBrandToggle?: (slug: string) => void;
+	onPriceChange?: (min: string, max: string) => void;
+	onClearAll?: () => void;
+
 	className?: string;
 }
 
-function isValidPriceInput(value: string): boolean {
-	return PRICE_INPUT_PATTERN.test(value);
-}
-
-export function FilterSidebar({ brands = [], className }: FilterSidebarProps) {
-	const [filters, setFilters] = useQueryStates(productFilterParsers);
+export function FilterSidebar({
+	brands,
+	indexItems,
+	sortValue = "relevance",
+	selectedBrandSlugs = [],
+	minPrice = "",
+	maxPrice = "",
+	hasActiveFilters = false,
+	onSortChange,
+	onBrandToggle,
+	onPriceChange,
+	onClearAll,
+	className,
+}: FilterSidebarProps) {
 	const [brandSearch, setBrandSearch] = useState("");
 	const [mobileOpen, setMobileOpen] = useState(false);
 
-	const [localMinPrice, setLocalMinPrice] = useState(filters.precio_min);
-	const [localMaxPrice, setLocalMaxPrice] = useState(filters.precio_max);
+	const [localMinPrice, setLocalMinPrice] = useState(minPrice);
+	const [localMaxPrice, setLocalMaxPrice] = useState(maxPrice);
 
 	useEffect(() => {
-		setLocalMinPrice(filters.precio_min);
-		setLocalMaxPrice(filters.precio_max);
-	}, [filters.precio_min, filters.precio_max]);
+		setLocalMinPrice(minPrice);
+		setLocalMaxPrice(maxPrice);
+	}, [minPrice, maxPrice]);
 
 	const hasPriceError =
 		localMinPrice !== "" && localMaxPrice !== "" && Number(localMinPrice) > Number(localMaxPrice);
@@ -67,70 +98,55 @@ export function FilterSidebar({ brands = [], className }: FilterSidebarProps) {
 	const prevMax = useRef(debouncedMax);
 
 	useEffect(() => {
-		const updates: { precio_min?: string | null; precio_max?: string | null } = {};
-
+		if (!onPriceChange) return;
+		const updates: { min?: string; max?: string } = {};
 		if (prevMin.current !== debouncedMin) {
 			prevMin.current = debouncedMin;
-			updates.precio_min = debouncedMin || null;
+			updates.min = debouncedMin;
 		}
-
 		if (prevMax.current !== debouncedMax) {
 			prevMax.current = debouncedMax;
-			updates.precio_max = debouncedMax || null;
+			updates.max = debouncedMax;
 		}
-
-		if (Object.keys(updates).length > 0) {
-			void setFilters(updates, { history: "replace" });
+		if (updates.min !== undefined || updates.max !== undefined) {
+			onPriceChange(updates.min ?? minPrice, updates.max ?? maxPrice);
 		}
-	}, [debouncedMin, debouncedMax, setFilters]);
+	}, [debouncedMin, debouncedMax, onPriceChange, minPrice, maxPrice]);
 
-	const hasActiveFilters = useMemo(
-		() =>
-			filters.orden !== "relevance" ||
-			filters.precio_min !== "" ||
-			filters.precio_max !== "" ||
-			filters.marcas.length > 0,
-		[filters],
-	);
-
-	const selectedBrands = useMemo(() => new Set(filters.marcas), [filters.marcas]);
+	const selectedBrands = useMemo(() => new Set(selectedBrandSlugs), [selectedBrandSlugs]);
 
 	const filteredBrands = useMemo(() => {
 		const q = brandSearch.trim().toLowerCase();
-		if (!q) return brands;
+		if (!q || !brands) return brands ?? [];
 		return brands.filter((brand) => brand.name.toLowerCase().includes(q));
 	}, [brands, brandSearch]);
 
+	// Section visibility derived from handler + data presence
+	const showSort = onSortChange !== undefined;
+	const showPrice = onPriceChange !== undefined;
+	const showBrand = onBrandToggle !== undefined && brands !== undefined && brands.length > 0;
+	const showIndex = indexItems !== undefined && indexItems.length > 0;
+
 	function handleSortChange(value: string | null) {
-		if (value && isSortOption(value)) void setFilters({ orden: value });
+		if (!onSortChange) return;
+		if (value && isSortOption(value)) onSortChange(value);
 		setMobileOpen(false);
 	}
 
 	function handleBrandToggle(slug: string) {
-		const next = new Set(filters.marcas);
-		if (next.has(slug)) next.delete(slug);
-		else next.add(slug);
-		void setFilters({ marcas: Array.from(next) });
+		onBrandToggle?.(slug);
 	}
 
 	function handleMinPriceChange(value: string) {
-		if (isValidPriceInput(value)) setLocalMinPrice(value);
+		if (PRICE_INPUT_PATTERN.test(value)) setLocalMinPrice(value);
 	}
 
 	function handleMaxPriceChange(value: string) {
-		if (isValidPriceInput(value)) setLocalMaxPrice(value);
+		if (PRICE_INPUT_PATTERN.test(value)) setLocalMaxPrice(value);
 	}
 
 	function handleClearAll() {
-		void setFilters(
-			{
-				orden: "relevance",
-				marcas: [],
-				precio_min: null,
-				precio_max: null,
-			},
-			{ history: "replace" },
-		);
+		onClearAll?.();
 		setLocalMinPrice("");
 		setLocalMaxPrice("");
 		setBrandSearch("");
@@ -153,65 +169,70 @@ export function FilterSidebar({ brands = [], className }: FilterSidebarProps) {
 
 			<Separator />
 
-			<div className="space-y-2">
-				<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-					Ordenar por
-				</Label>
-				<Select items={SORT_OPTIONS} value={filters.orden} onValueChange={handleSortChange}>
-					<SelectTrigger className="w-full">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent side="bottom" align="start">
-						<SelectGroup>
-							{SORT_OPTIONS.map((opt) => (
-								<SelectItem key={opt.value} value={opt.value}>
-									{opt.label}
-								</SelectItem>
-							))}
-						</SelectGroup>
-					</SelectContent>
-				</Select>
-			</div>
-
-			<Separator />
-
-			<div className="space-y-2">
-				<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-					Precio
-				</Label>
-				<div className="flex items-center gap-2">
-					<Input
-						type="text"
-						inputMode="decimal"
-						placeholder="S/ 0"
-						className={cn("h-8 text-xs", hasPriceError && "border-destructive")}
-						value={localMinPrice}
-						onChange={(e) => handleMinPriceChange(e.target.value)}
-					/>
-					<span className="text-muted-foreground text-xs">—</span>
-					<Input
-						type="text"
-						inputMode="decimal"
-						placeholder="S/ 9999"
-						className={cn("h-8 text-xs", hasPriceError && "border-destructive")}
-						value={localMaxPrice}
-						onChange={(e) => handleMaxPriceChange(e.target.value)}
-					/>
+			{showSort && (
+				<div className="space-y-2">
+					<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+						Ordenar por
+					</Label>
+					<Select items={SORT_OPTIONS} value={sortValue} onValueChange={handleSortChange}>
+						<SelectTrigger className="w-full">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent side="bottom" align="start">
+							<SelectGroup>
+								{SORT_OPTIONS.map((opt) => (
+									<SelectItem key={opt.value} value={opt.value}>
+										{opt.label}
+									</SelectItem>
+								))}
+							</SelectGroup>
+						</SelectContent>
+					</Select>
 				</div>
-				{hasPriceError && (
-					<p className="text-destructive text-xs">
-						El precio m\u00ednimo no puede ser mayor al m\u00e1ximo
-					</p>
-				)}
-			</div>
+			)}
 
-			{brands.length > 0 && (
-				<>
-					<Separator />
-					<div className="space-y-2">
-						<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							Marca
-						</Label>
+			{showSort && (showPrice || showBrand || showIndex) && <Separator />}
+
+			{showPrice && (
+				<div className="space-y-2">
+					<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+						Precio
+					</Label>
+					<div className="flex items-center gap-2">
+						<Input
+							type="text"
+							inputMode="decimal"
+							placeholder="S/ 0"
+							className={cn("h-8 text-xs", hasPriceError && "border-destructive")}
+							value={localMinPrice}
+							onChange={(e) => handleMinPriceChange(e.target.value)}
+						/>
+						<span className="text-muted-foreground text-xs">—</span>
+						<Input
+							type="text"
+							inputMode="decimal"
+							placeholder="S/ 9999"
+							className={cn("h-8 text-xs", hasPriceError && "border-destructive")}
+							value={localMaxPrice}
+							onChange={(e) => handleMaxPriceChange(e.target.value)}
+						/>
+					</div>
+					{hasPriceError && (
+						<p className="text-destructive text-xs">
+							El precio mínimo no puede ser mayor al máximo
+						</p>
+					)}
+				</div>
+			)}
+
+			{showPrice && (showBrand || showIndex) && <Separator />}
+
+			{showBrand && brands && (
+				<div className="space-y-2">
+					<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+						Marca
+					</Label>
+					{brands.length > 8 && (
 						<div className="relative mb-2">
 							<HugeiconsIcon
 								icon={Search01Icon}
@@ -225,34 +246,57 @@ export function FilterSidebar({ brands = [], className }: FilterSidebarProps) {
 								onChange={(e) => setBrandSearch(e.target.value)}
 							/>
 						</div>
-						<div className="max-h-48 space-y-1 overflow-y-auto">
-							{filteredBrands.map((brand) => {
-								const checkboxId = `brand-filter-${brand.id}`;
-								return (
-									<div
-										key={brand.id}
-										className="flex items-center gap-2 rounded-md px-1.5 py-1 text-xs hover:bg-accent/50 transition-colors"
-									>
-										<Checkbox
-											id={checkboxId}
-											checked={selectedBrands.has(brand.slug)}
-											onCheckedChange={() => handleBrandToggle(brand.slug)}
-										/>
-										<Label htmlFor={checkboxId} className="flex flex-1 cursor-pointer items-center">
-											<span className="truncate">{brand.name}</span>
-										</Label>
+					)}
+					<div className="max-h-48 space-y-1 overflow-y-auto">
+						{filteredBrands.map((brand) => {
+							const checkboxId = `brand-filter-${brand.id}`;
+							return (
+								<div
+									key={brand.id}
+									className="flex items-center gap-2 rounded-md px-1.5 py-1 text-xs hover:bg-accent/50 transition-colors"
+								>
+									<Checkbox
+										id={checkboxId}
+										checked={selectedBrands.has(brand.slug)}
+										onCheckedChange={() => handleBrandToggle(brand.slug)}
+									/>
+									<Label htmlFor={checkboxId} className="flex flex-1 cursor-pointer items-center">
+										<span className="truncate">{brand.name}</span>
+									</Label>
+									{brand.productCount !== undefined && (
 										<span className="text-muted-foreground tabular-nums">
 											({brand.productCount})
 										</span>
-									</div>
-								);
-							})}
-							{filteredBrands.length === 0 && (
-								<p className="text-muted-foreground py-2 text-xs text-center">Sin resultados</p>
-							)}
-						</div>
+									)}
+								</div>
+							);
+						})}
+						{filteredBrands.length === 0 && (
+							<p className="text-muted-foreground py-2 text-xs text-center">Sin resultados</p>
+						)}
 					</div>
-				</>
+				</div>
+			)}
+
+			{showBrand && showIndex && <Separator />}
+
+			{showIndex && indexItems && (
+				<div className="space-y-2">
+					<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+						Índice
+					</Label>
+					<nav className="space-y-1" aria-label="Navegación de la página">
+						{indexItems.map((item) => (
+							<a
+								key={item.id}
+								href={`#${item.id}`}
+								className="block rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors truncate"
+							>
+								{item.label}
+							</a>
+						))}
+					</nav>
+				</div>
 			)}
 		</div>
 	);

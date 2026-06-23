@@ -17,7 +17,7 @@ export const publicOffersRoute = new Elysia({ prefix: "/offers" })
 				offset: query.offset,
 				limit: query.limit,
 				isFeatured: query.isFeatured,
-				brandId: query.brandId,
+				brandSlugs: query.brands,
 				offerId: query.offerId,
 				productsOffset: query.productsOffset,
 				productsLimit: query.productsLimit,
@@ -34,7 +34,7 @@ export const publicOffersRoute = new Elysia({ prefix: "/offers" })
 				description:
 					"Devuelve todas las ofertas activas con sus productos enriquecidos (precios por rol). " +
 					"Usar ?offerId=X&productsOffset=Y&productsLimit=Z para paginar productos de una oferta específica. " +
-					"Filtrable por isFeatured y brandId.",
+					"Filtrable por isFeatured y brands (comma-separated brand slugs).",
 				tags: ["Offers"],
 			},
 		},

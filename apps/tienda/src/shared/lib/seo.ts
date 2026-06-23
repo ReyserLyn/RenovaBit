@@ -44,11 +44,11 @@ export function seo({
 		meta.push({ property: "og:image", content: image });
 	}
 
-	const links: Array<{ rel: string; hreflang: string; href: string }> = [];
+	const links: Array<{ rel: string; hrefLang: string; href: string }> = [];
 
 	if (url) {
-		links.push({ rel: "alternate", hreflang: "es-PE", href: url });
-		links.push({ rel: "alternate", hreflang: "x-default", href: url });
+		links.push({ rel: "alternate", hrefLang: "es-PE", href: url });
+		links.push({ rel: "alternate", hrefLang: "x-default", href: url });
 	}
 
 	return { meta, links };

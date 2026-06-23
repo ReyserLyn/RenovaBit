@@ -18,12 +18,30 @@ export interface ProductCategoryRef {
 	slug: string;
 }
 
+/** Referencia a oferta activa (shape del API: PublicOfferRef) */
+export interface OfferRef {
+	id: string;
+	name: string;
+	slug: string;
+	/**
+	 * Discount is always a percentage (0–100). The fixed_amount type was
+	 * removed from the simplified offers model — the API only ever returns
+	 * percentage-based offers now.
+	 */
+	discountValue: string;
+	isFeatured: boolean;
+}
+
 /** Producto en listado público (cards, grids) */
 export interface ProductListItem {
 	id: string;
 	name: string;
 	slug: string;
 	price: string;
+	/** Role-aware offer price (null/undefined when no active offer applies) */
+	offerPrice?: string | null;
+	/** Discount percent (0–100), present only when offer applies */
+	discountPercent?: number | null;
 	stock: number;
 	sku: string;
 	isFeatured: boolean;
@@ -34,4 +52,6 @@ export interface ProductListItem {
 	headline?: string | null;
 	/** Disponibilidad considerando reservas (solo búsqueda FTS) */
 	isInStock?: boolean;
+	/** Ofertas activas aplicables al producto (ya filtradas por backend) */
+	offers?: OfferRef[];
 }

@@ -20,6 +20,7 @@ import { authSessionQueryOptions } from "@/shared/lib/auth/auth-session";
 import { getSiteUrl } from "@/shared/lib/env";
 import { mapSortToApi } from "@/shared/lib/filters/parsers";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
+import { useFavoritesFilterState } from "@/shared/lib/hooks/use-filter-state";
 import { seo } from "@/shared/lib/seo";
 
 type FavoritosSearch = CatalogSearch;
@@ -144,6 +145,7 @@ function FavoritesContent({ search }: { search: FavoritosSearch }) {
 	const products = data?.pages.flatMap((page) => (page ? page.data : [])) ?? [];
 	const totalProducts = data?.pages[0]?.total ?? 0;
 	const brands = data?.pages[0]?.brands ?? [];
+	const filterState = useFavoritesFilterState();
 
 	const mappedProducts = useMemo<ProductListItem[]>(
 		() =>
@@ -185,7 +187,7 @@ function FavoritesContent({ search }: { search: FavoritosSearch }) {
 
 			{/* ── Content ───────────────────────────── */}
 			<div className="flex flex-col gap-6 lg:flex-row">
-				<FilterSidebar brands={brands} />
+				<FilterSidebar brands={brands} {...filterState} />
 				<div className="min-w-0 flex-1 space-y-6">
 					{products.length > 0 ? (
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">

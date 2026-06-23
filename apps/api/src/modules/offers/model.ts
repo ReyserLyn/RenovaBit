@@ -202,8 +202,8 @@ const _offerListQuery = t.Object({
 	offset: t.Optional(t.Integer({ minimum: 0, maximum: 10000, default: 0 })),
 	limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
 	isFeatured: t.Optional(t.String({ pattern: "^(true|false)$" })),
-	/** Filter offers that have products of this brand. */
-	brandId: t.Optional(t.String({ format: "uuid" })),
+	/** Filter offers that have products of these brands (comma-separated UUIDs). */
+	brands: t.Optional(t.String({ minLength: 1, maxLength: 500 })),
 	/** Load the next page of products for a specific offer. Requires offerId. */
 	offerId: t.Optional(t.String({ format: "uuid" })),
 	/** Product page offset (requires offerId). */

@@ -1,4 +1,4 @@
-import { ApiClientError } from "./api-errors";
+import { ApiClientError } from "@renovabit/backend-client";
 
 export function resolveErrorMessage(error: unknown): string {
 	if (error instanceof ApiClientError) return error.message;

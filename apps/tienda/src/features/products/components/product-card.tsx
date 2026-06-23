@@ -5,9 +5,9 @@ import { Button } from "@renovabit/ui/components/ui/button";
 import { cn } from "@renovabit/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { useAddToCart } from "@/features/cart/hooks/mutations";
+import { PriceDisplay } from "@/features/products/components/price-display";
 import { HighlightedText } from "@/features/search/components/highlighted-text";
 import { FavoriteButton } from "@/shared/components/favorites/favorite-button";
-import { formatPrice } from "@/shared/lib/format";
 import type { ProductListItem } from "../types";
 
 interface ProductCardProps {
@@ -43,17 +43,10 @@ export function ProductCard({ product }: ProductCardProps) {
 					</div>
 				)}
 
-				{/* Badge oferta */}
-				{product.isFeatured && (
-					<Badge variant="warning" size="sm" radius="full" className="absolute left-2 top-2">
-						Oferta
-					</Badge>
-				)}
-
 				{/* Badge agotado */}
 				{(product.isInStock === false ||
 					(product.isInStock === undefined && product.stock <= 0)) && (
-					<Badge variant="destructive" size="sm" radius="full" className="absolute left-2 top-10">
+					<Badge variant="destructive" size="sm" radius="full" className="absolute left-2 top-2">
 						Agotado
 					</Badge>
 				)}
@@ -108,9 +101,13 @@ export function ProductCard({ product }: ProductCardProps) {
 				</h3>
 
 				{/* Precio */}
-				<p className="mt-auto pt-1 text-xl font-bold tracking-tight">
-					{formatPrice(product.price)}
-				</p>
+				<PriceDisplay
+					basePrice={product.price}
+					offerPrice={product.offerPrice}
+					discountPercent={product.discountPercent}
+					size="md"
+					className="mt-auto pt-1"
+				/>
 
 				{/* ── Botones ──────────────────────── */}
 				<div className="mt-2 flex flex-col gap-1.5">

@@ -1,4 +1,3 @@
-import { AUTO_CANCEL_MS } from "@renovabit/db/constants";
 import { PAYMENT_METHOD_OPTIONS } from "./payment-methods";
 
 /**

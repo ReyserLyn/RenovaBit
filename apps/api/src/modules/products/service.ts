@@ -8,7 +8,12 @@ import {
 	type RoleCustomMargins,
 	syncReports,
 } from "@renovabit/db/schema";
-import { getEffectiveSalePrice, type Role } from "@renovabit/pricing";
+import {
+	applyOfferToProduct,
+	getEffectiveSalePrice,
+	type OfferInput,
+	type Role,
+} from "@renovabit/pricing";
 import type { InferSelectModel } from "drizzle-orm";
 import {
 	and,
@@ -31,7 +36,7 @@ import { getActiveMarginRules } from "@/utils/margin-rules";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
 import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
-import { activeOffersForProductSubquery } from "../offers/service";
+import { type ActiveOfferRef, activeOffersForProductSubquery } from "../offers/service";
 import type {
 	BulkDeleteResult,
 	ProductModel,
@@ -286,6 +291,36 @@ async function getByIdStrict(id: string): Promise<Product> {
 //  PUBLIC QUERIES
 // ═══════════════════════════════════════════════════
 
+/**
+ * Computes offer price enrichment for a single product row.
+ * Returns null offerPrice and 0 discount when no offer applies or role is admin.
+ * Role-aware: admin sees null/0, customer sees computed offer, distributor sees min(tier, offer).
+ */
+function computeOfferEnrichment(
+	salePrice: number,
+	offers: ActiveOfferRef[],
+	role: Role,
+): { offerPrice: string | null; discountPercent: number } {
+	if (role === "admin" || !offers.length) {
+		return { offerPrice: null, discountPercent: 0 };
+	}
+
+	const offerInputs: OfferInput[] = offers.map((o) => ({
+		id: o.id,
+		discountValue: Number.parseFloat(o.discountValue) || 0,
+	}));
+
+	const result = applyOfferToProduct(salePrice, offerInputs, role);
+
+	const discountPercent =
+		salePrice > 0 ? Math.round(((salePrice - result.discountedPrice) / salePrice) * 100) : 0;
+
+	return {
+		offerPrice: result.discountedPrice < salePrice ? result.discountedPrice.toFixed(2) : null,
+		discountPercent,
+	};
+}
+
 async function listPublic(
 	options: ListOptions = {},
 ): Promise<{ data: PublicProductListItem[]; total: number; offset: number; limit: number }> {
@@ -389,12 +424,15 @@ async function listPublic(
 				role,
 				marginRules,
 			);
+			const { offerPrice, discountPercent } = computeOfferEnrichment(salePrice, row.offers, role);
 			return {
 				id: row.id,
 				name: row.name,
 				slug: row.slug,
 				price: salePrice.toFixed(2),
 				priceValue: salePrice,
+				offerPrice,
+				discountPercent,
 				stock: row.stock,
 				sku: row.sku,
 				isFeatured: row.isFeatured,
@@ -474,12 +512,16 @@ async function getBySlugPublic(
 		marginRules,
 	);
 
+	const { offerPrice, discountPercent } = computeOfferEnrichment(salePrice, row.offers, role);
+
 	return {
 		id: row.id,
 		name: row.name,
 		slug: row.slug,
 		description: row.description,
 		price: salePrice.toFixed(2),
+		offerPrice,
+		discountPercent,
 		stock: row.stock,
 		sku: row.sku,
 		specifications: row.specifications ?? [],
@@ -995,12 +1037,15 @@ async function search(
 			role,
 			marginRules,
 		);
+		const { offerPrice, discountPercent } = computeOfferEnrichment(salePrice, row.offers, role);
 		return {
 			id: row.id,
 			name: row.name,
 			slug: row.slug,
 			sku: row.sku,
 			price: salePrice.toFixed(2),
+			offerPrice,
+			discountPercent,
 			isInStock: row.isInStock,
 			isFeatured: row.isFeatured,
 			stock: row.stock,

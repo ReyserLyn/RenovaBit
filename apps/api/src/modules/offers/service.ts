@@ -166,7 +166,7 @@ async function list(options: {
 			})
 			.from(offers)
 			.where(where)
-			.orderBy(desc(offers.createdAt))
+			.orderBy(desc(offers.isFeatured), asc(offers.endsAt), desc(offers.createdAt))
 			.limit(limit)
 			.offset(offset),
 	]);
@@ -661,7 +661,7 @@ async function getActiveOffersForProducts(
  * @param options.offset - Offer list offset
  * @param options.limit - Offer list page size
  * @param options.isFeatured - Filter featured offers
- * @param options.brandId - Filter offers with products of this brand
+ * @param options.brandSlugs - Comma-separated brand slugs to filter offers whose products match
  * @param options.offerId - Load a specific offer's product page
  * @param options.productsOffset - Product page offset (requires offerId)
  * @param options.productsLimit - Product page size (requires offerId)
@@ -672,7 +672,7 @@ async function getOffersWithProducts(
 		offset?: number;
 		limit?: number;
 		isFeatured?: string;
-		brandId?: string;
+		brandSlugs?: string;
 		offerId?: string;
 		productsOffset?: number;
 		productsLimit?: number;
@@ -691,14 +691,30 @@ async function getOffersWithProducts(
 	} else if (options.isFeatured === "false") {
 		offerConditions.push(eq(offers.isFeatured, false));
 	}
-	if (options.brandId) {
-		offerConditions.push(
-			sql`EXISTS (
-				SELECT 1 FROM offer_products op
-				INNER JOIN products p ON p.id = op.product_id
-				WHERE op.offer_id = offers.id AND p.brand_id = ${options.brandId}
-			)`,
-		);
+	if (options.brandSlugs) {
+		const slugs = options.brandSlugs
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean);
+		if (slugs.length > 0) {
+			const rows = await db
+				.select({ id: brands.id })
+				.from(brands)
+				.where(inArray(brands.slug, slugs));
+			if (rows.length > 0) {
+				const brandIds = rows.map((r) => r.id);
+				offerConditions.push(
+					sql`EXISTS (
+						SELECT 1 FROM offer_products op
+						INNER JOIN products p ON p.id = op.product_id
+						WHERE op.offer_id = offers.id AND p.brand_id = ANY(ARRAY[${sql.join(
+							brandIds.map((id) => sql`${id}::uuid`),
+							sql`, `,
+						)}]::uuid[])
+					)`,
+				);
+			}
+		}
 	}
 	if (options.offerId) {
 		offerConditions.push(eq(offers.id, options.offerId));
@@ -734,8 +750,23 @@ async function getOffersWithProducts(
 
 			// Build WHERE conditions for products
 			const prodConditions: ReturnType<typeof and>[] = [eq(offerProducts.offerId, offer.id)];
-			if (options.brandId) {
-				prodConditions.push(eq(products.brandId, options.brandId));
+			// Re-derive brand IDs from slugs (or pass through resolved ones)
+			let resolvedBrandIds: string[] | undefined;
+			if (options.brandSlugs) {
+				const slugs = options.brandSlugs
+					.split(",")
+					.map((s) => s.trim())
+					.filter(Boolean);
+				if (slugs.length > 0) {
+					const rows = await db
+						.select({ id: brands.id })
+						.from(brands)
+						.where(inArray(brands.slug, slugs));
+					resolvedBrandIds = rows.map((r) => r.id);
+				}
+			}
+			if (resolvedBrandIds?.length) {
+				prodConditions.push(inArray(products.brandId, resolvedBrandIds));
 			}
 			const prodWhere = prodConditions.length > 0 ? and(...prodConditions) : undefined;
 
@@ -842,25 +873,47 @@ async function getOffersWithProducts(
 		}),
 	);
 
-	// ── 5. Collect unique brands from all returned products ──
-	const brandSet = new Map<string, { id: string; name: string; slug: string }>();
-	for (const offer of offersWithProducts) {
-		for (const product of offer.products.items) {
-			if (product.brand && !brandSet.has(product.brand.id)) {
-				brandSet.set(product.brand.id, product.brand);
-			}
-		}
-	}
-
-	// Note: `requiresCustomerRole` was removed — role-based filtering
-	// is now handled by `applyOfferToProduct` in the pricing engine.
+	// ── 5. All brands with at least one active offer ──
+	// Independent of pagination/filter so the sidebar brand list doesn't
+	// shrink when the user picks one brand.
+	const allBrands = await getAllBrandsWithActiveOffers();
 
 	return {
 		offers: offersWithProducts,
 		filters: {
-			brands: Array.from(brandSet.values()),
+			brands: allBrands,
 		},
 	};
+}
+
+// ── Brands with at least one active offer ─────────
+
+/**
+ * Returns every brand that has at least one product linked to an
+ * offer that is active and within its date window. Used by the
+ * tienda sidebar so the brand list stays stable across pagination
+ * and brand filtering.
+ */
+async function getAllBrandsWithActiveOffers(): Promise<
+	Array<{ id: string; name: string; slug: string }>
+> {
+	const now = new Date();
+	const rows = await db
+		.selectDistinct({ id: brands.id, name: brands.name, slug: brands.slug })
+		.from(brands)
+		.innerJoin(products, eq(products.brandId, brands.id))
+		.innerJoin(offerProducts, eq(offerProducts.productId, products.id))
+		.innerJoin(
+			offers,
+			and(
+				eq(offers.id, offerProducts.offerId),
+				eq(offers.isActive, true),
+				lte(offers.startsAt, now),
+				gte(offers.endsAt, now),
+			),
+		)
+		.orderBy(asc(brands.name));
+	return rows;
 }
 
 // ── Export ──────────────────────────────────────────

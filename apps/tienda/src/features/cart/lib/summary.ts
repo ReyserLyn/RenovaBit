@@ -14,8 +14,15 @@ export function isAvailableCartItem(item: CartItem): boolean {
 export function summarizeAvailableCartItems(items: CartItem[]) {
 	const availableItems = items.filter(isAvailableCartItem);
 	const itemsCount = availableItems.reduce((sum, item) => sum + item.quantity, 0);
+
+	// Use role-aware pricing: currentOfferPrice if offers apply, else currentRolePrice
 	const subtotal = availableItems
-		.reduce((sum, item) => sum + toNumber(item.addedAtPrice) * item.quantity, 0)
+		.reduce((sum, item) => {
+			const rolePrice = toNumber(item.currentRolePrice);
+			const offerPrice = toNumber(item.currentOfferPrice);
+			const effectivePrice = offerPrice < rolePrice ? offerPrice : rolePrice;
+			return sum + effectivePrice * item.quantity;
+		}, 0)
 		.toFixed(2);
 
 	return {

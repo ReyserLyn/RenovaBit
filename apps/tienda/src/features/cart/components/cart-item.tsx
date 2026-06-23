@@ -1,4 +1,4 @@
-import { Delete01Icon, ImageNotFound01Icon } from "@hugeicons/core-free-icons";
+import { AlertCircleIcon, Delete01Icon, ImageNotFound01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Button } from "@renovabit/ui/components/ui/button";
@@ -19,13 +19,20 @@ export function CartItem({ item }: CartItemProps) {
 	const removeMutation = useRemoveCartItem();
 
 	const isUnavailable = item.status === "unavailable" || item.status === "out_of_stock";
-	const lineTotal = (Number.parseFloat(item.addedAtPrice) * item.quantity).toFixed(2);
 	const statusLabel =
 		item.status === "out_of_stock"
 			? "Agotado"
 			: item.status === "unavailable"
 				? "No disponible"
 				: null;
+
+	// ── Role-aware pricing (T3) ──
+	const rolePrice = Number.parseFloat(item.currentRolePrice);
+	const offerPrice = Number.parseFloat(item.currentOfferPrice);
+	const savedAmount = Math.max(0, rolePrice - offerPrice);
+	const effectiveUnitPrice = savedAmount > 0 ? offerPrice : rolePrice;
+	const lineTotal = (effectiveUnitPrice * item.quantity).toFixed(2);
+	const totalSaved = savedAmount * item.quantity;
 
 	return (
 		<div className={cn("flex gap-3 border-b border-border pb-3", isUnavailable && "opacity-60")}>
@@ -106,12 +113,32 @@ export function CartItem({ item }: CartItemProps) {
 					<div className="flex items-center gap-1">
 						<div className="text-right">
 							<span className="text-sm font-semibold tabular-nums">{formatPrice(lineTotal)}</span>
+
+							{/* Unit price */}
 							{item.quantity > 1 && (
 								<p className="text-muted-foreground text-[0.65rem] leading-tight">
-									{formatPrice(item.addedAtPrice)} c/u
+									{formatPrice(effectiveUnitPrice.toFixed(2))} c/u
 								</p>
 							)}
+
+							{/* Saved amount (T3: show only when > 0) */}
+							{savedAmount > 0 && (
+								<span
+									aria-live="polite"
+									className="mt-0.5 block text-[0.6rem] leading-tight text-success"
+								>
+									Ahorraste {formatPrice(totalSaved.toFixed(2))}
+								</span>
+							)}
 						</div>
+
+						{/* Price changed warning (T3) */}
+						{item.priceChanged && (
+							<span title="El precio cambió desde que agregaste este producto" className="shrink-0">
+								<HugeiconsIcon icon={AlertCircleIcon} size={14} className="text-warning" />
+							</span>
+						)}
+
 						<Button
 							size="icon-xs"
 							variant="ghost"
