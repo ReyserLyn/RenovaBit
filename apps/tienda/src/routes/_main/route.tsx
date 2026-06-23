@@ -29,14 +29,16 @@ export const Route = createFileRoute("/_main")({
 			queryClient.setQueryData(cartQueries.total(null).queryKey, cartTotal);
 		}
 
-		return { preloadedSession: session, preloadedCartTotal: cartTotal };
+		const serverNow = Date.now();
+
+		return { preloadedSession: session, preloadedCartTotal: cartTotal, serverNow };
 	},
 
 	component: RouteComponent,
 });
 
 function RouteComponent() {
-	const { preloadedSession, preloadedCartTotal } = Route.useLoaderData();
+	const { preloadedSession, preloadedCartTotal, serverNow } = Route.useLoaderData();
 	const isMobile = useIsMobile();
 
 	return (
@@ -45,13 +47,15 @@ function RouteComponent() {
 
 			<div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
 				<div className="container mx-auto flex w-full flex-1 flex-col overflow-x-hidden min-h-svh">
-					<CartSsrProvider value={{ session: preloadedSession, cartTotal: preloadedCartTotal }}>
+					<CartSsrProvider
+						value={{ session: preloadedSession, cartTotal: preloadedCartTotal, serverNow }}
+					>
 						<Navbar />
-					</CartSsrProvider>
 
-					<main className="flex min-w-0 flex-1 flex-col">
-						<Outlet />
-					</main>
+						<main className="flex min-w-0 flex-1 flex-col">
+							<Outlet />
+						</main>
+					</CartSsrProvider>
 				</div>
 
 				<Footer />

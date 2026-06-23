@@ -107,19 +107,32 @@ async function syncSummary(favoriteId: string): Promise<void> {
 //  PUBLIC API
 // ═══════════════════════════════════════════════════
 
-async function checkFavorite(userId: string, productId: string): Promise<{ isFavorite: boolean }> {
+async function getStatusesForProducts(
+	userId: string,
+	productIds: ReadonlyArray<string>,
+): Promise<Record<string, boolean>> {
+	const result: Record<string, boolean> = {};
+	for (const id of productIds) result[id] = false;
+
+	if (productIds.length === 0) return result;
+
 	const favorite = await findByUserId(userId);
-	if (!favorite) {
-		return { isFavorite: false };
-	}
+	if (!favorite) return result;
 
-	const [row] = await db
-		.select({ id: favoriteItems.id })
+	const rows = await db
+		.select({ productId: favoriteItems.productId })
 		.from(favoriteItems)
-		.where(and(eq(favoriteItems.favoriteId, favorite.id), eq(favoriteItems.productId, productId)))
-		.limit(1);
+		.where(
+			and(
+				eq(favoriteItems.favoriteId, favorite.id),
+				inArray(favoriteItems.productId, [...productIds]),
+			),
+		);
 
-	return { isFavorite: !!row };
+	for (const row of rows) {
+		result[row.productId] = true;
+	}
+	return result;
 }
 
 async function getOrCreate(userId: string): Promise<{ id: string }> {
@@ -437,5 +450,5 @@ export const FavoritesService = {
 	removeItem,
 	getItems,
 	getById,
-	checkFavorite,
+	getStatusesForProducts,
 };

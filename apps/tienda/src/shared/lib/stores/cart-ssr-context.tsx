@@ -4,6 +4,7 @@ import type { Session } from "@/shared/lib/auth/auth-client";
 interface CartSsrData {
 	session: Session | null;
 	cartTotal: { itemsCount: number; subtotal: string } | null;
+	serverNow: number | null;
 }
 
 const CartSsrContext = createContext<CartSsrData | null>(null);
@@ -21,7 +22,7 @@ export function CartSsrProvider({
 export function useCartSsr(): CartSsrData {
 	const ctx = useContext(CartSsrContext);
 	if (!ctx) {
-		return { session: null, cartTotal: null };
+		return { session: null, cartTotal: null, serverNow: null };
 	}
 	return ctx;
 }

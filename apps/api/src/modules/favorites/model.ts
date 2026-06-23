@@ -85,6 +85,10 @@ const FavoritesListQuery = t.Object({
 	maxPrice: t.Optional(t.String()),
 });
 
+const FavoriteStatusBatchQuery = t.Object({
+	productIds: t.Array(t.String({ format: "uuid" }), { minItems: 1, maxItems: 200 }),
+});
+
 // ── Error ─────────────────────────────────────
 
 export const ErrorResponse = t.Object({
@@ -96,10 +100,9 @@ export const ErrorResponse = t.Object({
 
 // ── Export ────────────────────────────────────
 
-// ── Status Check ──────────────────────────────
-
-export const FavoriteStatusResponse = t.Object({
-	isFavorite: t.Boolean(),
+/** Batched status: one DB hit for N productIds (used by listings). */
+export const FavoriteStatusBatchResponse = t.Object({
+	statuses: t.Record(t.String({ format: "uuid" }), t.Boolean()),
 });
 
 // ── Export ────────────────────────────────────
@@ -113,12 +116,13 @@ export const FavoritesModel = {
 
 	// Query
 	favoritesListQuery: FavoritesListQuery,
+	favoriteStatusBatchQuery: FavoriteStatusBatchQuery,
 
 	// Responses
 	favoriteResponse: FavoriteResponse,
 	favoriteItemResponse: FavoriteItemResponse,
 	favoriteListResponse: FavoriteListResponse,
-	favoriteStatusResponse: FavoriteStatusResponse,
+	favoriteStatusBatchResponse: FavoriteStatusBatchResponse,
 } as const;
 
 export type FavoritesModel = {

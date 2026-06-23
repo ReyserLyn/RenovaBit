@@ -55,18 +55,24 @@ export const favoritesRoute = new Elysia({ prefix: "/favorites" })
 		},
 	)
 
-	// ── Check Favorite Status ──────────────────
+	// ── Check Favorite Status (batched) ──────
+	// One DB roundtrip for N productIds. Used by product listings to avoid
+	// one network call per card.
 	.get(
-		"/items/:productId/status",
-		async ({ params: { productId }, user }) => {
+		"/status",
+		async ({ query, user }) => {
 			const userId = user.id;
-			return FavoritesService.checkFavorite(userId, productId);
+			const statuses = await FavoritesService.getStatusesForProducts(userId, query.productIds);
+			return { statuses };
 		},
 		{
 			isAuth: true,
-			params: FavoritesModel.productIdParams,
-			response: { 200: FavoritesModel.favoriteStatusResponse, 400: ErrorResponse },
-			detail: { summary: "Verificar si un producto está en favoritos", tags: ["Favorites"] },
+			query: FavoritesModel.favoriteStatusBatchQuery,
+			response: { 200: FavoritesModel.favoriteStatusBatchResponse, 400: ErrorResponse },
+			detail: {
+				summary: "Verificar favoritos para varios productos (batch)",
+				tags: ["Favorites"],
+			},
 		},
 	)
 
