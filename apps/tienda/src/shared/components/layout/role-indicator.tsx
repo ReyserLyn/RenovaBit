@@ -1,26 +1,24 @@
-import { Shield01Icon, Store01Icon, UserIcon } from "@hugeicons/core-free-icons";
+import { Shield01Icon, Store01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "@renovabit/ui/components/ui/badge";
 import { useCartSsr } from "@/shared/lib/stores/cart-ssr-context";
 
-type Role = "admin" | "customer" | "distributor";
+type SpecialRole = "admin" | "distributor";
 
 const ROLE_META: Record<
-	Role,
-	{ label: string; icon: typeof Shield01Icon; variant: "invert-light" | "info-light" | "secondary" }
+	SpecialRole,
+	{ label: string; icon: typeof Shield01Icon; variant: "invert-light" | "info-light" }
 > = {
 	admin: { label: "Administrador", icon: Shield01Icon, variant: "invert-light" },
 	distributor: { label: "Distribuidor", icon: Store01Icon, variant: "info-light" },
-	customer: { label: "Cliente", icon: UserIcon, variant: "secondary" },
 };
 
 export function RoleIndicator() {
 	const { session } = useCartSsr();
 	const role = session?.user?.role;
-	if (!role) return null;
+	if (role !== "admin" && role !== "distributor") return null;
 
 	const meta = ROLE_META[role];
-	if (!meta) return null;
 	const Icon = meta.icon;
 
 	return (
