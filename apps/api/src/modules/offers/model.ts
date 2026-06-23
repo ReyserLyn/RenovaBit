@@ -140,6 +140,7 @@ const OfferProductItem = t.Object({
 	id: t.String({ format: "uuid" }),
 	name: t.String(),
 	slug: t.String(),
+	sku: t.String(),
 	primaryImage: t.Nullable(t.String()),
 	brand: t.Nullable(
 		t.Object({

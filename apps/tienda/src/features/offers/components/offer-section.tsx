@@ -16,7 +16,6 @@ import { OfferCountdown } from "./offer-countdown";
 interface OfferSectionProps {
 	offer: OfferWithProducts;
 	filteredProducts: OfferProductPage;
-	role: string;
 	isLoadingMore: boolean;
 	onLoadMore: () => void;
 }
@@ -24,7 +23,6 @@ interface OfferSectionProps {
 export function OfferSection({
 	offer,
 	filteredProducts,
-	role,
 	isLoadingMore,
 	onLoadMore,
 }: OfferSectionProps) {
@@ -54,11 +52,11 @@ export function OfferSection({
 									id: product.id,
 									name: product.name,
 									slug: product.slug,
-									price: product.offerPrice ?? product.basePrice ?? "0",
+									price: product.basePrice ?? "0",
 									offerPrice: product.offerPrice,
 									discountPercent: product.discountPercent,
 									stock: product.stock,
-									sku: product.slug,
+									sku: product.sku,
 									isFeatured: false,
 									primaryImage: product.primaryImage
 										? { url: product.primaryImage, alt: null }

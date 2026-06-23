@@ -5,7 +5,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { api } from "@/shared/lib/api/api-client";
-import type { OffersListResponse } from "../types";
 
 // ── Input types ─────────────────────────────────────
 
@@ -42,7 +41,7 @@ export const getOffersWithProductsServerFn = createServerFn({ method: "GET" })
 			});
 
 			if (error || !result) return null;
-			return result as unknown as OffersListResponse;
+			return result;
 		} catch {
 			return null;
 		}

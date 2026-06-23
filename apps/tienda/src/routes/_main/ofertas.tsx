@@ -8,7 +8,6 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@renovabit/ui/components/ui/empty";
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { OfferSection } from "@/features/offers/components/offer-section";
@@ -19,7 +18,6 @@ import type {
 	OfferWithProducts,
 } from "@/features/offers/types";
 import { FilterSidebar } from "@/shared/components/filters/filter-sidebar";
-import { authSessionQueryOptions } from "@/shared/lib/auth/auth-session";
 import { getSiteUrl } from "@/shared/lib/env";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
 import { useOffersFilterState } from "@/shared/lib/hooks/use-filter-state";
@@ -84,8 +82,6 @@ export const Route = createFileRoute("/_main/ofertas")({
 
 function OfertasPage() {
 	const { initialData } = Route.useLoaderData();
-	const { data: session } = useQuery(authSessionQueryOptions());
-	const role = session?.user?.role ?? "customer";
 	const router = useRouter();
 
 	const filterState = useOffersFilterState();
@@ -218,7 +214,6 @@ function OfertasPage() {
 									key={offer.id}
 									offer={offer}
 									filteredProducts={filteredProducts}
-									role={role}
 									isLoadingMore={loadingOfferId === offer.id}
 									onLoadMore={() => handleLoadMore(offer.id)}
 								/>

@@ -691,6 +691,10 @@ async function getOffersWithProducts(
 	} else if (options.isFeatured === "false") {
 		offerConditions.push(eq(offers.isFeatured, false));
 	}
+
+	// Resolve brand slugs → IDs ONCE. Reused for the offer EXISTS condition
+	// and the per-offer product filter (avoids N+1 brand-lookup queries).
+	let resolvedBrandIds: string[] | undefined;
 	if (options.brandSlugs) {
 		const slugs = options.brandSlugs
 			.split(",")
@@ -701,14 +705,14 @@ async function getOffersWithProducts(
 				.select({ id: brands.id })
 				.from(brands)
 				.where(inArray(brands.slug, slugs));
-			if (rows.length > 0) {
-				const brandIds = rows.map((r) => r.id);
+			resolvedBrandIds = rows.map((r) => r.id);
+			if (resolvedBrandIds.length > 0) {
 				offerConditions.push(
 					sql`EXISTS (
 						SELECT 1 FROM offer_products op
 						INNER JOIN products p ON p.id = op.product_id
 						WHERE op.offer_id = offers.id AND p.brand_id = ANY(ARRAY[${sql.join(
-							brandIds.map((id) => sql`${id}::uuid`),
+							resolvedBrandIds.map((id) => sql`${id}::uuid`),
 							sql`, `,
 						)}]::uuid[])
 					)`,
@@ -748,23 +752,14 @@ async function getOffersWithProducts(
 			const prodOffset = options.offerId === offer.id ? (options.productsOffset ?? 0) : 0;
 			const prodLimit = options.offerId === offer.id ? (options.productsLimit ?? 20) : 20;
 
-			// Build WHERE conditions for products
-			const prodConditions: ReturnType<typeof and>[] = [eq(offerProducts.offerId, offer.id)];
-			// Re-derive brand IDs from slugs (or pass through resolved ones)
-			let resolvedBrandIds: string[] | undefined;
-			if (options.brandSlugs) {
-				const slugs = options.brandSlugs
-					.split(",")
-					.map((s) => s.trim())
-					.filter(Boolean);
-				if (slugs.length > 0) {
-					const rows = await db
-						.select({ id: brands.id })
-						.from(brands)
-						.where(inArray(brands.slug, slugs));
-					resolvedBrandIds = rows.map((r) => r.id);
-				}
-			}
+			// Build WHERE conditions for products.
+			// Visibility: only active, non-review products are exposed publicly —
+			// mirrors `PUBLIC_DETAIL_CONDITIONS` in products/service.ts.
+			const prodConditions: ReturnType<typeof and>[] = [
+				eq(offerProducts.offerId, offer.id),
+				eq(products.isActive, true),
+				eq(products.needsReview, false),
+			];
 			if (resolvedBrandIds?.length) {
 				prodConditions.push(inArray(products.brandId, resolvedBrandIds));
 			}
@@ -784,6 +779,7 @@ async function getOffersWithProducts(
 					id: products.id,
 					name: products.name,
 					slug: products.slug,
+					sku: products.sku,
 					primaryImage: sql<string | null>`(
 						SELECT pi.url FROM product_images pi
 						WHERE pi.product_id = ${products.id}
@@ -840,6 +836,7 @@ async function getOffersWithProducts(
 					id: row.id,
 					name: row.name,
 					slug: row.slug,
+					sku: row.sku,
 					primaryImage: row.primaryImage,
 					brand: row.brandId
 						? { id: row.brandId, name: row.brandName!, slug: row.brandSlug! }
