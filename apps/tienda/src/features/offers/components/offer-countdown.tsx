@@ -1,14 +1,11 @@
-import { useOfferCountdown } from "../hooks/use-offer-countdown";
-
 interface OfferCountdownProps {
-	startsAt: string | Date;
+	label: string;
+	status: "upcoming" | "active" | "ending" | "ended";
 	endsAt: string | Date;
 	className?: string;
 }
 
-export function OfferCountdown({ startsAt, endsAt, className }: OfferCountdownProps) {
-	const { label, status } = useOfferCountdown(startsAt, endsAt);
-
+export function OfferCountdown({ label, status, endsAt, className }: OfferCountdownProps) {
 	const isMuted = status === "ended" || status === "upcoming";
 
 	return (

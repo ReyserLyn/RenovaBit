@@ -144,6 +144,7 @@ function CategoryPage() {
 					{totalProducts} {totalProducts === 1 ? "producto" : "productos"}
 				</p>
 			</div>
+
 			<div className="flex flex-col gap-6 lg:flex-row">
 				<FilterSidebar brands={availableBrands} {...filterState} />
 				<div className="min-w-0 flex-1 space-y-6">

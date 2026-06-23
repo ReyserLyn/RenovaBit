@@ -69,3 +69,98 @@ export function breadcrumbJsonLd(items: Array<{ name: string; url?: string }>) {
 		}),
 	};
 }
+
+interface ProductJsonLdInput {
+	name: string;
+	description?: string | null;
+	image?: string | null;
+	sku: string;
+	price: string;
+	offerPrice?: string | null;
+	priceValidUntil?: string | null;
+	availability: "in_stock" | "out_of_stock";
+	url: string;
+	brand?: { name: string; slug: string } | null;
+}
+
+const AVAILABILITY_MAP = {
+	in_stock: "https://schema.org/InStock",
+	out_of_stock: "https://schema.org/OutOfStock",
+} as const;
+
+export function productJsonLd(product: ProductJsonLdInput) {
+	const currentPrice = product.offerPrice ?? product.price;
+	const hasSale = product.offerPrice !== null && product.offerPrice !== undefined;
+
+	const offer: Record<string, unknown> = {
+		"@type": "Offer",
+		url: product.url,
+		priceCurrency: "PEN",
+		price: currentPrice,
+		availability: AVAILABILITY_MAP[product.availability],
+		seller: {
+			"@type": "Organization",
+			name: "Renovabit",
+		},
+	};
+
+	if (hasSale) {
+		offer.priceValidUntil = product.priceValidUntil ?? undefined;
+	}
+
+	const jsonLd: Record<string, unknown> = {
+		"@context": "https://schema.org",
+		"@type": "Product",
+		name: product.name,
+		sku: product.sku,
+		url: product.url,
+		...(product.image ? { image: product.image } : {}),
+		...(product.description ? { description: product.description } : {}),
+		...(product.brand
+			? {
+					brand: {
+						"@type": "Brand",
+						name: product.brand.name,
+					},
+				}
+			: {}),
+		offers: offer,
+	};
+
+	return {
+		type: "application/ld+json",
+		children: JSON.stringify(jsonLd),
+	};
+}
+
+interface OfferListItem {
+	name: string;
+	url: string;
+	price: string;
+	priceCurrency?: string;
+	validThrough: string;
+}
+
+export function offerListJsonLd(offers: OfferListItem[]) {
+	return {
+		type: "application/ld+json",
+		children: JSON.stringify({
+			"@context": "https://schema.org",
+			"@type": "ItemList",
+			itemListElement: offers.map((offer, i) => ({
+				"@type": "ListItem",
+				position: i + 1,
+				item: {
+					"@type": "Offer",
+					name: offer.name,
+					url: offer.url,
+					price: offer.price,
+					priceCurrency: offer.priceCurrency ?? "PEN",
+					priceValidUntil: offer.validThrough,
+					availability: "https://schema.org/InStock",
+					seller: { "@type": "Organization", name: "Renovabit" },
+				},
+			})),
+		}),
+	};
+}

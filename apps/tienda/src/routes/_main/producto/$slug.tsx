@@ -23,7 +23,7 @@ import {
 import { isApiClientError } from "@/shared/lib/api";
 import { getSiteUrl } from "@/shared/lib/env";
 import { formatPrice } from "@/shared/lib/format";
-import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
+import { breadcrumbJsonLd, productJsonLd, seo } from "@/shared/lib/seo";
 
 export const Route = createFileRoute("/_main/producto/$slug")({
 	loader: async ({ params, context: { queryClient } }) => {
@@ -70,10 +70,26 @@ export const Route = createFileRoute("/_main/producto/$slug")({
 				: []),
 			{ name: product.name },
 		];
+		// Use the earliest-ending active offer as the priceValidUntil signal.
+		const activeOfferEndsAt = product.offers
+			.map((o) => (o.endsAt instanceof Date ? o.endsAt.toISOString() : o.endsAt))
+			.sort()[0];
+		const productJson = productJsonLd({
+			name: product.name,
+			description: product.description,
+			image: product.images[0]?.url ?? null,
+			sku: product.sku,
+			price: product.price,
+			offerPrice: product.offerPrice,
+			priceValidUntil: activeOfferEndsAt ?? null,
+			availability: product.stock > 0 ? "in_stock" : "out_of_stock",
+			url: productUrl,
+			brand: product.brand ? { name: product.brand.name, slug: product.brand.slug } : null,
+		});
 		return {
 			meta: [...seoTags.meta],
 			links: [...seoTags.links],
-			scripts: [breadcrumbJsonLd(breadcrumbItems)],
+			scripts: [breadcrumbJsonLd(breadcrumbItems), productJson],
 		};
 	},
 

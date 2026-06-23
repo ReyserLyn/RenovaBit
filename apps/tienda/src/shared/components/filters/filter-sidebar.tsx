@@ -240,6 +240,7 @@ export function FilterSidebar({
 								className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"
 							/>
 							<Input
+								aria-label="Buscar marca"
 								placeholder="Buscar marca..."
 								className="h-8 pl-7 text-xs"
 								value={brandSearch}
@@ -306,7 +307,7 @@ export function FilterSidebar({
 			<div className="lg:hidden">
 				<Drawer open={mobileOpen} onOpenChange={setMobileOpen}>
 					<DrawerTrigger asChild>
-						<Button variant="outline" size="sm">
+						<Button variant="outline" size="sm" aria-haspopup="dialog" aria-expanded={mobileOpen}>
 							<HugeiconsIcon icon={FilterIcon} size={16} />
 							Filtros
 						</Button>

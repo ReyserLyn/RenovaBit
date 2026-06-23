@@ -12,20 +12,18 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { OfferSection } from "@/features/offers/components/offer-section";
 import { type GetOffersInput, getOffersWithProductsServerFn } from "@/features/offers/hooks/server";
-import type {
-	OfferProductPage,
-	OffersListResponse,
-	OfferWithProducts,
-} from "@/features/offers/types";
+import type { OffersListResponse } from "@/features/offers/types";
 import { FilterSidebar } from "@/shared/components/filters/filter-sidebar";
 import { getSiteUrl } from "@/shared/lib/env";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
 import { useOffersFilterState } from "@/shared/lib/hooks/use-filter-state";
-import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
+import { breadcrumbJsonLd, offerListJsonLd, seo } from "@/shared/lib/seo";
 
 function buildLoaderInput(s: CatalogSearch): GetOffersInput {
 	const input: GetOffersInput = {};
 	if (s.marcas) input.brandSlugs = s.marcas;
+	if (s.precio_min) input.minPrice = s.precio_min;
+	if (s.precio_max) input.maxPrice = s.precio_max;
 	return input;
 }
 
@@ -46,7 +44,7 @@ export const Route = createFileRoute("/_main/ofertas")({
 		};
 	},
 
-	head: () => {
+	head: ({ loaderData }) => {
 		const offersUrl = `${getSiteUrl()}/ofertas`;
 		const seoTags = seo({
 			title: "Ofertas · Renovabit",
@@ -54,6 +52,7 @@ export const Route = createFileRoute("/_main/ofertas")({
 				"Encuentra las mejores ofertas en repuestos, accesorios y equipos para tu negocio. Descuentos exclusivos en Renovabit.",
 			url: offersUrl,
 		});
+		const offers = loaderData?.initialData?.offers ?? [];
 		return {
 			meta: [
 				...seoTags.meta,
@@ -61,7 +60,17 @@ export const Route = createFileRoute("/_main/ofertas")({
 				{ property: "og:url", content: offersUrl },
 			],
 			links: [{ rel: "canonical", href: offersUrl }, ...seoTags.links],
-			scripts: [breadcrumbJsonLd([{ name: "Home", url: getSiteUrl() }, { name: "Ofertas" }])],
+			scripts: [
+				breadcrumbJsonLd([{ name: "Home", url: getSiteUrl() }, { name: "Ofertas" }]),
+				offerListJsonLd(
+					offers.map((o) => ({
+						name: o.name,
+						url: `${offersUrl}#offer-${o.slug}`,
+						price: o.discountValue,
+						validThrough: o.endsAt instanceof Date ? o.endsAt.toISOString() : String(o.endsAt),
+					})),
+				),
+			],
 		};
 	},
 
@@ -127,6 +136,8 @@ function OfertasPage() {
 			if (filterState.selectedBrandSlugs && filterState.selectedBrandSlugs.length > 0) {
 				input.brandSlugs = filterState.selectedBrandSlugs.join(",");
 			}
+			if (filterState.minPrice) input.minPrice = filterState.minPrice;
+			if (filterState.maxPrice) input.maxPrice = filterState.maxPrice;
 			const currentOffer = offers.find((o) => o.id === offerId);
 			input.productsOffset = currentOffer?.products.items.length ?? 0;
 			input.productsLimit = 20;
@@ -154,21 +165,6 @@ function OfertasPage() {
 		} finally {
 			setLoadingOfferId(null);
 		}
-	}
-
-	const minPrice = filterState.minPrice ? Number(filterState.minPrice) : null;
-	const maxPrice = filterState.maxPrice ? Number(filterState.maxPrice) : null;
-
-	function filterProductsByPrice(offer: OfferWithProducts): OfferProductPage {
-		if (!minPrice && !maxPrice) return offer.products;
-		const filtered = offer.products.items.filter((p) => {
-			const price = p.basePrice ? Number(p.basePrice) : null;
-			if (price === null) return false;
-			if (minPrice !== null && price < minPrice) return false;
-			if (maxPrice !== null && price > maxPrice) return false;
-			return true;
-		});
-		return { items: filtered, nextOffset: null, total: filtered.length };
 	}
 
 	const hasActiveFilters = filterState.hasActiveFilters;
@@ -207,18 +203,15 @@ function OfertasPage() {
 							</EmptyContent>
 						</Empty>
 					) : (
-						offers.map((offer) => {
-							const filteredProducts = filterProductsByPrice(offer);
-							return (
-								<OfferSection
-									key={offer.id}
-									offer={offer}
-									filteredProducts={filteredProducts}
-									isLoadingMore={loadingOfferId === offer.id}
-									onLoadMore={() => handleLoadMore(offer.id)}
-								/>
-							);
-						})
+						offers.map((offer) => (
+							<OfferSection
+								key={offer.id}
+								offer={offer}
+								filteredProducts={offer.products}
+								isLoadingMore={loadingOfferId === offer.id}
+								onLoadMore={() => handleLoadMore(offer.id)}
+							/>
+						))
 					)}
 				</main>
 			</div>

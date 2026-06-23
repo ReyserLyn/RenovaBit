@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { api, unwrapResponse } from "@/shared/lib/api";
+import { api, getApiSsrHeaders, unwrapResponse } from "@/shared/lib/api";
 
 // ── Query Keys Factory ───────────────────────────────────────
 
@@ -16,7 +16,10 @@ export const categoryQueries = {
 	tree: () =>
 		queryOptions({
 			queryKey: categoryKeys.tree(),
-			queryFn: () => unwrapResponse(api.api.v1.categories.get()),
+			queryFn: async () => {
+				const headers = await getApiSsrHeaders();
+				return unwrapResponse(api.api.v1.categories.get({ headers }));
+			},
 			staleTime: 1000 * 60 * 10, // 10 min
 		}),
 
@@ -24,7 +27,10 @@ export const categoryQueries = {
 	bySlug: (slug: string) =>
 		queryOptions({
 			queryKey: categoryKeys.detail(slug),
-			queryFn: () => unwrapResponse(api.api.v1.categories({ slug }).get()),
+			queryFn: async () => {
+				const headers = await getApiSsrHeaders();
+				return unwrapResponse(api.api.v1.categories({ slug }).get({ headers }));
+			},
 			staleTime: 1000 * 60 * 5, // 5 min
 		}),
 };

@@ -1,5 +1,6 @@
 import { Elysia } from "elysia";
 import { AuthModule } from "@/modules/auth";
+import { getUserRole } from "@/utils/auth/helpers";
 import { ErrorResponse, FavoritesModel } from "./model";
 import { FavoritesService } from "./service";
 
@@ -12,11 +13,12 @@ export const favoritesRoute = new Elysia({ prefix: "/favorites" })
 	// ── List Favorites ──────────────────────────
 	.get(
 		"/",
-		async ({ query, user }) => {
+		async ({ query, request, user }) => {
 			const userId = user.id;
+			const role = await getUserRole(request);
 			const favorite = await FavoritesService.getOrCreate(userId);
 
-			return FavoritesService.getItems(favorite.id, {
+			return FavoritesService.getItems(favorite.id, role, {
 				offset: query.offset,
 				limit: query.limit,
 				sortBy: query.sortBy,

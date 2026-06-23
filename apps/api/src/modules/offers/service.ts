@@ -44,6 +44,7 @@ export type ActiveOfferRef = {
 	slug: string;
 	discountValue: string;
 	isFeatured: boolean;
+	endsAt: Date;
 };
 
 /**
@@ -73,7 +74,8 @@ export function activeOffersForProductSubquery() {
 					'name', o.name,
 					'slug', o.slug,
 					'discountValue', o.discount_value::text,
-					'isFeatured', o.is_featured
+					'isFeatured', o.is_featured,
+					'endsAt', o.ends_at
 				))
 				FROM offers o
 				WHERE o.is_active = true
@@ -676,6 +678,8 @@ async function getOffersWithProducts(
 		offerId?: string;
 		productsOffset?: number;
 		productsLimit?: number;
+		minPrice?: string;
+		maxPrice?: string;
 	} = {},
 ) {
 	const now = new Date();
@@ -765,7 +769,8 @@ async function getOffersWithProducts(
 			}
 			const prodWhere = prodConditions.length > 0 ? and(...prodConditions) : undefined;
 
-			// Count total matching products
+			// Count total matching products (before price filter — price is role-aware
+			// and computed in JS, same approach as products/service.ts listPublic).
 			const [countRow] = await db
 				.select({ total: sql<number>`COUNT(*)::int` })
 				.from(offerProducts)
@@ -773,7 +778,14 @@ async function getOffersWithProducts(
 				.where(prodWhere);
 			const total = countRow?.total ?? 0;
 
-			// Fetch paginated products
+			// When price filter is active, over-fetch then filter in JS (role-aware
+			// effective price can't be expressed in SQL). Same pattern as listPublic.
+			const priceMin = options.minPrice ? Number.parseFloat(options.minPrice) : null;
+			const priceMax = options.maxPrice ? Number.parseFloat(options.maxPrice) : null;
+			const hasPriceFilter = priceMin !== null || priceMax !== null;
+			const fetchLimit = hasPriceFilter ? Math.max(prodLimit, 100) : prodLimit;
+
+			// Fetch products
 			const rows = await db
 				.select({
 					id: products.id,
@@ -781,11 +793,11 @@ async function getOffersWithProducts(
 					slug: products.slug,
 					sku: products.sku,
 					primaryImage: sql<string | null>`(
-						SELECT pi.url FROM product_images pi
-						WHERE pi.product_id = ${products.id}
-						ORDER BY pi.is_primary DESC, pi.sort_order ASC NULLS LAST
-						LIMIT 1
-					)`,
+					SELECT pi.url FROM product_images pi
+					WHERE pi.product_id = ${products.id}
+					ORDER BY pi.is_primary DESC, pi.sort_order ASC NULLS LAST
+					LIMIT 1
+				)`,
 					stock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
 					supplierPrice: products.supplierPrice,
 					roleCustomMargins: products.roleCustomMargins,
@@ -801,38 +813,60 @@ async function getOffersWithProducts(
 				.where(prodWhere)
 				.orderBy(asc(products.name), asc(products.id))
 				.offset(prodOffset)
-				.limit(prodLimit);
+				.limit(fetchLimit);
 
-			// Compute prices
-			const productsList = rows.map((row) => {
-				const { salePrice } = getEffectiveSalePrice(
-					{
-						supplierPrice: row.supplierPrice,
-						roleCustomMargins: row.roleCustomMargins,
-					},
-					role,
-					marginRules,
-				);
-
-				const offerResult = applyOfferToProduct(
-					salePrice,
-					[
+			// Compute prices and apply role-aware price filter
+			const priceFiltered = rows
+				.map((row) => {
+					const { salePrice } = getEffectiveSalePrice(
 						{
-							discountValue: Number.parseFloat(row.discountValue),
+							supplierPrice: row.supplierPrice,
+							roleCustomMargins: row.roleCustomMargins,
 						},
-					],
-					role,
-				);
+						role,
+						marginRules,
+					);
 
-				const basePriceStr = salePrice.toFixed(2);
-				const offerPriceStr = offerResult.discountedPrice.toFixed(2);
+					const offerResult = applyOfferToProduct(
+						salePrice,
+						[
+							{
+								discountValue: Number.parseFloat(row.discountValue),
+							},
+						],
+						role,
+					);
 
-				const discountPercent =
-					salePrice > 0
-						? Math.round(((salePrice - offerResult.discountedPrice) / salePrice) * 100)
-						: 0;
+					const basePriceStr = salePrice.toFixed(2);
+					// Effective price the customer pays: offer price when offer applies
+					// (discountedPrice < salePrice), else base price. Used for filtering.
+					const effectivePrice = offerResult.discountedPrice;
+					const offerPriceStr =
+						offerResult.discountedPrice < salePrice ? offerResult.discountedPrice.toFixed(2) : null;
 
-				return {
+					const discountPercent =
+						salePrice > 0
+							? Math.round(((salePrice - offerResult.discountedPrice) / salePrice) * 100)
+							: 0;
+
+					return {
+						row,
+						basePriceStr,
+						offerPriceStr,
+						discountPercent,
+						effectivePrice,
+					};
+				})
+				.filter(({ effectivePrice }) => {
+					if (priceMin !== null && effectivePrice < priceMin) return false;
+					if (priceMax !== null && effectivePrice > priceMax) return false;
+					return true;
+				});
+
+			// Apply pagination after filtering
+			const paginated = priceFiltered.slice(0, prodLimit);
+			const productsList = paginated.map(
+				({ row, basePriceStr, offerPriceStr, discountPercent }) => ({
 					id: row.id,
 					name: row.name,
 					slug: row.slug,
@@ -846,11 +880,14 @@ async function getOffersWithProducts(
 					discountPercent,
 					inStock: row.stock > 0,
 					stock: row.stock,
-				};
-			});
+				}),
+			);
 
+			// When price filter is active, total reflects filtered set so the UI
+			// "hasMore" check stays correct. Otherwise use the DB count.
+			const effectiveTotal = hasPriceFilter ? priceFiltered.length + prodOffset : total;
 			const nextOffset =
-				prodOffset + productsList.length < total ? prodOffset + productsList.length : null;
+				prodOffset + productsList.length < effectiveTotal ? prodOffset + productsList.length : null;
 
 			return {
 				id: offer.id,

@@ -10,6 +10,7 @@ import {
 	EmptyTitle,
 } from "@renovabit/ui/components/ui/empty";
 import { ProductCard } from "@/features/products/components/product-card";
+import { useOfferCountdown } from "../hooks/use-offer-countdown";
 import type { OfferProductPage, OfferWithProducts } from "../types";
 import { OfferCountdown } from "./offer-countdown";
 
@@ -26,6 +27,9 @@ export function OfferSection({
 	isLoadingMore,
 	onLoadMore,
 }: OfferSectionProps) {
+	const { label, status } = useOfferCountdown(offer.startsAt, offer.endsAt);
+	const isEnded = status === "ended";
+
 	const hasMore =
 		filteredProducts.nextOffset !== null &&
 		filteredProducts.items.length > 0 &&
@@ -36,7 +40,7 @@ export function OfferSection({
 			{/* Section heading with countdown */}
 			<div className="flex items-center justify-between gap-3">
 				<h2 className="text-2xl font-bold tracking-tight">{offer.name}</h2>
-				<OfferCountdown startsAt={offer.startsAt} endsAt={offer.endsAt} />
+				<OfferCountdown label={label} status={status} endsAt={offer.endsAt} />
 			</div>
 
 			{offer.description && <p className="text-muted-foreground text-sm">{offer.description}</p>}
@@ -53,8 +57,10 @@ export function OfferSection({
 									name: product.name,
 									slug: product.slug,
 									price: product.basePrice ?? "0",
-									offerPrice: product.offerPrice,
-									discountPercent: product.discountPercent,
+									// When the offer has ended (tab left open), drop the offer
+									// price so cards reflect the current non-discounted price.
+									offerPrice: isEnded ? null : product.offerPrice,
+									discountPercent: isEnded ? 0 : product.discountPercent,
 									stock: product.stock,
 									sku: product.sku,
 									isFeatured: false,

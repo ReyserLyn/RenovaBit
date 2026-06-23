@@ -18,7 +18,12 @@ function buildOptimisticItem(snapshot: FavoriteSnapshot) {
 		productName: snapshot.productName,
 		productSlug: snapshot.productSlug,
 		productSku: snapshot.productSku,
-		price: snapshot.price,
+		// Optimistic update shows the snapshot price as both base + offer.
+		// The real role-aware price resolves on the next refetch.
+		basePrice: snapshot.price,
+		offerPrice: null,
+		discountPercent: null,
+		isFeatured: false,
 		stock: snapshot.stock,
 		isInStock: snapshot.isInStock,
 		primaryImage: snapshot.primaryImage,

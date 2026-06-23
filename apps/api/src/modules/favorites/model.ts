@@ -8,7 +8,13 @@ const FavoriteItemResponse = t.Object({
 	productName: t.String(),
 	productSlug: t.String(),
 	productSku: t.String(),
-	price: t.String(),
+	/** Role-aware sale price (customer tier, distributor tier, or admin raw cost). */
+	basePrice: t.String(),
+	/** Role-aware offer price (null when no offer applies, or for admin). */
+	offerPrice: t.Nullable(t.String()),
+	/** Discount percent (0–100), present only when an offer applies for the role. */
+	discountPercent: t.Nullable(t.Integer({ minimum: 0, maximum: 100 })),
+	isFeatured: t.Boolean(),
 	stock: t.Integer({ minimum: 0 }),
 	isInStock: t.Boolean(),
 	primaryImage: t.Nullable(

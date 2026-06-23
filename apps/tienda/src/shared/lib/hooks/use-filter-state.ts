@@ -1,6 +1,17 @@
-import { parseAsArrayOf, parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs";
+import { createParser, parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs";
 import { useCallback, useMemo } from "react";
 import { isSortOption, SORT_VALUES } from "@/shared/lib/filters/parsers";
+
+// Parse comma-separated brand slugs (?marcas=a,b) into string[].
+// Matches the format emitted by `normalizeCatalogSearch` in filters/search.ts.
+const parseAsBrandSlugs = createParser({
+	parse: (value) =>
+		value
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean),
+	serialize: (value) => value.join(","),
+});
 
 export interface FilterState {
 	minPrice: string;
@@ -32,35 +43,38 @@ export function useFilterState(options?: FilterStateOptions): FilterState {
 		precio_min: parseAsString.withDefault(""),
 		precio_max: parseAsString.withDefault(""),
 		orden: parseAsStringLiteral(SORT_VALUES).withDefault("relevance"),
-		marcas: parseAsArrayOf(parseAsString).withDefault([]),
+		marcas: parseAsBrandSlugs.withDefault([]),
 	});
 
 	const onPriceChange = useCallback(
 		(min: string, max: string) => {
-			setFilters({ precio_min: min || null, precio_max: max || null });
+			setFilters({ precio_min: min || null, precio_max: max || null }, { history: "replace" });
 		},
 		[setFilters],
 	);
 
 	const onClearAll = useCallback(() => {
-		setFilters({
-			orden: "relevance",
-			marcas: [],
-			precio_min: null,
-			precio_max: null,
-		});
+		setFilters(
+			{
+				orden: "relevance",
+				marcas: [],
+				precio_min: null,
+				precio_max: null,
+			},
+			{ history: "replace" },
+		);
 	}, [setFilters]);
 
 	const onSortChange = useCallback(
 		(value: string) => {
-			if (isSortOption(value)) setFilters({ orden: value });
+			if (isSortOption(value)) setFilters({ orden: value }, { history: "replace" });
 		},
 		[setFilters],
 	);
 
 	const onBrandToggle = useCallback(
 		(slug: string) => {
-			setFilters({ marcas: toggleBrand(filters.marcas, slug) });
+			setFilters({ marcas: toggleBrand(filters.marcas, slug) }, { history: "replace" });
 		},
 		[setFilters, filters.marcas],
 	);

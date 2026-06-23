@@ -8,8 +8,12 @@ import {
 	productImages,
 	products,
 } from "@renovabit/db/schema";
+import { applyOfferToProduct, getEffectiveSalePrice, type Role } from "@renovabit/pricing";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { formatDate, now } from "@/utils/date";
+import { getActiveMarginRules } from "@/utils/margin-rules";
+import { getReservedStockSubquery } from "@/utils/stock";
+import { activeOffersForProductSubquery } from "../offers/service";
 import type {
 	AddItemBody,
 	FavoriteItemResponse,
@@ -169,16 +173,15 @@ async function removeItem(favoriteId: string, productId: string): Promise<Favori
 	return getById(favoriteId);
 }
 
-async function getItems(favoriteId: string, filters: ListFilters): Promise<FavoriteListResponse> {
+async function getItems(
+	favoriteId: string,
+	role: Role,
+	filters: ListFilters,
+): Promise<FavoriteListResponse> {
 	const offset = filters.offset ?? 0;
 	const limit = filters.limit ?? 20;
 
-	// ── Build sub-queries for brand/category joins ──
-
-	// We need LEFT JOINs to brands and categories for filtering
-	// Products use brandId (FK → brands.id) and categoryId (FK → categories.id)
-
-	// Brand slugs filter: sub-query approach
+	// ── Brand slugs filter (resolved once, not N+1) ──
 	let brandIdsForFilter: string[] | null = null;
 	if (filters.brands) {
 		const brandSlugs = filters.brands
@@ -194,34 +197,18 @@ async function getItems(favoriteId: string, filters: ListFilters): Promise<Favor
 		}
 	}
 
-	// Build WHERE conditions
+	// ── Build WHERE conditions (no price filter here — applied in JS post-pricing) ──
 	const conditions = [eq(favoriteItems.favoriteId, favoriteId)];
 
 	if (brandIdsForFilter && brandIdsForFilter.length > 0) {
 		conditions.push(inArray(products.brandId, brandIdsForFilter));
 	}
 
-	if (filters.minPrice) {
-		conditions.push(sql`${products.price} >= ${filters.minPrice}::numeric`);
-	}
+	// Default ORDER BY (newest first); price/name sorts are applied in JS post-pricing.
+	const orderBy = desc(favoriteItems.createdAt);
 
-	if (filters.maxPrice) {
-		conditions.push(sql`${products.price} <= ${filters.maxPrice}::numeric`);
-	}
-
-	// Build ORDER BY
-	let orderBy = desc(favoriteItems.createdAt); // default: newest first
-	if (filters.sortBy === "price_asc") {
-		orderBy = sql`${products.price} ASC`;
-	} else if (filters.sortBy === "price_desc") {
-		orderBy = sql`${products.price} DESC`;
-	} else if (filters.sortBy === "name_asc") {
-		orderBy = sql`${products.name} ASC`;
-	} else if (filters.sortBy === "name_desc") {
-		orderBy = sql`${products.name} DESC`;
-	}
-
-	// Get total count
+	// Count is the pre-filter, pre-sort total (brand-filter only). The displayed
+	// `total` reflects the post price-filter + post-sort count.
 	const [countResult] = await db
 		.select({
 			total: sql<number>`COUNT(*)::int`,
@@ -232,7 +219,13 @@ async function getItems(favoriteId: string, filters: ListFilters): Promise<Favor
 
 	const total = countResult?.total ?? 0;
 
-	// Get paginated items with joins (LEFT JOIN for brand/category — they may be null)
+	// Fetch the page (over-fetch when price filter is active so the JS filter
+	// still returns a full page, same pattern as products listPublic).
+	const priceMin = filters.minPrice ? Number.parseFloat(filters.minPrice) : null;
+	const priceMax = filters.maxPrice ? Number.parseFloat(filters.maxPrice) : null;
+	const hasPriceFilter = priceMin !== null || priceMax !== null;
+	const fetchLimit = hasPriceFilter ? Math.max(limit, 100) : limit;
+
 	const rows = await db
 		.select({
 			itemId: favoriteItems.id,
@@ -240,8 +233,10 @@ async function getItems(favoriteId: string, filters: ListFilters): Promise<Favor
 			productName: products.name,
 			productSlug: products.slug,
 			productSku: products.sku,
-			price: sql<string>`${products.price}::text`,
-			stock: products.stock,
+			isFeatured: products.isFeatured,
+			stock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
+			supplierPrice: products.supplierPrice,
+			roleCustomMargins: products.roleCustomMargins,
 			brandId: products.brandId,
 			brandName: brands.name,
 			brandSlug: brands.slug,
@@ -261,6 +256,7 @@ async function getItems(favoriteId: string, filters: ListFilters): Promise<Favor
 				LIMIT 1
 			)`,
 			createdAt: favoriteItems.createdAt,
+			offers: activeOffersForProductSubquery(),
 		})
 		.from(favoriteItems)
 		.innerJoin(products, eq(favoriteItems.productId, products.id))
@@ -268,31 +264,96 @@ async function getItems(favoriteId: string, filters: ListFilters): Promise<Favor
 		.leftJoin(categories, eq(products.categoryId, categories.id))
 		.where(and(...conditions))
 		.orderBy(orderBy)
-		.limit(limit)
-		.offset(offset);
+		.limit(fetchLimit);
 
-	const items: FavoriteItemResponse[] = rows.map((row) => ({
-		id: row.itemId,
-		productId: row.productId,
-		productName: row.productName ?? "",
-		productSlug: row.productSlug ?? "",
-		productSku: row.productSku ?? "",
-		price: row.price ?? "0",
-		stock: row.stock ?? 0,
-		isInStock: (row.stock ?? 0) > 0,
-		primaryImage: row.imageUrl ? { url: row.imageUrl, alt: row.imageAlt } : null,
-		brand:
-			row.brandId && row.brandName
-				? { id: row.brandId, name: row.brandName, slug: row.brandSlug ?? row.brandId }
-				: null,
-		category:
-			row.categoryId && row.categoryName
-				? { id: row.categoryId, name: row.categoryName, slug: row.categorySlug ?? row.categoryId }
-				: null,
-		createdAt: formatDate(row.createdAt),
-	}));
+	// ── Role-aware pricing + JS price filter ──
+	const marginRules = await getActiveMarginRules();
 
-	// Get brand filter counts for the sidebar
+	type Enriched = {
+		row: (typeof rows)[number];
+		basePrice: number;
+		offerPrice: number | null;
+		discountPercent: number;
+		effectivePrice: number;
+	};
+
+	const enriched: Enriched[] = rows.map((row) => {
+		const { salePrice } = getEffectiveSalePrice(
+			{ supplierPrice: row.supplierPrice, roleCustomMargins: row.roleCustomMargins },
+			role,
+			marginRules,
+		);
+		const offerInputs = row.offers.map((o) => ({
+			id: o.id,
+			discountValue: Number.parseFloat(o.discountValue) || 0,
+		}));
+		const offerResult = applyOfferToProduct(salePrice, offerInputs, role);
+		const discountPercent =
+			salePrice > 0 ? Math.round(((salePrice - offerResult.discountedPrice) / salePrice) * 100) : 0;
+		return {
+			row,
+			basePrice: salePrice,
+			offerPrice: offerResult.discountedPrice < salePrice ? offerResult.discountedPrice : null,
+			discountPercent,
+			effectivePrice: offerResult.discountedPrice,
+		};
+	});
+
+	const priceFiltered = enriched.filter(({ effectivePrice }) => {
+		if (priceMin !== null && effectivePrice < priceMin) return false;
+		if (priceMax !== null && effectivePrice > priceMax) return false;
+		return true;
+	});
+
+	// ── Apply sort post-pricing (only for price/name; default already handled) ──
+	const sortBy = filters.sortBy;
+	if (sortBy === "price_asc") {
+		priceFiltered.sort((a, b) => a.effectivePrice - b.effectivePrice);
+	} else if (sortBy === "price_desc") {
+		priceFiltered.sort((a, b) => b.effectivePrice - a.effectivePrice);
+	} else if (sortBy === "name_asc") {
+		priceFiltered.sort((a, b) => a.row.productName.localeCompare(b.row.productName));
+	} else if (sortBy === "name_desc") {
+		priceFiltered.sort((a, b) => b.row.productName.localeCompare(a.row.productName));
+	}
+
+	// ── Paginate post-filter ──
+	const effectiveTotal = hasPriceFilter ? priceFiltered.length + offset : total;
+	const paginated = priceFiltered.slice(0, limit);
+	const hasMore = offset + paginated.length < effectiveTotal;
+
+	const items: FavoriteItemResponse[] = paginated.map(
+		({ row, basePrice, offerPrice, discountPercent }) => ({
+			id: row.itemId,
+			productId: row.productId,
+			productName: row.productName ?? "",
+			productSlug: row.productSlug ?? "",
+			productSku: row.productSku ?? "",
+			basePrice: basePrice.toFixed(2),
+			offerPrice: offerPrice !== null ? offerPrice.toFixed(2) : null,
+			discountPercent,
+			isFeatured: row.isFeatured ?? false,
+			stock: row.stock ?? 0,
+			isInStock: (row.stock ?? 0) > 0,
+			primaryImage: row.imageUrl ? { url: row.imageUrl, alt: row.imageAlt } : null,
+			brand:
+				row.brandId && row.brandName
+					? { id: row.brandId, name: row.brandName, slug: row.brandSlug ?? row.brandId }
+					: null,
+			category:
+				row.categoryId && row.categoryName
+					? {
+							id: row.categoryId,
+							name: row.categoryName,
+							slug: row.categorySlug ?? row.categoryId,
+						}
+					: null,
+			createdAt: formatDate(row.createdAt),
+		}),
+	);
+
+	// ── Brand filter counts (sidebar) — use pre-price-filter total so the
+	//    brand facet stays stable when the user narrows by price. ──
 	const brandCountRows = await db
 		.select({
 			brandId: products.brandId,
@@ -304,7 +365,6 @@ async function getItems(favoriteId: string, filters: ListFilters): Promise<Favor
 		.groupBy(products.brandId)
 		.orderBy(desc(sql`COUNT(*)::int`));
 
-	// Enrich brand rows with names and slugs (batched query, not N+1)
 	const brandIds = brandCountRows.map((br) => br.brandId).filter((id): id is string => id !== null);
 	const brandRows =
 		brandIds.length > 0
@@ -330,11 +390,9 @@ async function getItems(favoriteId: string, filters: ListFilters): Promise<Favor
 		}
 	}
 
-	const hasMore = offset + limit < total;
-
 	return {
 		data: items,
-		total,
+		total: effectiveTotal,
 		offset,
 		limit,
 		hasMore,

@@ -28,26 +28,37 @@ export function PriceDisplay({
 
 	const hasOffer = offerPrice !== undefined && offerPrice !== null && offerPrice !== basePrice;
 
+	if (!hasOffer) {
+		return (
+			<div className={cn("flex items-baseline gap-3", className)}>
+				<p className={cn("font-bold tracking-tight", priceSize)}>{formatPrice(basePrice)}</p>
+			</div>
+		);
+	}
+
 	return (
 		<div className={cn("flex items-baseline gap-3", className)}>
-			{hasOffer ? (
-				<>
-					<div className="flex items-baseline gap-2">
-						<span className="text-muted-foreground line-through text-sm">
-							{formatPrice(basePrice)}
-						</span>
-						<span className={cn("font-bold tracking-tight text-primary", priceSize)}>
-							{formatPrice(offerPrice)}
-						</span>
-					</div>
-					{discountPercent !== undefined && discountPercent !== null && discountPercent > 0 && (
-						<Badge variant="destructive" size="sm" radius="full">
-							–{discountPercent}%
-						</Badge>
-					)}
-				</>
-			) : (
-				<p className={cn("font-bold tracking-tight", priceSize)}>{formatPrice(basePrice)}</p>
+			{/* Screen-reader summary describing the price relationship. */}
+			<span className="sr-only">
+				{`Precio en oferta: ${formatPrice(offerPrice)}, antes ${formatPrice(basePrice)}${
+					discountPercent && discountPercent > 0 ? `, ahorro ${discountPercent}%` : ""
+				}`}
+			</span>
+			<div className="flex items-baseline gap-2" aria-hidden="true">
+				<del className="text-muted-foreground text-sm">{formatPrice(basePrice)}</del>
+				<span className={cn("font-bold tracking-tight text-primary", priceSize)}>
+					{formatPrice(offerPrice)}
+				</span>
+			</div>
+			{discountPercent !== undefined && discountPercent !== null && discountPercent > 0 && (
+				<Badge
+					variant="destructive"
+					size="sm"
+					radius="full"
+					aria-label={`Descuento ${discountPercent} por ciento`}
+				>
+					-{discountPercent}%
+				</Badge>
 			)}
 		</div>
 	);

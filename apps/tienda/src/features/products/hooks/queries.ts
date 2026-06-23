@@ -1,5 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import { api, unwrapResponse } from "@/shared/lib/api";
+import { api, getApiSsrHeaders, unwrapResponse } from "@/shared/lib/api";
 
 // ── Query Keys Factory ───────────────────────────────────────
 
@@ -39,8 +39,10 @@ export const productQueries = {
 		queryOptions({
 			queryKey: productKeys.list({ ...filters, limit }),
 			queryFn: async () => {
+				const headers = await getApiSsrHeaders();
 				const result = await unwrapResponse(
 					api.api.v1.products.get({
+						headers,
 						query: {
 							brands: filters.brands,
 							categoryId: filters.categoryId,
@@ -63,9 +65,11 @@ export const productQueries = {
 	infiniteList: (filters: ProductListFilters = {}, limit = DEFAULT_PAGE_SIZE) =>
 		infiniteQueryOptions({
 			queryKey: productKeys.infinite({ ...filters, limit }),
-			queryFn: ({ pageParam }) =>
-				unwrapResponse(
+			queryFn: async ({ pageParam }) => {
+				const headers = await getApiSsrHeaders();
+				return unwrapResponse(
 					api.api.v1.products.get({
+						headers,
 						query: {
 							brands: filters.brands,
 							categoryId: filters.categoryId,
@@ -80,7 +84,8 @@ export const productQueries = {
 							limit,
 						},
 					}),
-				),
+				);
+			},
 			initialPageParam: 0,
 			getNextPageParam: (lastPage) => {
 				const nextOffset = lastPage.offset + lastPage.limit;
@@ -93,7 +98,10 @@ export const productQueries = {
 	bySlug: (slug: string) =>
 		queryOptions({
 			queryKey: productKeys.detail(slug),
-			queryFn: () => unwrapResponse(api.api.v1.products({ slug }).get()),
+			queryFn: async () => {
+				const headers = await getApiSsrHeaders();
+				return unwrapResponse(api.api.v1.products({ slug }).get({ headers }));
+			},
 			staleTime: 1000 * 60 * 5,
 		}),
 };

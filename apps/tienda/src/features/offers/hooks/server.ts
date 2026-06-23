@@ -16,6 +16,8 @@ export interface GetOffersInput {
 	offerId?: string;
 	productsOffset?: number;
 	productsLimit?: number;
+	minPrice?: string;
+	maxPrice?: string;
 }
 
 // ── Consolidated offers list (with products) ────────
@@ -37,6 +39,8 @@ export const getOffersWithProductsServerFn = createServerFn({ method: "GET" })
 					offerId: data.offerId,
 					productsOffset: data.productsOffset,
 					productsLimit: data.productsLimit,
+					minPrice: data.minPrice,
+					maxPrice: data.maxPrice,
 				},
 			});
 

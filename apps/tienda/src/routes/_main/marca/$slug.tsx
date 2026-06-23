@@ -123,6 +123,7 @@ function BrandPage() {
 					</p>
 				</div>
 			</div>
+
 			<div className="flex flex-col gap-6 lg:flex-row">
 				<FilterSidebar {...filterState} />
 				<div className="min-w-0 flex-1 space-y-6">

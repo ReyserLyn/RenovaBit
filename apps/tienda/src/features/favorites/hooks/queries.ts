@@ -1,5 +1,5 @@
 import { infiniteQueryOptions, keepPreviousData, useQuery } from "@tanstack/react-query";
-import { api, unwrapResponse } from "@/shared/lib/api";
+import { api, getApiSsrHeaders, unwrapResponse } from "@/shared/lib/api";
 import { getFavoritesServerFn } from "./server";
 
 // ── Types inferred from API ──────────────────────────────────
@@ -50,7 +50,10 @@ export const favoritesKeys = {
 export function useFavoriteStatus(productId: string) {
 	return useQuery({
 		queryKey: favoritesKeys.detail(productId),
-		queryFn: () => unwrapResponse(api.api.v1.favorites.items({ productId }).status.get()),
+		queryFn: async () => {
+			const headers = await getApiSsrHeaders();
+			return unwrapResponse(api.api.v1.favorites.items({ productId }).status.get({ headers }));
+		},
 		staleTime: 1000 * 60 * 5,
 	});
 }

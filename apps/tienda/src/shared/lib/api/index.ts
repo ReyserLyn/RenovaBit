@@ -7,3 +7,4 @@ export {
 	unwrapResponse,
 } from "@renovabit/backend-client";
 export { api } from "./api-client";
+export { getApiSsrHeaders } from "./ssr-headers";

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 type CountdownStatus = "upcoming" | "active" | "ending" | "ended";
 
@@ -26,11 +26,12 @@ function computeLabel(now: number, startsAt: number, endsAt: number): CountdownR
 
 	if (now < startsAt) {
 		const diff = startsAt - now;
-		const { hours, minutes } = formatDuration(diff);
-		if (hours > 0) {
-			return { label: `Comienza en ${hours}h ${minutes}m`, status: "upcoming" };
-		}
-		return { label: `Comienza en ${minutes}m`, status: "upcoming" };
+		const { days, hours, minutes } = formatDuration(diff);
+		const parts: string[] = [];
+		if (days > 0) parts.push(`${days}d`);
+		if (hours > 0) parts.push(`${hours}h`);
+		parts.push(`${minutes}m`);
+		return { label: `Comienza en ${parts.join(" ")}`, status: "upcoming" };
 	}
 
 	// Active (now >= startsAt && now < endsAt)
@@ -48,24 +49,50 @@ function computeLabel(now: number, startsAt: number, endsAt: number): CountdownR
 	return { label: `Termina en ${parts.join(" ")}`, status: "active" };
 }
 
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribePrefersReducedMotion(callback: () => void): () => void {
+	if (typeof window === "undefined") return () => undefined;
+	const mql = window.matchMedia(REDUCED_MOTION_QUERY);
+	mql.addEventListener("change", callback);
+	return () => mql.removeEventListener("change", callback);
+}
+
+function getPrefersReducedMotionSnapshot(): boolean {
+	if (typeof window === "undefined") return false;
+	return window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
+const getServerSnapshot = () => false;
+
 export function useOfferCountdown(startsAt: string | Date, endsAt: string | Date): CountdownResult {
-	const isReducedMotion =
-		typeof window !== "undefined"
-			? window.matchMedia("(prefers-reduced-motion: reduce)").matches
-			: false;
+	const isReducedMotion = useSyncExternalStore(
+		subscribePrefersReducedMotion,
+		getPrefersReducedMotionSnapshot,
+		getServerSnapshot,
+	);
 
 	const interval = isReducedMotion ? 60_000 : 1_000;
 
-	const [now, setNow] = useState(() => Date.now());
+	// Initialize `now` to null on both server and first client render so the
+	// initial markup matches → no hydration mismatch. The real value is set
+	// inside useEffect (client-only).
+	const [now, setNow] = useState<number | null>(null);
 
 	useEffect(() => {
+		setNow(Date.now());
 		const timer = setInterval(() => setNow(Date.now()), interval);
 		return () => clearInterval(timer);
 	}, [interval]);
 
-	return useMemo(() => {
+	return useMemo<CountdownResult>(() => {
 		const startsAtMs = parseDate(startsAt);
 		const endsAtMs = parseDate(endsAt);
-		return computeLabel(now, startsAtMs, endsAtMs);
+
+		// Before mount (SSR + first client render): compute against endsAt so
+		// the label is stable and never shows "ended" prematurely. The visible
+		// text will be replaced on the first effect tick.
+		const effectiveNow = now ?? endsAtMs;
+		return computeLabel(effectiveNow, startsAtMs, endsAtMs);
 	}, [now, startsAt, endsAt]);
 }

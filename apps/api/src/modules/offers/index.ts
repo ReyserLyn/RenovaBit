@@ -21,6 +21,8 @@ export const publicOffersRoute = new Elysia({ prefix: "/offers" })
 				offerId: query.offerId,
 				productsOffset: query.productsOffset,
 				productsLimit: query.productsLimit,
+				minPrice: query.minPrice,
+				maxPrice: query.maxPrice,
 			});
 			return result;
 		},

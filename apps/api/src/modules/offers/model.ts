@@ -19,6 +19,7 @@ export const PublicOfferRef = t.Object({
 	slug: t.String(),
 	discountValue: t.String(),
 	isFeatured: t.Boolean(),
+	endsAt: t.Date(),
 });
 
 // ── Admin: offer responses ─
@@ -203,7 +204,7 @@ const _offerListQuery = t.Object({
 	offset: t.Optional(t.Integer({ minimum: 0, maximum: 10000, default: 0 })),
 	limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
 	isFeatured: t.Optional(t.String({ pattern: "^(true|false)$" })),
-	/** Filter offers that have products of these brands (comma-separated UUIDs). */
+	/** Filter offers that have products of these brands (comma-separated brand slugs). */
 	brands: t.Optional(t.String({ minLength: 1, maxLength: 500 })),
 	/** Load the next page of products for a specific offer. Requires offerId. */
 	offerId: t.Optional(t.String({ format: "uuid" })),
@@ -211,6 +212,10 @@ const _offerListQuery = t.Object({
 	productsOffset: t.Optional(t.Integer({ minimum: 0, maximum: 10000, default: 0 })),
 	/** Product page limit (requires offerId). */
 	productsLimit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
+	/** Filter products by effective (role-aware) sale price — min bound. */
+	minPrice: t.Optional(t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" })),
+	/** Filter products by effective (role-aware) sale price — max bound. */
+	maxPrice: t.Optional(t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" })),
 });
 
 // ── Model ──────────────────────────────────────────

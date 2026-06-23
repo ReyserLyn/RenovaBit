@@ -969,6 +969,7 @@ async function search(
 			slug: string;
 			discountValue: string;
 			isFeatured: boolean;
+			endsAt: Date;
 		}>;
 	}> = [];
 
