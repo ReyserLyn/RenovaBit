@@ -8,6 +8,5 @@ export {
 export {
 	brandKeys,
 	brandsQueryOptions,
-	useBrand,
 	useBrands,
 } from "./brand-queries";

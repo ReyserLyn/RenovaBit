@@ -23,8 +23,6 @@ const HTML_ACCEPT =
 	"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8";
 export const IMAGE_ACCEPT = "image/avif,image/webp,image/apng,image/*,*/*;q=0.8";
 
-export const SYNC_USER_AGENT = BROWSER_HEADERS["User-Agent"];
-
 const RETRYABLE_KEYWORDS = [
 	"socket",
 	"econnreset",

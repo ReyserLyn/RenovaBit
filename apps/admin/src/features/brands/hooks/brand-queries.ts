@@ -26,11 +26,3 @@ export const brandsQueryOptions = queryOptions({
 export function useBrands() {
 	return useQuery(brandsQueryOptions);
 }
-
-export function useBrand(id: string) {
-	return useQuery({
-		queryKey: brandKeys.detail(id),
-		queryFn: () => brandsService.getById(id),
-		enabled: id.length > 0,
-	});
-}

@@ -66,11 +66,3 @@ export const categoriesQueryOptions = queryOptions({
 export function useCategories() {
 	return useQuery(categoriesQueryOptions);
 }
-
-export function useCategory(id: string) {
-	return useQuery({
-		queryKey: categoryKeys.detail(id),
-		queryFn: () => categoriesService.getById(id),
-		enabled: id.length > 0,
-	});
-}

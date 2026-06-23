@@ -63,10 +63,3 @@ export const orderQueries = {
 			staleTime: 1000 * 60,
 		}),
 };
-
-export type OrderListPage = Awaited<
-	ReturnType<NonNullable<ReturnType<typeof orderQueries.infiniteList>["queryFn"]>>
->;
-export type OrderDetailResponse = Awaited<
-	ReturnType<NonNullable<ReturnType<typeof orderQueries.detail>["queryFn"]>>
->;

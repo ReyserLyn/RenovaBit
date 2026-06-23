@@ -24,7 +24,6 @@
 		"@tanstack/react-router-ssr-query": "1.167.1",
 		"@tanstack/react-start": "1.168.25",
 		"@tanstack/router-plugin": "^1.168.18",
-		"@tanstack/zod-form-adapter": "^0.42.1",
 		"better-auth": "catalog:",
 		"better-themes": "catalog:",
 		"class-variance-authority": "catalog:",
@@ -44,7 +43,6 @@
 		"@biomejs/biome": "catalog:",
 		"@renovabit/biome-config": "*",
 		"@renovabit/ts-config": "*",
-		"@tailwindcss/typography": "^0.5.20",
 		"@tanstack/devtools-vite": "0.7.0",
 		"@tanstack/react-devtools": "0.10.5",
 		"@tanstack/react-form-devtools": "^0.2.27",
@@ -55,7 +53,6 @@
 		"@types/react-dom": "catalog:",
 		"@vitejs/plugin-react": "^6.0.1",
 		"bun-types": "catalog:",
-		"jsdom": "^29.1.1",
 		"typescript": "catalog:",
 		"vite": "^8.0.0"
 	}

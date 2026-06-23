@@ -1,28 +1,6 @@
 import { db } from "@renovabit/db";
-import {
-	type ChangeValueObject,
-	productChanges,
-	products,
-	syncReports,
-} from "@renovabit/db/schema";
+import { productChanges, products } from "@renovabit/db/schema";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
-
-export type RecentChangeRow = {
-	id: string;
-	productId: string;
-	productName: string;
-	productSku: string;
-	syncReportId: string | null;
-	reportTrigger: string | null;
-	reportStartedAt: Date | null;
-	changeType: string;
-	field: string | null;
-	oldValue: ChangeValueObject | null;
-	newValue: ChangeValueObject | null;
-	reason: string | null;
-	source: string;
-	createdAt: Date;
-};
 
 export type GetRecentChangesParams = {
 	page?: number;

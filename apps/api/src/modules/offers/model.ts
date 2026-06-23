@@ -268,4 +268,3 @@ export const OfferModel = {
 
 export type CreateOfferDto = typeof OfferModel.createBody.static;
 export type UpdateOfferDto = typeof OfferModel.updateBody.static;
-export type OfferProductAssignBody = typeof OfferModel.productAssignBody.static;

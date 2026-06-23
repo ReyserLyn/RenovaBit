@@ -16,7 +16,6 @@
 		"@renovabit/db": "*"
 	},
 	"devDependencies": {
-		"@renovabit/biome-config": "*",
 		"@renovabit/ts-config": "*",
 		"bun-types": "catalog:",
 		"typescript": "catalog:"

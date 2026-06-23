@@ -71,7 +71,6 @@ export const PublicCategoryDetail = t.Object({
 
 // ── Tipos derivados de schemas ──
 
-export type PublicCategoryTreeNode = typeof PublicCategoryTreeNodeSchema.static;
 export type PublicCategoryDetail = typeof PublicCategoryDetail.static;
 export type BreadcrumbItem = typeof BreadcrumbItem.static;
 export type BulkDeleteResult = typeof BulkDeleteResult.static;
