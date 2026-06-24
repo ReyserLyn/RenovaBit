@@ -23,6 +23,8 @@ export const buttonVariants = cva(
 					"hover:bg-accent/50 hover:text-accent-foreground dark:hover:bg-accent/50 aria-expanded:bg-accent aria-expanded:text-accent-foreground",
 				destructive:
 					"bg-destructive text-destructive-foreground hover:bg-destructive/80 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive focus-visible:border-destructive/40 dark:hover:bg-destructive/80",
+				whatsapp:
+					"bg-[#25d366] text-white hover:bg-[#1da851] focus-visible:outline-[#25d366] shadow-[0_4px_14px_color-mix(in_oklab,#25d366_35%,transparent)] hover:shadow-[0_6px_20px_color-mix(in_oklab,#25d366_50%,transparent)]",
 				link: "text-primary underline-offset-4 hover:underline",
 			},
 			size: {
