@@ -1,5 +1,3 @@
-import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
 	Carousel,
 	CarouselContent,
@@ -7,11 +5,9 @@ import {
 	CarouselNext,
 	CarouselPrevious,
 } from "@renovabit/ui/components/ui/carousel";
-import { cn } from "@renovabit/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { categoryQueries, type FeaturedCategory } from "@/features/categories/hooks/queries";
 
-const VIEW_ALL_LABEL = "Ver todas las categorías";
 const NAV_THRESHOLD = 5;
 
 /** Carrusel de categorías destacadas en la home. */
@@ -24,10 +20,7 @@ export function CategorySection() {
 
 	return (
 		<section className="container mx-auto max-w-7xl space-y-4 px-4 py-16 md:py-20">
-			<div className="flex items-center justify-between gap-4">
-				<h2 className="text-lg font-semibold tracking-tight">Lo más buscado</h2>
-				<ViewAllLink className="hidden sm:inline-flex" />
-			</div>
+			<h2 className="text-lg font-semibold tracking-tight">Lo más buscado</h2>
 
 			<div className="px-11">
 				<Carousel
@@ -53,26 +46,7 @@ export function CategorySection() {
 					{hasNavigation && <CarouselNext className="-right-6" />}
 				</Carousel>
 			</div>
-
-			<div className="sm:hidden">
-				<ViewAllLink />
-			</div>
 		</section>
-	);
-}
-
-function ViewAllLink({ className }: { className?: string }) {
-	return (
-		<a
-			href="/productos"
-			className={cn(
-				"text-muted-foreground hover:text-primary inline-flex items-center gap-1.5 text-sm font-medium transition-colors",
-				className,
-			)}
-		>
-			{VIEW_ALL_LABEL}
-			<HugeiconsIcon icon={ArrowRight01Icon} size={14} />
-		</a>
 	);
 }
 
