@@ -47,6 +47,7 @@ export function CategoryCreateDialog({ open, onOpenChange }: CategoryCreateDialo
 							seoTitle: "",
 							seoDescription: "",
 							seoKeywords: "",
+							normalize: true,
 						}}
 						onMutation={(data) => createCategory.mutateAsync(data)}
 						onSuccess={() => onOpenChange(false)}

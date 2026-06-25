@@ -104,6 +104,8 @@ export const createCategorySchema = z.object({
 			error: `Las palabras clave no pueden superar ${CATEGORY_SEO_KEYWORDS_MAX} caracteres`,
 		})
 		.optional(),
+	/** Normalizar imagen subida (remove bg + resize 1:1 + webp). Default: true. */
+	normalize: z.boolean().optional(),
 });
 
 export const updateCategorySchema = createCategorySchema.partial();
@@ -143,6 +145,8 @@ export const categoryFormSchema = z.object({
 	seoKeywords: z.string().max(CATEGORY_SEO_KEYWORDS_MAX, {
 		error: `Las palabras clave no pueden superar ${CATEGORY_SEO_KEYWORDS_MAX} caracteres`,
 	}),
+	/** Normalizar imagen subida. Default se setea en defaultValues del form. */
+	normalize: z.boolean(),
 });
 
 export type CategoryFormValues = z.infer<typeof categoryFormSchema>;

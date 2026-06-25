@@ -42,6 +42,7 @@ export function BrandCreateDialog({ open, onOpenChange }: BrandCreateDialogProps
 							seoKeywords: "",
 							isActive: true,
 							isFeatured: false,
+							normalize: true,
 						}}
 						onMutation={(data) => createBrand.mutateAsync(data)}
 						onSuccess={() => onOpenChange(false)}

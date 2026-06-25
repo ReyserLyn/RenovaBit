@@ -6,6 +6,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@renovabit/ui/components/ui/button";
+import { Checkbox } from "@renovabit/ui/components/ui/checkbox";
 import {
 	Field,
 	FieldDescription,
@@ -105,8 +106,9 @@ export function CategoryForm(props: CategoryFormProps) {
 				seoTitle: props.category.seoTitle ?? "",
 				seoDescription: props.category.seoDescription ?? "",
 				seoKeywords: props.category.seoKeywords ?? "",
+				normalize: true,
 			}
-		: props.defaultValues;
+		: { ...props.defaultValues, normalize: true };
 
 	const existingImageUrl = isEdit ? props.category.imageUrl : undefined;
 	const slugManuallyEditedRef = useRef(isEdit);
@@ -199,6 +201,7 @@ export function CategoryForm(props: CategoryFormProps) {
 					seoDescription: toApiValue(value.seoDescription),
 					seoKeywords: toApiValue(value.seoKeywords),
 					...(imageUrl !== undefined && { imageUrl }),
+					...(imageFile && { normalize: value.normalize }),
 				});
 
 				onSuccess();
@@ -573,6 +576,31 @@ export function CategoryForm(props: CategoryFormProps) {
 						</div>
 					)}
 				</div>
+
+				{/* ── Normalize toggle (solo cuando hay imagen nueva) ── */}
+				{imageFile && (
+					<form.Field name="normalize">
+						{(field) => (
+							<Field orientation="horizontal" className="items-start gap-3">
+								<Checkbox
+									id={field.name}
+									checked={field.state.value}
+									onCheckedChange={(checked) => field.handleChange(checked === true)}
+									disabled={isSubmitting}
+								/>
+								<div className="flex flex-col gap-1 leading-snug">
+									<FieldLabel htmlFor={field.name} className="cursor-pointer">
+										Normalizar imagen
+									</FieldLabel>
+									<FieldDescription>
+										Quita el fondo, centra el producto y exporta en WebP. Recomendado para fotos de
+										proveedores.
+									</FieldDescription>
+								</div>
+							</Field>
+						)}
+					</form.Field>
+				)}
 			</Field>
 
 			<Separator />

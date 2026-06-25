@@ -75,6 +75,8 @@ export const createBrandSchema = z.object({
 			error: `Las palabras clave no pueden superar ${BRAND_SEO_KEYWORDS_MAX} caracteres`,
 		})
 		.optional(),
+	/** Normalizar imagen subida (remove bg + resize 1:1 + webp). Default: true. */
+	normalize: z.boolean().optional(),
 });
 
 export const updateBrandSchema = createBrandSchema.partial();
@@ -107,6 +109,8 @@ export const brandFormSchema = z.object({
 	}),
 	isActive: z.boolean(),
 	isFeatured: z.boolean(),
+	/** Normalizar imagen subida. Default se setea en defaultValues del form. */
+	normalize: z.boolean(),
 });
 
 export type BrandFormValues = z.infer<typeof brandFormSchema>;

@@ -98,6 +98,9 @@ function SortableImageItem({
 	isPrimary,
 	onRemove,
 	onZoom,
+	flags,
+	onFlagsChange,
+	disabled,
 }: {
 	id: string;
 	src: string;
@@ -105,6 +108,9 @@ function SortableImageItem({
 	isPrimary: boolean;
 	onRemove: () => void;
 	onZoom: () => void;
+	flags?: { normalize: boolean; addLogo: boolean };
+	onFlagsChange?: (flags: { normalize: boolean; addLogo: boolean }) => void;
+	disabled?: boolean;
 }) {
 	const {
 		attributes,
@@ -169,6 +175,32 @@ function SortableImageItem({
 					<span className="sr-only">Eliminar</span>
 				</Button>
 			</div>
+
+			{/* Per-image processing flags (solo en imágenes nuevas) */}
+			{flags && onFlagsChange && (
+				<div className="absolute top-1 right-1 flex flex-col gap-1 rounded bg-black/70 p-1.5">
+					<label className="flex items-center gap-1 text-[10px] font-medium text-white cursor-pointer">
+						<input
+							type="checkbox"
+							checked={flags.normalize}
+							disabled={disabled}
+							onChange={(e) => onFlagsChange({ ...flags, normalize: e.target.checked })}
+							className="size-3"
+						/>
+						Normalizar
+					</label>
+					<label className="flex items-center gap-1 text-[10px] font-medium text-white cursor-pointer">
+						<input
+							type="checkbox"
+							checked={flags.addLogo}
+							disabled={disabled}
+							onChange={(e) => onFlagsChange({ ...flags, addLogo: e.target.checked })}
+							className="size-3"
+						/>
+						Logo
+					</label>
+				</div>
+			)}
 
 			{/* Barra inferior con nombre + drag handle */}
 			<div
@@ -261,9 +293,9 @@ export function ProductForm(props: ProductFormProps) {
 	const slugManuallyEditedRef = useRef(isEdit);
 
 	// Image state — IDs unificados para SortableContext
-	const [imageFiles, setImageFiles] = useState<Array<{ file: File; preview: string; id: string }>>(
-		[],
-	);
+	const [imageFiles, setImageFiles] = useState<
+		Array<{ file: File; preview: string; id: string; normalize: boolean; addLogo: boolean }>
+	>([]);
 	const [existingImages, setExistingImages] = useState<
 		Array<{
 			id: string;
@@ -379,11 +411,14 @@ export function ProductForm(props: ProductFormProps) {
 					// ¿Es una imagen nueva (subida en esta sesión)?
 					const newMapping = newImageMapping.find((m) => m.localId === imgId);
 					if (newMapping) {
+						const newFile = imageFiles.find((f) => f.id === imgId);
 						await productImagesService.create({
 							productId: targetProductId,
 							url: newMapping.url,
 							sortOrder: position,
 							isPrimary,
+							normalize: newFile?.normalize ?? true,
+							addLogo: newFile?.addLogo ?? true,
 						});
 						return;
 					}
@@ -441,7 +476,13 @@ export function ProductForm(props: ProductFormProps) {
 
 		const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
 		let errorMsg: string | null = null;
-		const newItems: Array<{ file: File; preview: string; id: string }> = [];
+		const newItems: Array<{
+			file: File;
+			preview: string;
+			id: string;
+			normalize: boolean;
+			addLogo: boolean;
+		}> = [];
 
 		// Functional updater: siempre ve el estado MÁS RECIENTE de imageFiles,
 		// incluso si addImagesBatch se llama múltiples veces antes de un re-render
@@ -469,6 +510,8 @@ export function ProductForm(props: ProductFormProps) {
 					file,
 					preview: URL.createObjectURL(file),
 					id: crypto.randomUUID(),
+					normalize: true,
+					addLogo: true,
 				});
 				remaining--;
 			}
@@ -1415,6 +1458,13 @@ export function ProductForm(props: ProductFormProps) {
 													isPrimary={false}
 													onRemove={() => handleRemoveImage(newUpload.id)}
 													onZoom={() => handleZoom(newUpload.preview)}
+													flags={{ normalize: newUpload.normalize, addLogo: newUpload.addLogo }}
+													onFlagsChange={(next) =>
+														setImageFiles((prev) =>
+															prev.map((f) => (f.id === newUpload.id ? { ...f, ...next } : f)),
+														)
+													}
+													disabled={isSubmitting}
 												/>
 											);
 										}

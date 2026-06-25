@@ -10,12 +10,16 @@ export interface CreateProductImageData {
 	alt?: string;
 	sortOrder?: number;
 	isPrimary?: boolean;
+	normalize?: boolean;
+	addLogo?: boolean;
 }
 
 export interface UpdateProductImageData {
 	sortOrder?: number;
 	isPrimary?: boolean;
 	alt?: string;
+	normalize?: boolean;
+	addLogo?: boolean;
 }
 
 // ── API Functions ────────────────────────────────────
