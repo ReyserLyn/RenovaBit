@@ -47,7 +47,13 @@ export function HomeOfferSection() {
 			{useOuterCarousel ? (
 				<Carousel
 					opts={{ align: "start", slidesToScroll: 1, loop: true }}
-					plugins={[Autoplay({ delay: OUTER_CAROUSEL_DELAY, stopOnInteraction: false })]}
+					plugins={[
+						Autoplay({
+							delay: OUTER_CAROUSEL_DELAY,
+							stopOnInteraction: true,
+							stopOnMouseEnter: true,
+						}),
+					]}
 					className="w-full"
 				>
 					<CarouselContent>
@@ -130,7 +136,13 @@ function OfferBlock({
 				<div className="sm:px-11">
 					<Carousel
 						opts={{ align: "start", slidesToScroll: 1, loop: true }}
-						plugins={[Autoplay({ delay: INNER_CAROUSEL_DELAY, stopOnInteraction: false })]}
+						plugins={[
+							Autoplay({
+								delay: INNER_CAROUSEL_DELAY,
+								stopOnInteraction: true,
+								stopOnMouseEnter: true,
+							}),
+						]}
 						className="w-full"
 					>
 						<CarouselContent>

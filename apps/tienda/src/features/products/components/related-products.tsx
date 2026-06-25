@@ -38,7 +38,7 @@ export function RelatedProducts({ currentSlug, categorySlug }: RelatedProductsPr
 						slidesToScroll: 1,
 						loop: true,
 					}}
-					plugins={[Autoplay({ delay: 4000, stopOnInteraction: false })]}
+					plugins={[Autoplay({ delay: 4000, stopOnInteraction: true, stopOnMouseEnter: true })]}
 					className="w-full"
 				>
 					<CarouselContent>

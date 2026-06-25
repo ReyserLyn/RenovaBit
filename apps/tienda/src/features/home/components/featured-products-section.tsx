@@ -43,7 +43,9 @@ export function FeaturedProductsSection() {
 			{showCarousel ? (
 				<Carousel
 					opts={{ align: "start", slidesToScroll: 1, loop: true }}
-					plugins={[Autoplay({ delay: AUTOPLAY_DELAY, stopOnInteraction: true })]}
+					plugins={[
+						Autoplay({ delay: AUTOPLAY_DELAY, stopOnInteraction: true, stopOnMouseEnter: true }),
+					]}
 					className="w-full"
 				>
 					<CarouselContent>
