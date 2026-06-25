@@ -8,6 +8,7 @@ import { HeroSection } from "@/features/home/components/hero-section";
 import { HomeOfferSection } from "@/features/home/components/home-offer-section";
 import { TrustSignalsSection } from "@/features/home/components/trust-signals-section";
 import { offerQueries } from "@/features/offers/hooks/queries";
+import { productQueries } from "@/features/products/hooks/queries";
 import { isApiClientError } from "@/shared/lib/api";
 import { seo } from "@/shared/lib/seo";
 
@@ -17,6 +18,9 @@ export const Route = createFileRoute("/_main/")({
 			await Promise.all([
 				queryClient.ensureQueryData(categoryQueries.featured()),
 				queryClient.ensureQueryData(offerQueries.featured()),
+				queryClient.ensureQueryData(
+					productQueries.list({ isFeatured: true, sortBy: "newest" }, 24),
+				),
 			]);
 		} catch (error) {
 			if (isApiClientError(error)) throw error;
