@@ -17,6 +17,15 @@ const _insert = createInsertSchema(categories, {
 	isVisibleInNav: t.Optional(t.Boolean()),
 });
 
+/**
+ * Flag de control: si la imagen subida debe pasar por el pipeline de
+ * normalización (remove bg + resize 1:1 + webp). Default: true.
+ * No es una columna de la tabla, solo se usa en el flujo de upload.
+ */
+const NormalizeFlag = t.Object({
+	normalize: t.Optional(t.Boolean({ default: true })),
+});
+
 // ── Admin Responses ────────────────────────────────
 
 const AdminCategoryResponse = createSelectSchema(categories);
@@ -127,8 +136,14 @@ export const ErrorResponse = t.Object({
 
 export const CategoryModel = {
 	// Bodies
-	createBody: t.Omit(_insert, ["id", "createdAt", "updatedAt", "path"]),
-	updateBody: t.Partial(t.Omit(_insert, ["id", "createdAt", "updatedAt", "path"])),
+	createBody: t.Composite([
+		t.Omit(_insert, ["id", "createdAt", "updatedAt", "path"]),
+		NormalizeFlag,
+	]),
+	updateBody: t.Composite([
+		t.Partial(t.Omit(_insert, ["id", "createdAt", "updatedAt", "path"])),
+		NormalizeFlag,
+	]),
 
 	// Params
 	idParams: t.Object({ id: t.String({ format: "uuid" }) }),

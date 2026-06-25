@@ -1,10 +1,9 @@
-import path from "node:path";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { productImages, products } from "@renovabit/db/schema";
 import { and, eq } from "drizzle-orm";
-import { runPipeline } from "@/modules/product-processing/image-pipeline";
+import { LOGO_PATH, runPipeline } from "@/modules/product-processing/image-pipeline";
 import { BROWSER_HEADERS, IMAGE_ACCEPT } from "@/modules/scrapping/service";
 import { logger } from "@/utils/logger";
 import { R2_BUCKET_NAME, r2Client } from "@/utils/storage/client";
@@ -12,7 +11,6 @@ import { getPublicUrl } from "@/utils/storage/helpers";
 
 // ── Config ────────────────────────────────────────
 
-const LOGO_PATH = path.join(import.meta.dir, "..", "..", "..", "assets", "logo-stacked-light.svg");
 const ENABLE_REMOVE_BG =
 	process.env.ENABLE_REMOVE_BG !== "false" && process.env.ENABLE_REMOVE_BG !== "0";
 const FETCH_TIMEOUT_MS = 30_000;

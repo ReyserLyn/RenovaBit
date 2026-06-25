@@ -16,6 +16,12 @@ const _insert = createInsertSchema(productImages, {
 	isPrimary: t.Optional(t.Boolean()),
 });
 
+/** Flags de procesamiento de imagen (no son columnas). */
+const ProcessingFlags = t.Object({
+	normalize: t.Optional(t.Boolean({ default: true })),
+	addLogo: t.Optional(t.Boolean({ default: true })),
+});
+
 // ── Response ──
 
 const ProductImageResponse = createSelectSchema(productImages);
@@ -33,8 +39,11 @@ export const ErrorResponse = t.Object({
 
 export const ProductImageModel = {
 	// Bodies
-	createBody: t.Omit(_insert, ["id", "createdAt", "updatedAt"]),
-	updateBody: t.Partial(t.Omit(_insert, ["id", "createdAt", "updatedAt", "productId"])),
+	createBody: t.Composite([t.Omit(_insert, ["id", "createdAt", "updatedAt"]), ProcessingFlags]),
+	updateBody: t.Composite([
+		t.Partial(t.Omit(_insert, ["id", "createdAt", "updatedAt", "productId"])),
+		ProcessingFlags,
+	]),
 
 	// Params
 	idParams: t.Object({ id: t.String({ format: "uuid" }) }),

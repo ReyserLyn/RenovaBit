@@ -3,6 +3,7 @@ import { db } from "@renovabit/db";
 import { brands, products } from "@renovabit/db/schema";
 import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { MAX_BULK_DELETE } from "@/constants";
+import { processEntityImage } from "@/modules/image-processing/service";
 import { getCategoryAndDescendantIds } from "@/utils/category-helpers";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
@@ -13,6 +14,24 @@ import type { BrandModel, PublicBrandDetail, PublicBrandListItem } from "./model
 
 type CreateBody = BrandModel["createBody"];
 type UpdateBody = BrandModel["updateBody"];
+
+/** Resuelve la URL de imagen: con o sin normalización. Sin logo. */
+async function resolveBrandImage(
+	imageUrl: string,
+	entityId: string,
+	normalize: boolean | undefined,
+): Promise<string | null> {
+	if (normalize === false) {
+		return resolveEntityImage(imageUrl, "brands", entityId);
+	}
+	const result = await processEntityImage({
+		entityType: "brand",
+		entityId,
+		pendingUrl: imageUrl,
+		options: { logoPath: null },
+	});
+	return result.permanentUrl;
+}
 const PUBLIC_PRODUCT_CONDITIONS = [
 	eq(products.isActive, true),
 	eq(products.needsReview, false),
@@ -132,6 +151,7 @@ async function getBySlugPublic(slug: string): Promise<PublicBrandDetail | null> 
 // ═══════════════════════════════════════════════════
 
 async function create(data: CreateBody, userId: string) {
+	const { normalize, ...dataWithoutNormalize } = data;
 	const nextName = data.name.trim();
 	const slug = data.slug?.trim() ? makeSlug(data.slug) : makeSlug(nextName);
 
@@ -168,12 +188,9 @@ async function create(data: CreateBody, userId: string) {
 	const [item] = await db
 		.insert(brands)
 		.values({
+			...dataWithoutNormalize,
 			name: nextName,
 			slug,
-			description: data.description ?? null,
-			imageUrl: data.imageUrl ?? null,
-			isActive: data.isActive ?? true,
-			isFeatured: data.isFeatured ?? false,
 			createdBy: userId,
 			updatedBy: userId,
 		})
@@ -187,9 +204,9 @@ async function create(data: CreateBody, userId: string) {
 		});
 	}
 
-	// Resolver imagen pendiente → permanente
+	// Resolver imagen pendiente → permanente (con o sin normalización)
 	if (item.imageUrl) {
-		const permanentUrl = await resolveEntityImage(item.imageUrl, "brands", item.id);
+		const permanentUrl = await resolveBrandImage(item.imageUrl, item.id, normalize);
 		if (permanentUrl && permanentUrl !== item.imageUrl) {
 			await db.update(brands).set({ imageUrl: permanentUrl }).where(eq(brands.id, item.id));
 			item.imageUrl = permanentUrl;
@@ -202,6 +219,7 @@ async function create(data: CreateBody, userId: string) {
 // ── Update ─────────────────────────────────────────
 
 async function update(id: string, data: UpdateBody, userId: string) {
+	const { normalize, ...dataWithoutNormalize } = data;
 	const existingRow = await getByIdAdmin(id);
 	if (!existingRow) {
 		throw createApiError({
@@ -253,7 +271,7 @@ async function update(id: string, data: UpdateBody, userId: string) {
 
 	const [item] = await db
 		.update(brands)
-		.set({ ...data, slug: nextSlug, updatedBy: userId })
+		.set({ ...dataWithoutNormalize, slug: nextSlug, updatedBy: userId })
 		.where(eq(brands.id, id))
 		.returning()
 		.catch((err) => handleUniqueViolation(err, "Ya existe una marca con este nombre o slug"));
@@ -265,9 +283,9 @@ async function update(id: string, data: UpdateBody, userId: string) {
 		});
 	}
 
-	// 1. Resolver nueva imagen pendiente → permanente (ANTES de eliminar la vieja)
+	// 1. Resolver nueva imagen pendiente → permanente (con o sin normalización)
 	if (item.imageUrl) {
-		const permanentUrl = await resolveEntityImage(item.imageUrl, "brands", item.id);
+		const permanentUrl = await resolveBrandImage(item.imageUrl, item.id, normalize);
 		if (permanentUrl && permanentUrl !== item.imageUrl) {
 			await db.update(brands).set({ imageUrl: permanentUrl }).where(eq(brands.id, item.id));
 			item.imageUrl = permanentUrl;

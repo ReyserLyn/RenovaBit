@@ -4,6 +4,7 @@ import { categories, products } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, asc, count, eq, inArray, like, ne, sql } from "drizzle-orm";
 import { MAX_BULK_DELETE } from "@/constants";
+import { processEntityImage } from "@/modules/image-processing/service";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { getReservedStockSubquery } from "@/utils/stock";
@@ -29,6 +30,27 @@ type ListOptions = {
 
 type CreateBody = CategoryModel["createBody"];
 type UpdateBody = CategoryModel["updateBody"];
+
+/**
+ * Resuelve la URL de la imagen subida: si `normalize=true` corre el pipeline
+ * (remove bg + resize 1:1 + webp), si no solo mueve el raw. Sin logo.
+ */
+async function resolveCategoryImage(
+	imageUrl: string,
+	entityId: string,
+	normalize: boolean | undefined,
+): Promise<string | null> {
+	if (normalize === false) {
+		return resolveEntityImage(imageUrl, "categories", entityId);
+	}
+	const result = await processEntityImage({
+		entityType: "category",
+		entityId,
+		pendingUrl: imageUrl,
+		options: { logoPath: null },
+	});
+	return result.permanentUrl;
+}
 
 const MAX_DEPTH = 5;
 
@@ -347,6 +369,7 @@ async function getByIdStrict(id: string): Promise<Category> {
 }
 
 async function create(data: CreateBody, userId: string): Promise<Category> {
+	const { normalize, ...dataWithoutNormalize } = data;
 	const nextName = data.name.trim();
 	const nextSlug = data.slug?.trim() ? makeSlug(data.slug) : makeSlug(nextName);
 
@@ -375,7 +398,7 @@ async function create(data: CreateBody, userId: string): Promise<Category> {
 	}
 
 	const values = {
-		...data,
+		...dataWithoutNormalize,
 		name: nextName,
 		slug: nextSlug,
 		path: nextPath,
@@ -397,7 +420,7 @@ async function create(data: CreateBody, userId: string): Promise<Category> {
 	}
 
 	if (item.imageUrl) {
-		const permanentUrl = await resolveEntityImage(item.imageUrl, "categories", item.id);
+		const permanentUrl = await resolveCategoryImage(item.imageUrl, item.id, normalize);
 		if (permanentUrl && permanentUrl !== item.imageUrl) {
 			await db.update(categories).set({ imageUrl: permanentUrl }).where(eq(categories.id, item.id));
 			item.imageUrl = permanentUrl;
@@ -482,12 +505,19 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 		}
 	}
 
+	const { normalize, ...dataWithoutNormalize } = data;
 	const newImageUrl = data.imageUrl;
 	if (newImageUrl !== undefined && newImageUrl !== current.imageUrl) {
 		await deleteEntityImage(current.imageUrl);
 	}
 
-	const baseUpdate = { ...data, name: nextName, slug: nextSlug, path: nextPath, updatedBy: userId };
+	const baseUpdate = {
+		...dataWithoutNormalize,
+		name: nextName,
+		slug: nextSlug,
+		path: nextPath,
+		updatedBy: userId,
+	};
 
 	return db
 		.transaction(async (tx) => {
@@ -542,7 +572,7 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 		})
 		.then(async (updated) => {
 			if (newImageUrl) {
-				const permanentUrl = await resolveEntityImage(newImageUrl, "categories", updated.id);
+				const permanentUrl = await resolveCategoryImage(newImageUrl, updated.id, normalize);
 				if (permanentUrl && permanentUrl !== newImageUrl) {
 					await db
 						.update(categories)

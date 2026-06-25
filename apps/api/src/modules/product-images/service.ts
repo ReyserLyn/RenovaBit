@@ -3,6 +3,8 @@ import { db } from "@renovabit/db";
 import { productImages, products } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
 import { asc, eq } from "drizzle-orm";
+import { processEntityImage } from "@/modules/image-processing/service";
+import { LOGO_PATH } from "@/modules/product-processing/image-pipeline";
 import { logger } from "@/utils/logger";
 import {
 	deleteEntityImage,
@@ -73,6 +75,31 @@ async function resolveImageUrl(
 	}
 }
 
+/**
+ * Versión con normalización: corre el pipeline (remove bg + resize + logo opcional)
+ * y guarda en `products/{productId}/{imageId}.webp`. Si el pipeline falla,
+ * hace fallback a `resolveImageUrl` (mueve raw sin procesar).
+ */
+async function resolveImageUrlWithOptions(
+	imageUrl: string | null,
+	productId: string,
+	imageId: string,
+	options: { normalize: boolean | undefined; addLogo: boolean | undefined },
+): Promise<string | null> {
+	if (!imageUrl) return null;
+	if (options.normalize === false) {
+		return resolveImageUrl(imageUrl, productId, imageId);
+	}
+	const result = await processEntityImage({
+		entityType: "product",
+		entityId: productId,
+		imageId,
+		pendingUrl: imageUrl,
+		options: { logoPath: options.addLogo === false ? null : LOGO_PATH },
+	});
+	return result.permanentUrl;
+}
+
 // ── Queries ────────────────────────────────────────
 
 async function listByProduct(productId: string): Promise<ProductImage[]> {
@@ -91,6 +118,8 @@ async function getById(id: string): Promise<ProductImage | null> {
 // ── Create ─────────────────────────────────────────
 
 async function create(data: CreateBody): Promise<ProductImage> {
+	const { normalize, addLogo, ...dataWithoutFlags } = data;
+
 	// Verificar que el producto existe
 	const [product] = await db
 		.select({ id: products.id })
@@ -116,7 +145,7 @@ async function create(data: CreateBody): Promise<ProductImage> {
 					.where(eq(productImages.productId, data.productId));
 			}
 
-			const [item] = await tx.insert(productImages).values(data).returning();
+			const [item] = await tx.insert(productImages).values(dataWithoutFlags).returning();
 
 			if (!item) {
 				throw createApiError({
@@ -128,8 +157,11 @@ async function create(data: CreateBody): Promise<ProductImage> {
 			return item;
 		})
 		.then(async (item) => {
-			// Resolver imagen pendiente → products/{productId}/{imageId}.{ext}
-			const permanentUrl = await resolveImageUrl(item.url, item.productId, item.id);
+			// Resolver imagen pendiente → products/{productId}/{imageId}.{ext|webp}
+			const permanentUrl = await resolveImageUrlWithOptions(item.url, item.productId, item.id, {
+				normalize,
+				addLogo,
+			});
 			if (permanentUrl && permanentUrl !== item.url) {
 				await db
 					.update(productImages)
@@ -145,6 +177,7 @@ async function create(data: CreateBody): Promise<ProductImage> {
 // ── Update ─────────────────────────────────────────
 
 async function update(id: string, data: UpdateBody): Promise<ProductImage> {
+	const { normalize, addLogo, ...dataWithoutFlags } = data;
 	const current = await getById(id);
 	if (!current) {
 		throw createApiError({
@@ -171,7 +204,7 @@ async function update(id: string, data: UpdateBody): Promise<ProductImage> {
 
 			const [item] = await tx
 				.update(productImages)
-				.set(data)
+				.set(dataWithoutFlags)
 				.where(eq(productImages.id, id))
 				.returning();
 
@@ -187,8 +220,11 @@ async function update(id: string, data: UpdateBody): Promise<ProductImage> {
 			return item;
 		})
 		.then(async (item) => {
-			// Resolver nueva imagen pendiente → products/{productId}/{imageId}.{ext}
-			const permanentUrl = await resolveImageUrl(item.url, item.productId, item.id);
+			// Resolver nueva imagen pendiente → products/{productId}/{imageId}.{ext|webp}
+			const permanentUrl = await resolveImageUrlWithOptions(item.url, item.productId, item.id, {
+				normalize,
+				addLogo,
+			});
 			if (permanentUrl && permanentUrl !== item.url) {
 				await db
 					.update(productImages)

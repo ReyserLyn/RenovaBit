@@ -1,3 +1,4 @@
+import path from "node:path";
 import { compositeLogo } from "./composite-logo";
 import {
 	getContentRatio,
@@ -14,9 +15,19 @@ import { toWebp } from "./to-webp";
 const MIN_CONTENT_RATIO = 0.06;
 const DEFAULT_LOGO_POSITION = "top-right" as const;
 
+/** Path al SVG del logo de RenovaBit. Usado como watermark. */
+export const LOGO_PATH = path.join(
+	import.meta.dir,
+	"..",
+	"..",
+	"..",
+	"assets",
+	"logo-stacked-light.svg",
+);
+
 export interface PipelineOptions {
-	/** Ruta al archivo del logo SVG/PNG. Si no existe, se omite el watermark. */
-	logoPath: string;
+	/** Ruta al archivo del logo SVG/PNG. null = no aplicar watermark. */
+	logoPath: string | null;
 	/** Posición del logo. Default: "top-right" */
 	logoPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
 	/** Activar eliminación de fondo por IA. Default: false (solo fallback fondo oscuro) */
@@ -95,8 +106,9 @@ export async function runPipeline(input: Buffer, options: PipelineOptions): Prom
 	// 4. Normalizar
 	const normalized = await normalizeToSquareTransparent(toNormalize);
 
-	// 5. Logo
-	const withLogo = await compositeLogo(normalized, logoPath, logoPosition);
+	// 5. Logo (skip si logoPath es null)
+	const withLogo =
+		logoPath === null ? normalized : await compositeLogo(normalized, logoPath, logoPosition);
 
 	// 6. WebP
 	return toWebp(withLogo);

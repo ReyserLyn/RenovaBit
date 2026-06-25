@@ -11,6 +11,11 @@ const _insert = createInsertSchema(brands, {
 	imageUrl: t.Optional(t.String({ maxLength: 2048 })),
 });
 
+/** Flag de normalización (no es columna, solo controla el upload). */
+const NormalizeFlag = t.Object({
+	normalize: t.Optional(t.Boolean({ default: true })),
+});
+
 // ── Admin Responses ───────────────────────────────
 
 const AdminBrandResponse = createSelectSchema(brands);
@@ -58,8 +63,11 @@ export const ErrorResponse = t.Object({
 
 export const BrandModel = {
 	// Bodies
-	createBody: t.Omit(_insert, ["id", "createdAt", "updatedAt"]),
-	updateBody: t.Partial(t.Omit(_insert, ["id", "createdAt", "updatedAt"])),
+	createBody: t.Composite([t.Omit(_insert, ["id", "createdAt", "updatedAt"]), NormalizeFlag]),
+	updateBody: t.Composite([
+		t.Partial(t.Omit(_insert, ["id", "createdAt", "updatedAt"])),
+		NormalizeFlag,
+	]),
 
 	// Params
 	slugParams: t.Object({ slug: t.String({ minLength: 1 }) }),
