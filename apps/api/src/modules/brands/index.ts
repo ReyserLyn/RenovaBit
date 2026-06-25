@@ -26,6 +26,25 @@ export const brandsRoute = new Elysia({ prefix: "/brands" })
 		},
 	)
 
+	// ── Featured (home carousel) ──────────────────
+	.get(
+		"/featured",
+		async () => {
+			const all = await BrandService.getFeaturedPublic();
+			// Cap server-side so the home carousel stays bounded.
+			return all.slice(0, 20);
+		},
+		{
+			response: { 200: BrandModel.publicFeaturedBrandResponse },
+			detail: {
+				summary: "Marcas featured para el home",
+				description:
+					"Lista plana de marcas activas marcadas como featured, ordenadas por productCount DESC. Cap de 20.",
+				tags: ["Brands"],
+			},
+		},
+	)
+
 	// ── Detail by slug ────────────────────────────
 	.get(
 		"/:slug",

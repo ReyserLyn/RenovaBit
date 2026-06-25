@@ -87,10 +87,19 @@ export async function trimToContent(input: Buffer): Promise<Buffer> {
 // ── Normalize ────────────────────────────────────
 
 /**
- * Normaliza a cuadrado 1:1: contenido centrado con contain (máximo tamaño sin recortar),
- * fondo transparente y márgenes.
+ * Normaliza la imagen aplicando margen transparente del 5% en cada borde.
+ *
+ *   square: true  → fuerza canvas 1:1 (lado mayor), contenido centrado con `contain`.
+ *   square: false → respeta el aspect ratio original; solo agrega el margen.
+ *
+ * Para logos de marca (HP, MSI, etc.) usar `square: false` para que el
+ * aspect ratio original no se distorsione con padding transparente.
  */
-export async function normalizeToSquareTransparent(input: Buffer): Promise<Buffer> {
+export async function normalizeToSquareTransparent(
+	input: Buffer,
+	options: { square?: boolean } = {},
+): Promise<Buffer> {
+	const { square = true } = options;
 	const image = sharp(input);
 	const meta = await image.metadata();
 	const width = meta.width ?? 0;
@@ -100,20 +109,29 @@ export async function normalizeToSquareTransparent(input: Buffer): Promise<Buffe
 		return input;
 	}
 
-	const side = Math.max(width, height);
+	let base: Buffer;
+	if (square) {
+		// Forzar 1:1: el lado mayor define el canvas, el contenido entra con contain.
+		const side = Math.max(width, height);
+		base = await sharp(input)
+			.resize(side, side, {
+				fit: "contain",
+				background: TRANSPARENT,
+				position: "center",
+			})
+			.png()
+			.toBuffer();
+	} else {
+		// Respetar aspect ratio original. Solo convertimos a PNG para consistencia
+		// con la operación `.extend` que viene después.
+		base = await sharp(input).png().toBuffer();
+	}
 
-	const resized = await sharp(input)
-		.resize(side, side, {
-			fit: "contain",
-			background: TRANSPARENT,
-			position: "center",
-		})
-		.png()
-		.toBuffer();
+	// 5% de margen sobre el lado mayor (funciona en ambos casos).
+	const marginRef = Math.max(width, height);
+	const margin = Math.max(8, Math.floor(marginRef * MARGIN_RATIO));
 
-	const margin = Math.max(8, Math.floor(side * MARGIN_RATIO));
-
-	return sharp(resized)
+	return sharp(base)
 		.extend({
 			top: margin,
 			bottom: margin,

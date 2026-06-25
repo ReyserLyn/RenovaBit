@@ -34,6 +34,12 @@ export interface PipelineOptions {
 	enableRemoveBg?: boolean;
 	/** MIME type de la imagen de entrada (para @imgly). */
 	inputContentType?: string;
+	/**
+	 * Forzar canvas cuadrado 1:1. Default: true (productos).
+	 * Pasar `false` para logos de marca: respeta el aspect ratio original
+	 * y solo aplica el margen del 5% en cada borde.
+	 */
+	square?: boolean;
 }
 
 // ── Pipeline ──────────────────────────────────────
@@ -56,6 +62,7 @@ export async function runPipeline(input: Buffer, options: PipelineOptions): Prom
 		logoPosition = DEFAULT_LOGO_POSITION,
 		enableRemoveBg = false,
 		inputContentType,
+		square = true,
 	} = options;
 
 	let toNormalize: Buffer;
@@ -103,8 +110,8 @@ export async function runPipeline(input: Buffer, options: PipelineOptions): Prom
 		}
 	}
 
-	// 4. Normalizar
-	const normalized = await normalizeToSquareTransparent(toNormalize);
+	// 4. Normalizar (cuadrado 1:1 para productos, respeta aspect ratio para marcas con square: false)
+	const normalized = await normalizeToSquareTransparent(toNormalize, { square });
 
 	// 5. Logo (skip si logoPath es null)
 	const withLogo =

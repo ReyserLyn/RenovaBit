@@ -1,5 +1,6 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
+import { nanoid } from "nanoid";
 import { runPipeline } from "@/modules/product-processing/image-pipeline";
 import { logger } from "@/utils/logger";
 import { R2_BUCKET_NAME, r2Client } from "@/utils/storage/client";
@@ -34,6 +35,11 @@ export interface ProcessEntityImageInput {
 		enableRemoveBg?: boolean;
 		/** Path al logo. null = sin watermark. Default: null. */
 		logoPath?: string | null;
+		/**
+		 * Forzar canvas cuadrado 1:1. Default: true (productos, categorías).
+		 * Pasar `false` para logos de marca: respeta el aspect ratio original.
+		 */
+		square?: boolean;
 	};
 	/**
 	 * ID de la imagen (solo para product gallery). Default: "processed".
@@ -83,6 +89,7 @@ export async function processEntityImage(
 	const destinationKey = buildDestinationKey(entityType, entityId, imageId);
 	const enableRemoveBg = options?.enableRemoveBg ?? ENABLE_REMOVE_BG;
 	const logoPath = options?.logoPath ?? null;
+	const square = options?.square ?? true;
 
 	let permanentUrl: string;
 	let normalized = false;
@@ -93,6 +100,7 @@ export async function processEntityImage(
 			logoPath,
 			enableRemoveBg,
 			inputContentType: contentType,
+			square,
 		});
 
 		// 3. Upload processed
@@ -137,18 +145,23 @@ export async function processEntityImage(
 /**
  * Construye la key permanente en R2.
  *
- *   category → `categories/{id}/processed.webp` (overwrite, single image)
- *   brand    → `brands/{id}/processed.webp`     (overwrite, single image)
- *   product  → `products/{id}/{imageId}.webp`   (per-image, gallery)
+ *   category → `categories/{id}/{nanoid}.webp`   (single image, cache-safe)
+ *   brand    → `brands/{id}/{nanoid}.webp`       (single image, cache-safe)
+ *   product  → `products/{id}/{imageId}.webp`     (per-image, gallery)
+ *
+ * Para single-image entities usamos un `nanoid` único por upload. Así,
+ * cuando un admin reemplaza la imagen, la URL cambia → la CDN de
+ * Cloudflare no sirve la versión cacheada vieja.
  */
 function buildDestinationKey(entityType: EntityType, entityId: string, imageId: string): string {
 	if (entityType === "product") {
 		return `products/${entityId}/${imageId}.webp`;
 	}
+	const uniqueId = nanoid();
 	if (entityType === "category") {
-		return `categories/${entityId}/processed.webp`;
+		return `categories/${entityId}/${uniqueId}.webp`;
 	}
-	return `brands/${entityId}/processed.webp`;
+	return `brands/${entityId}/${uniqueId}.webp`;
 }
 
 async function downloadFromR2(key: string): Promise<{ buffer: Buffer; contentType: string }> {

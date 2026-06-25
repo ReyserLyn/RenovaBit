@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { brandQueries } from "@/features/brands/hooks/queries";
 import { categoryQueries } from "@/features/categories/hooks/queries";
 import { BrandsSection } from "@/features/home/components/brands-section";
 import { CategorySection } from "@/features/home/components/category-section";
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/_main/")({
 		try {
 			await Promise.all([
 				queryClient.ensureQueryData(categoryQueries.featured()),
+				queryClient.ensureQueryData(brandQueries.featured()),
 				queryClient.ensureQueryData(offerQueries.featured()),
 				queryClient.ensureQueryData(
 					productQueries.list({ isFeatured: true, sortBy: "newest" }, 24),

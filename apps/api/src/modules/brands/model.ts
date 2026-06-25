@@ -45,10 +45,23 @@ export const PublicBrandDetail = t.Object({
 	productCount: t.Integer({ minimum: 0 }),
 });
 
+/**
+ * Marca featured para el home carousel. Lista plana, sin descripción.
+ * Ordenada por productCount DESC en el service. Cap de 20 en el route handler.
+ */
+export const PublicFeaturedBrand = t.Object({
+	id: t.String({ format: "uuid" }),
+	name: t.String(),
+	slug: t.String(),
+	imageUrl: t.Nullable(t.String()),
+	productCount: t.Integer({ minimum: 0 }),
+});
+
 // ── Tipos derivados de schemas (SSOT — sin duplicar en service) ──
 
 export type PublicBrandListItem = typeof PublicBrandListItem.static;
 export type PublicBrandDetail = typeof PublicBrandDetail.static;
+export type PublicFeaturedBrand = typeof PublicFeaturedBrand.static;
 
 // ── Error ──────────────────────────────────────────
 
@@ -93,6 +106,7 @@ export const BrandModel = {
 	publicBrandListItem: PublicBrandListItem,
 	publicBrandListResponse: t.Array(PublicBrandListItem),
 	publicBrandDetail: PublicBrandDetail,
+	publicFeaturedBrandResponse: t.Array(PublicFeaturedBrand),
 } as const;
 
 export type BrandModel = {

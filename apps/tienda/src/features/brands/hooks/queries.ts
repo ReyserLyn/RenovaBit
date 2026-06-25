@@ -9,9 +9,20 @@ export const brandKeys = {
 	list: () => [...brandKeys.lists()] as const,
 	listByCategory: (categorySlug: string) =>
 		[...brandKeys.lists(), "category", categorySlug] as const,
+	featured: () => [...brandKeys.all, "featured"] as const,
 	details: () => [...brandKeys.all, "detail"] as const,
 	detail: (slug: string) => [...brandKeys.details(), slug] as const,
 };
+
+// ── Types inferred from API ────────────────────────────────
+
+type _FeaturedBrandsResponse =
+	Awaited<ReturnType<typeof api.api.v1.brands.featured.get>> extends {
+		data: infer T;
+	}
+		? T
+		: never;
+export type FeaturedBrand = NonNullable<_FeaturedBrandsResponse>[number];
 
 // ── Query Options ─────────────────────────────────────────────
 
@@ -50,6 +61,20 @@ export const brandQueries = {
 				);
 			},
 			staleTime: 1000 * 60 * 5,
+		}),
+
+	/**
+	 * Marcas featured para el home carousel. Lista plana, ordenadas por
+	 * productCount DESC (server-side, cap 20).
+	 */
+	featured: () =>
+		queryOptions({
+			queryKey: brandKeys.featured(),
+			queryFn: async () => {
+				const headers = await getApiSsrHeaders();
+				return unwrapResponse(api.api.v1.brands.featured.get({ headers }));
+			},
+			staleTime: 1000 * 60 * 10,
 		}),
 
 	bySlug: (slug: string) =>

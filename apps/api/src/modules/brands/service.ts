@@ -10,7 +10,12 @@ import { logger } from "@/utils/logger";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
 import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
-import type { BrandModel, PublicBrandDetail, PublicBrandListItem } from "./model";
+import type {
+	BrandModel,
+	PublicBrandDetail,
+	PublicBrandListItem,
+	PublicFeaturedBrand,
+} from "./model";
 
 type CreateBody = BrandModel["createBody"];
 type UpdateBody = BrandModel["updateBody"];
@@ -28,7 +33,7 @@ async function resolveBrandImage(
 		entityType: "brand",
 		entityId,
 		pendingUrl: imageUrl,
-		options: { logoPath: null },
+		options: { logoPath: null, square: false },
 	});
 	return result.permanentUrl;
 }
@@ -144,6 +149,34 @@ async function getBySlugPublic(slug: string): Promise<PublicBrandDetail | null> 
 		imageUrl: brand.imageUrl,
 		productCount: Number(row?.cnt ?? 0),
 	};
+}
+
+/**
+ * Featured brands for the home carousel. Flat list, ordered by productCount DESC.
+ * Capped at 20 in the route handler.
+ */
+async function getFeaturedPublic(): Promise<PublicFeaturedBrand[]> {
+	const rows = await db
+		.select({
+			id: brands.id,
+			name: brands.name,
+			slug: brands.slug,
+			imageUrl: brands.imageUrl,
+			productCount: count(products.id).mapWith(Number),
+		})
+		.from(brands)
+		.leftJoin(products, and(eq(products.brandId, brands.id), ...PUBLIC_PRODUCT_CONDITIONS))
+		.where(and(eq(brands.isActive, true), eq(brands.isFeatured, true)))
+		.groupBy(brands.id)
+		.orderBy(desc(sql`count(${products.id})`), asc(brands.name));
+
+	return rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		slug: row.slug,
+		imageUrl: row.imageUrl,
+		productCount: row.productCount,
+	}));
 }
 
 // ═══════════════════════════════════════════════════
@@ -390,4 +423,5 @@ export const BrandService = {
 	// Public
 	listPublic,
 	getBySlugPublic,
+	getFeaturedPublic,
 };

@@ -3,6 +3,7 @@ import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { productImages, products } from "@renovabit/db/schema";
 import { and, eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
 import { LOGO_PATH, runPipeline } from "@/modules/product-processing/image-pipeline";
 import { BROWSER_HEADERS, IMAGE_ACCEPT } from "@/modules/scrapping/service";
 import { logger } from "@/utils/logger";
@@ -54,8 +55,10 @@ export async function processProductImage(input: ProcessImageInput): Promise<Pro
 		inputContentType: contentType,
 	});
 
-	// 3. Subir a R2 (sobrescribe si ya existe)
-	const key = `products/${productId}/processed.webp`;
+	// 3. Subir a R2. Usamos un `nanoid` único en la key para que cada
+	// re-scrape con imagen distinta genere una URL nueva. Así invalidamos
+	// la cache de Cloudflare sin tener que purgarla explícitamente.
+	const key = `products/${productId}/${nanoid()}.webp`;
 	await r2Client.send(
 		new PutObjectCommand({
 			Bucket: R2_BUCKET_NAME,
@@ -67,7 +70,7 @@ export async function processProductImage(input: ProcessImageInput): Promise<Pro
 
 	const publicUrl = getPublicUrl(key);
 
-	// 4. Guardar en DB: processed.webp siempre primaria
+	// 4. Guardar en DB: la imagen scrapeada es siempre la primaria del producto
 	await db
 		.update(productImages)
 		.set({ isPrimary: false })
