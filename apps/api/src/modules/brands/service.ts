@@ -153,9 +153,9 @@ async function getBySlugPublic(slug: string): Promise<PublicBrandDetail | null> 
 
 /**
  * Featured brands for the home carousel. Flat list, ordered by productCount DESC.
- * Capped at 20 in the route handler.
+ * Limit aplicado en SQL para que la DB no retorne rows innecesarias.
  */
-async function getFeaturedPublic(): Promise<PublicFeaturedBrand[]> {
+async function getFeaturedPublic(limit = 20): Promise<PublicFeaturedBrand[]> {
 	const rows = await db
 		.select({
 			id: brands.id,
@@ -168,7 +168,8 @@ async function getFeaturedPublic(): Promise<PublicFeaturedBrand[]> {
 		.leftJoin(products, and(eq(products.brandId, brands.id), ...PUBLIC_PRODUCT_CONDITIONS))
 		.where(and(eq(brands.isActive, true), eq(brands.isFeatured, true)))
 		.groupBy(brands.id)
-		.orderBy(desc(sql`count(${products.id})`), asc(brands.name));
+		.orderBy(desc(sql`count(${products.id})`), asc(brands.name))
+		.limit(limit);
 
 	return rows.map((row) => ({
 		id: row.id,

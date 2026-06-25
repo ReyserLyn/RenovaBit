@@ -25,29 +25,41 @@ export function CategorySection() {
 				<p className="text-muted-foreground text-sm">Las más populares en la tienda.</p>
 			</header>
 
-			<div className="px-11">
-				<Carousel
-					opts={{
-						align: "start",
-						slidesToScroll: 1,
-						loop: true,
-					}}
-					className="w-full"
-				>
-					<CarouselContent>
-						{categories.map((cat) => (
-							<CarouselItem
-								key={cat.id}
-								className="basis-1/2 sm:basis-1/3 md:basis-1/4 lg:basis-1/5"
-							>
-								<CategoryLink category={cat} />
-							</CarouselItem>
-						))}
-					</CarouselContent>
+			<div>
+				{hasNavigation ? (
+					<div className="px-11">
+						<Carousel
+							opts={{
+								align: "start",
+								slidesToScroll: 1,
+								loop: true,
+							}}
+							className="w-full"
+						>
+							<CarouselContent>
+								{categories.map((cat) => (
+									<CarouselItem
+										key={cat.id}
+										className="basis-1/2 sm:basis-1/3 md:basis-1/4 lg:basis-1/5"
+									>
+										<CategoryLink category={cat} />
+									</CarouselItem>
+								))}
+							</CarouselContent>
 
-					{hasNavigation && <CarouselPrevious className="-left-6" />}
-					{hasNavigation && <CarouselNext className="-right-6" />}
-				</Carousel>
+							{hasNavigation && <CarouselPrevious className="-left-6" />}
+							{hasNavigation && <CarouselNext className="-right-6" />}
+						</Carousel>
+					</div>
+				) : (
+					<div className="flex flex-wrap justify-center gap-4">
+						{categories.map((cat) => (
+							<div key={cat.id} className="w-full sm:w-56">
+								<CategoryLink category={cat} />
+							</div>
+						))}
+					</div>
+				)}
 			</div>
 		</section>
 	);

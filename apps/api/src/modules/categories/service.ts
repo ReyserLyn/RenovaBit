@@ -2,7 +2,7 @@ import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { categories, products } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, asc, count, eq, inArray, like, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
 import { MAX_BULK_DELETE } from "@/constants";
 import { processEntityImage } from "@/modules/image-processing/service";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
@@ -261,33 +261,35 @@ async function getTreePublic(): Promise<PublicCategoryTree[]> {
 
 /**
  * Featured categories for the home carousel. Flat list (no tree),
- * sorted by productCount DESC. Capped at 20 in the route handler.
+ * sorted by productCount DESC. Limit aplicado en SQL para que la DB
+ * no retorne rows innecesarias.
  */
-async function getFeaturedPublic(): Promise<PublicFeaturedCategory[]> {
-	const [rows, productCounts] = await Promise.all([
-		db
-			.select({
-				id: categories.id,
-				name: categories.name,
-				slug: categories.slug,
-				description: categories.description,
-				imageUrl: categories.imageUrl,
-			})
-			.from(categories)
-			.where(and(eq(categories.isActive, true), eq(categories.isFeatured, true))),
-		getProductCounts(),
-	]);
+async function getFeaturedPublic(limit = 20): Promise<PublicFeaturedCategory[]> {
+	const rows = await db
+		.select({
+			id: categories.id,
+			name: categories.name,
+			slug: categories.slug,
+			description: categories.description,
+			imageUrl: categories.imageUrl,
+			productCount: count(products.id).mapWith(Number),
+		})
+		.from(categories)
+		.leftJoin(
+			products,
+			and(
+				eq(products.categoryId, categories.id),
+				eq(products.isActive, true),
+				eq(products.needsReview, false),
+				sql`${products.stock} > (${getReservedStockSubquery(products.id)})`,
+			),
+		)
+		.where(and(eq(categories.isActive, true), eq(categories.isFeatured, true)))
+		.groupBy(categories.id)
+		.orderBy(desc(sql`count(${products.id})`), asc(categories.name))
+		.limit(limit);
 
-	return rows
-		.map((row) => ({
-			id: row.id,
-			name: row.name,
-			slug: row.slug,
-			description: row.description,
-			imageUrl: row.imageUrl,
-			productCount: productCounts.get(row.id) ?? 0,
-		}))
-		.sort((a, b) => b.productCount - a.productCount);
+	return rows;
 }
 
 async function getBySlugPublic(slug: string): Promise<PublicCategoryDetail | null> {
