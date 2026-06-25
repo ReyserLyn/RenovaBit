@@ -1,5 +1,5 @@
 import { db } from "@renovabit/db";
-import { productChanges, products } from "@renovabit/db/schema";
+import { productChanges, products, syncReports } from "@renovabit/db/schema";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 
 export type GetRecentChangesParams = {
