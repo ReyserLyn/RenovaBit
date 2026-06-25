@@ -15,6 +15,7 @@ import type {
 	CategoryModel,
 	PublicCategoryDetail,
 	PublicCategoryTree,
+	PublicFeaturedCategory,
 } from "./model";
 
 type Category = InferSelectModel<typeof categories>;
@@ -234,6 +235,37 @@ async function getTreePublic(): Promise<PublicCategoryTree[]> {
 	]);
 
 	return buildPublicTree(flatRows, productCounts);
+}
+
+/**
+ * Featured categories for the home carousel. Flat list (no tree),
+ * sorted by productCount DESC. Capped at 20 in the route handler.
+ */
+async function getFeaturedPublic(): Promise<PublicFeaturedCategory[]> {
+	const [rows, productCounts] = await Promise.all([
+		db
+			.select({
+				id: categories.id,
+				name: categories.name,
+				slug: categories.slug,
+				description: categories.description,
+				imageUrl: categories.imageUrl,
+			})
+			.from(categories)
+			.where(and(eq(categories.isActive, true), eq(categories.isFeatured, true))),
+		getProductCounts(),
+	]);
+
+	return rows
+		.map((row) => ({
+			id: row.id,
+			name: row.name,
+			slug: row.slug,
+			description: row.description,
+			imageUrl: row.imageUrl,
+			productCount: productCounts.get(row.id) ?? 0,
+		}))
+		.sort((a, b) => b.productCount - a.productCount);
 }
 
 async function getBySlugPublic(slug: string): Promise<PublicCategoryDetail | null> {
@@ -634,5 +666,6 @@ export const CategoryService = {
 
 	// Public
 	getTreePublic,
+	getFeaturedPublic,
 	getBySlugPublic,
 };

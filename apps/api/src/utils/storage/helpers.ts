@@ -80,15 +80,10 @@ export async function generatePresignUrl(
 	const ext = EXT_MAP[contentType] || rawExt;
 	const key = generatePendingKey(ext);
 
-	// Enforce client-requested size at the bucket level so R2 rejects oversized
-	// uploads at the edge. Clamp to the absolute MAX to prevent abuse.
-	const enforcedMax = Math.min(Math.max(1, maxSizeBytes), MAX_UPLOAD_BYTES);
-
 	const command = new PutObjectCommand({
 		Bucket: R2_BUCKET_NAME,
 		Key: key,
 		ContentType: contentType,
-		ContentLength: enforcedMax,
 	});
 
 	const uploadUrl = await getSignedUrl(r2Client, command, {

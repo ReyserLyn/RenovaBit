@@ -6,6 +6,7 @@ export {
 	useUpdateCategory,
 } from "./categories-mutations";
 export {
+	buildCategoryTree,
 	categoriesQueryOptions,
 	categoryKeys,
 	useCategories,

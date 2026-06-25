@@ -25,6 +25,25 @@ export const categoriesRoute = new Elysia({ prefix: "/categories" })
 		},
 	)
 
+	// ── Featured (home carousel) ──────────────────
+	.get(
+		"/featured",
+		async () => {
+			const all = await CategoryService.getFeaturedPublic();
+			// Cap server-side so the home carousel stays bounded.
+			return all.slice(0, 20);
+		},
+		{
+			response: { 200: CategoryModel.publicFeaturedCategoryResponse },
+			detail: {
+				summary: "Categorías featured para el home",
+				description:
+					"Lista plana de categorías activas marcadas como featured, ordenadas por productCount DESC. Cap de 20.",
+				tags: ["Categories"],
+			},
+		},
+	)
+
 	// ── Detail by slug ────────────────────────────
 	.get(
 		"/:slug",

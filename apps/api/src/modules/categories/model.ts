@@ -69,9 +69,23 @@ export const PublicCategoryDetail = t.Object({
 	productCount: t.Integer({ minimum: 0 }),
 });
 
+/**
+ * Categoría featured para el home carousel. Lista plana (sin árbol),
+ * sin breadcrumb ni children. Ordenada por productCount DESC en el service.
+ */
+export const PublicFeaturedCategorySchema = t.Object({
+	id: t.String({ format: "uuid" }),
+	name: t.String(),
+	slug: t.String(),
+	description: t.Nullable(t.String()),
+	imageUrl: t.Nullable(t.String()),
+	productCount: t.Integer({ minimum: 0 }),
+});
+
 // ── Tipos derivados de schemas ──
 
 export type PublicCategoryDetail = typeof PublicCategoryDetail.static;
+export type PublicFeaturedCategory = typeof PublicFeaturedCategorySchema.static;
 export type BreadcrumbItem = typeof BreadcrumbItem.static;
 export type BulkDeleteResult = typeof BulkDeleteResult.static;
 
@@ -145,6 +159,7 @@ export const CategoryModel = {
 	// Public Responses
 	publicCategoryTreeResponse: t.Array(PublicCategoryTreeNodeSchema),
 	publicCategoryDetail: PublicCategoryDetail,
+	publicFeaturedCategoryResponse: t.Array(PublicFeaturedCategorySchema),
 } as const;
 
 export type CategoryModel = {
