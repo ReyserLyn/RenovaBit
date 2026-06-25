@@ -1,8 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { categoryQueries } from "@/features/categories/hooks/queries";
+import { BrandsSection } from "@/features/home/components/brands-section";
+import { CategorySection } from "@/features/home/components/category-section";
+import { FeaturedProductsSection } from "@/features/home/components/featured-products-section";
+import { FinalCtaSection } from "@/features/home/components/final-cta-section";
 import { HeroSection } from "@/features/home/components/hero-section";
+import { OfferBannersSection } from "@/features/home/components/offer-banners-section";
+import { TrustSignalsSection } from "@/features/home/components/trust-signals-section";
+import { isApiClientError } from "@/shared/lib/api";
 import { seo } from "@/shared/lib/seo";
 
 export const Route = createFileRoute("/_main/")({
+	loader: async ({ context: { queryClient } }) => {
+		try {
+			await queryClient.ensureQueryData(categoryQueries.featured());
+		} catch (error) {
+			if (isApiClientError(error)) throw error;
+		}
+	},
 	head: () => ({
 		meta: [
 			{ charSet: "utf-8" },
@@ -26,10 +41,16 @@ export const Route = createFileRoute("/_main/")({
 	component: HomePage,
 });
 
-export function HomePage() {
+function HomePage() {
 	return (
 		<div className="flex flex-1 flex-col">
 			<HeroSection />
+			<CategorySection />
+			<OfferBannersSection />
+			<FeaturedProductsSection />
+			<BrandsSection />
+			<TrustSignalsSection />
+			<FinalCtaSection />
 		</div>
 	);
 }
