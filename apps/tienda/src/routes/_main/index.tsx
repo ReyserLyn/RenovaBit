@@ -5,15 +5,19 @@ import { CategorySection } from "@/features/home/components/category-section";
 import { FeaturedProductsSection } from "@/features/home/components/featured-products-section";
 import { FinalCtaSection } from "@/features/home/components/final-cta-section";
 import { HeroSection } from "@/features/home/components/hero-section";
-import { OfferBannersSection } from "@/features/home/components/offer-banners-section";
+import { HomeOfferSection } from "@/features/home/components/home-offer-section";
 import { TrustSignalsSection } from "@/features/home/components/trust-signals-section";
+import { offerQueries } from "@/features/offers/hooks/queries";
 import { isApiClientError } from "@/shared/lib/api";
 import { seo } from "@/shared/lib/seo";
 
 export const Route = createFileRoute("/_main/")({
 	loader: async ({ context: { queryClient } }) => {
 		try {
-			await queryClient.ensureQueryData(categoryQueries.featured());
+			await Promise.all([
+				queryClient.ensureQueryData(categoryQueries.featured()),
+				queryClient.ensureQueryData(offerQueries.featured()),
+			]);
 		} catch (error) {
 			if (isApiClientError(error)) throw error;
 		}
@@ -46,7 +50,7 @@ function HomePage() {
 		<div className="flex flex-1 flex-col">
 			<HeroSection />
 			<CategorySection />
-			<OfferBannersSection />
+			<HomeOfferSection />
 			<FeaturedProductsSection />
 			<BrandsSection />
 			<TrustSignalsSection />

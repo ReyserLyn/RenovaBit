@@ -21,7 +21,7 @@ export function ProductCard({ product, isFavorite }: ProductCardProps) {
 	const isAvailable = product.isInStock !== undefined ? product.isInStock : product.stock > 0;
 
 	return (
-		<div className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs transition-all duration-200 hover:shadow-md">
+		<div className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs transition-all duration-200 hover:shadow-md">
 			{/* ── Imagen ─────────────────────────── */}
 			<Link
 				to="/producto/$slug"
@@ -91,8 +91,8 @@ export function ProductCard({ product, isFavorite }: ProductCardProps) {
 					</p>
 				</div>
 
-				{/* Nombre — altura fija 2 líneas */}
-				<h3 className="line-clamp-2 min-h-[2.5em] text-base font-medium leading-snug">
+				{/* Nombre — line-clamp previene overflow; el height uniforme lo da el padre */}
+				<h3 className="line-clamp-3 text-base font-medium leading-snug">
 					<Link
 						to="/producto/$slug"
 						params={{ slug: product.slug }}

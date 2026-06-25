@@ -12,6 +12,7 @@ import {
 import { ProductCard } from "@/features/products/components/product-card";
 import { useOfferCountdown } from "../hooks/use-offer-countdown";
 import type { OfferProductPage, OfferWithProducts } from "../types";
+import { mapOfferProductForCard } from "../utils";
 import { OfferCountdown } from "./offer-countdown";
 
 interface OfferSectionProps {
@@ -59,22 +60,7 @@ export function OfferSection({
 							<ProductCard
 								key={product.id}
 								isFavorite={favoriteStatuses?.[product.id] ?? false}
-								product={{
-									id: product.id,
-									name: product.name,
-									slug: product.slug,
-									price: product.basePrice ?? "0",
-									// When the offer has ended (tab left open), drop the offer
-									// price so cards reflect the current non-discounted price.
-									offerPrice: isEnded ? null : product.offerPrice,
-									discountPercent: isEnded ? 0 : product.discountPercent,
-									stock: product.stock,
-									sku: product.sku,
-									primaryImage: product.primaryImage
-										? { url: product.primaryImage, alt: null }
-										: null,
-									brand: product.brand ?? null,
-								}}
+								product={mapOfferProductForCard(product, isEnded)}
 							/>
 						))}
 					</div>

@@ -19,8 +19,11 @@ export function CategorySection() {
 	const hasNavigation = categories.length > NAV_THRESHOLD;
 
 	return (
-		<section className="container mx-auto max-w-7xl space-y-4 px-4 py-16 md:py-20">
-			<h2 className="text-lg font-semibold tracking-tight">Lo más buscado</h2>
+		<section className="container mx-auto max-w-7xl space-y-8 px-4 py-16 md:py-20">
+			<header className="space-y-2">
+				<h2 className="text-2xl font-bold tracking-tight">Lo más buscado</h2>
+				<p className="text-muted-foreground text-sm">Las más populares en la tienda.</p>
+			</header>
 
 			<div className="px-11">
 				<Carousel

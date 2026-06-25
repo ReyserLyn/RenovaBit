@@ -37,7 +37,7 @@ export function PriceDisplay({
 	}
 
 	return (
-		<div className={cn("flex items-baseline gap-3", className)}>
+		<div className={cn("flex flex-wrap items-baseline gap-x-2 gap-y-1", className)}>
 			{/* Screen-reader summary describing the price relationship. */}
 			<span className="sr-only">
 				{`Precio en oferta: ${formatPrice(offerPrice)}, antes ${formatPrice(basePrice)}${
@@ -55,6 +55,7 @@ export function PriceDisplay({
 					variant="destructive"
 					size="sm"
 					radius="full"
+					className="shrink-0"
 					aria-label={`Descuento ${discountPercent} por ciento`}
 				>
 					-{discountPercent}%
