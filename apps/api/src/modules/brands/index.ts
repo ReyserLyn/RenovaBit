@@ -13,14 +13,15 @@ export const brandsRoute = new Elysia({ prefix: "/brands" })
 	.get(
 		"/",
 		async ({ query }) => {
-			return BrandService.listPublic(query.categorySlug, query.q);
+			return BrandService.listPublic(query.categorySlug, query.q, query.categories);
 		},
 		{
 			query: BrandModel.listQuery,
 			response: { 200: BrandModel.publicBrandListResponse },
 			detail: {
 				summary: "Listar marcas",
-				description: "Marcas activas con conteo de productos. Filtrable por categoría.",
+				description:
+					"Marcas activas con conteo de productos. Filtrable por categoría (single o multi).",
 				tags: ["Brands"],
 			},
 		},

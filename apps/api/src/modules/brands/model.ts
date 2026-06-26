@@ -94,6 +94,8 @@ export const BrandModel = {
 	// Query
 	listQuery: t.Object({
 		categorySlug: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
+		// Multi-select para filtrado bidireccional de /productos (cat ↔ brand)
+		categories: t.Optional(t.String({ minLength: 1, maxLength: 1000 })),
 		q: t.Optional(t.String({ minLength: 2, maxLength: 100 })),
 	}),
 

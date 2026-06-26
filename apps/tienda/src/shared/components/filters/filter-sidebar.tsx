@@ -34,6 +34,13 @@ export interface BrandFilterItem {
 	productCount?: number;
 }
 
+export interface CategoryFilterItem {
+	id: string;
+	name: string;
+	slug: string;
+	productCount?: number;
+}
+
 export interface IndexItem {
 	id: string;
 	label: string;
@@ -47,9 +54,11 @@ export interface IndexItem {
 export interface FilterSidebarProps {
 	// Data
 	brands?: BrandFilterItem[];
+	categories?: CategoryFilterItem[];
 	indexItems?: IndexItem[];
 	sortValue?: string;
 	selectedBrandSlugs?: string[];
+	selectedCategorySlugs?: string[];
 	minPrice?: string;
 	maxPrice?: string;
 	hasActiveFilters?: boolean;
@@ -57,6 +66,7 @@ export interface FilterSidebarProps {
 	// Handlers (optional — section visibility is derived from presence)
 	onSortChange?: (value: string) => void;
 	onBrandToggle?: (slug: string) => void;
+	onCategoryToggle?: (slug: string) => void;
 	onPriceChange?: (min: string, max: string) => void;
 	onClearAll?: () => void;
 
@@ -65,19 +75,23 @@ export interface FilterSidebarProps {
 
 export function FilterSidebar({
 	brands,
+	categories,
 	indexItems,
 	sortValue = "price_asc",
 	selectedBrandSlugs = [],
+	selectedCategorySlugs = [],
 	minPrice = "",
 	maxPrice = "",
 	hasActiveFilters = false,
 	onSortChange,
 	onBrandToggle,
+	onCategoryToggle,
 	onPriceChange,
 	onClearAll,
 	className,
 }: FilterSidebarProps) {
 	const [brandSearch, setBrandSearch] = useState("");
+	const [categorySearch, setCategorySearch] = useState("");
 	const [mobileOpen, setMobileOpen] = useState(false);
 
 	const [localMinPrice, setLocalMinPrice] = useState(minPrice);
@@ -114,6 +128,7 @@ export function FilterSidebar({
 	}, [debouncedMin, debouncedMax, onPriceChange, minPrice, maxPrice]);
 
 	const selectedBrands = useMemo(() => new Set(selectedBrandSlugs), [selectedBrandSlugs]);
+	const selectedCategories = useMemo(() => new Set(selectedCategorySlugs), [selectedCategorySlugs]);
 
 	const filteredBrands = useMemo(() => {
 		const q = brandSearch.trim().toLowerCase();
@@ -121,10 +136,18 @@ export function FilterSidebar({
 		return brands.filter((brand) => brand.name.toLowerCase().includes(q));
 	}, [brands, brandSearch]);
 
+	const filteredCategories = useMemo(() => {
+		const q = categorySearch.trim().toLowerCase();
+		if (!q || !categories) return categories ?? [];
+		return categories.filter((cat) => cat.name.toLowerCase().includes(q));
+	}, [categories, categorySearch]);
+
 	// Section visibility derived from handler + data presence
 	const showSort = onSortChange !== undefined;
 	const showPrice = onPriceChange !== undefined;
 	const showBrand = onBrandToggle !== undefined && brands !== undefined && brands.length > 0;
+	const showCategory =
+		onCategoryToggle !== undefined && categories !== undefined && categories.length > 0;
 	const showIndex = indexItems !== undefined && indexItems.length > 0;
 
 	function handleSortChange(value: string | null) {
@@ -135,6 +158,10 @@ export function FilterSidebar({
 
 	function handleBrandToggle(slug: string) {
 		onBrandToggle?.(slug);
+	}
+
+	function handleCategoryToggle(slug: string) {
+		onCategoryToggle?.(slug);
 	}
 
 	function handleMinPriceChange(value: string) {
@@ -150,6 +177,7 @@ export function FilterSidebar({
 		setLocalMinPrice("");
 		setLocalMaxPrice("");
 		setBrandSearch("");
+		setCategorySearch("");
 	}
 
 	const filterContent = (
@@ -191,7 +219,7 @@ export function FilterSidebar({
 				</div>
 			)}
 
-			{showSort && (showPrice || showBrand || showIndex) && <Separator />}
+			{showSort && (showPrice || showBrand || showCategory || showIndex) && <Separator />}
 
 			{showPrice && (
 				<div className="space-y-2">
@@ -225,7 +253,7 @@ export function FilterSidebar({
 				</div>
 			)}
 
-			{showPrice && (showBrand || showIndex) && <Separator />}
+			{showPrice && (showBrand || showCategory || showIndex) && <Separator />}
 
 			{showBrand && brands && (
 				<div className="space-y-2">
@@ -279,7 +307,61 @@ export function FilterSidebar({
 				</div>
 			)}
 
+			{showCategory && (showBrand || showIndex) && <Separator />}
+
+			{showCategory && categories && (
+				<div className="space-y-2">
+					<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+						Categoría
+					</Label>
+					{categories.length > 8 && (
+						<div className="relative mb-2">
+							<HugeiconsIcon
+								icon={Search01Icon}
+								size={14}
+								className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+							/>
+							<Input
+								aria-label="Buscar categoría"
+								placeholder="Buscar categoría..."
+								className="h-8 pl-7 text-xs"
+								value={categorySearch}
+								onChange={(e) => setCategorySearch(e.target.value)}
+							/>
+						</div>
+					)}
+					<div className="max-h-48 space-y-1 overflow-y-auto">
+						{filteredCategories.map((cat) => {
+							const checkboxId = `category-filter-${cat.id}`;
+							return (
+								<div
+									key={cat.id}
+									className="flex items-center gap-2 rounded-md px-1.5 py-1 text-xs hover:bg-accent/50 transition-colors"
+								>
+									<Checkbox
+										id={checkboxId}
+										checked={selectedCategories.has(cat.slug)}
+										onCheckedChange={() => handleCategoryToggle(cat.slug)}
+									/>
+									<Label htmlFor={checkboxId} className="flex flex-1 cursor-pointer items-center">
+										<span className="truncate">{cat.name}</span>
+									</Label>
+									{cat.productCount !== undefined && (
+										<span className="text-muted-foreground tabular-nums">({cat.productCount})</span>
+									)}
+								</div>
+							);
+						})}
+						{filteredCategories.length === 0 && (
+							<p className="text-muted-foreground py-2 text-xs text-center">Sin resultados</p>
+						)}
+					</div>
+				</div>
+			)}
+
 			{showBrand && showIndex && <Separator />}
+
+			{showCategory && showIndex && <Separator />}
 
 			{showIndex && indexItems && (
 				<div className="space-y-2">

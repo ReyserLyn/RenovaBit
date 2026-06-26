@@ -1,6 +1,6 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { categories, products } from "@renovabit/db/schema";
+import { brands, categories, products } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, asc, count, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
 import { MAX_BULK_DELETE } from "@/constants";
@@ -184,17 +184,32 @@ async function getTreeAdmin(includeInactive?: boolean): Promise<AdminCategoryTre
 //  PUBLIC QUERIES
 // ═══════════════════════════════════════════════════
 
-async function getProductCounts(): Promise<Map<string, number>> {
+async function getProductCounts(brandSlugs?: string[]): Promise<Map<string, number>> {
+	const conditions = [
+		eq(products.isActive, true),
+		eq(products.needsReview, false),
+		sql`${products.stock} > (${getReservedStockSubquery(products.id)})`,
+	];
+
+	// Filtro por marcas (multi): resolver slugs → IDs antes de filtrar
+	if (brandSlugs && brandSlugs.length > 0) {
+		const brandRows = await db
+			.select({ id: brands.id })
+			.from(brands)
+			.where(inArray(brands.slug, brandSlugs));
+		if (brandRows.length === 0) return new Map();
+		conditions.push(
+			inArray(
+				products.brandId,
+				brandRows.map((r) => r.id),
+			),
+		);
+	}
+
 	const rows = await db
 		.select({ categoryId: products.categoryId, cnt: count(products.id) })
 		.from(products)
-		.where(
-			and(
-				eq(products.isActive, true),
-				eq(products.needsReview, false),
-				sql`${products.stock} > (${getReservedStockSubquery(products.id)})`,
-			),
-		)
+		.where(and(...conditions))
 		.groupBy(products.categoryId);
 
 	const map = new Map<string, number>();
@@ -246,14 +261,14 @@ function buildPublicTree(
 	return roots;
 }
 
-async function getTreePublic(): Promise<PublicCategoryTree[]> {
+async function getTreePublic(brandSlugs?: string[]): Promise<PublicCategoryTree[]> {
 	const [flatRows, productCounts] = await Promise.all([
 		db
 			.select()
 			.from(categories)
 			.where(eq(categories.isActive, true))
 			.orderBy(asc(categories.sortOrder), asc(categories.name)),
-		getProductCounts(),
+		getProductCounts(brandSlugs),
 	]);
 
 	return buildPublicTree(flatRows, productCounts);

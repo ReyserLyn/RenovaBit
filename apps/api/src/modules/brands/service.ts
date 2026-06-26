@@ -72,16 +72,34 @@ async function getByIdAdmin(id: string) {
 async function listPublic(
 	categorySlug?: string,
 	searchTerm?: string,
+	categorySlugs?: string,
 ): Promise<PublicBrandListItem[]> {
 	const productConditions = [...PUBLIC_PRODUCT_CONDITIONS];
-	const useCategoryFilter = !!categorySlug;
 	const useSearchFilter = !!searchTerm;
 	const searchVector = sql.identifier("search_vector");
 
-	if (categorySlug) {
-		const categoryIds = await getCategoryAndDescendantIds(categorySlug);
-		if (categoryIds.length === 0) return [];
-		productConditions.push(inArray(products.categoryId, categoryIds));
+	// ── Resolve categorías → IDs (single slug o multi-slug) ──
+	const allCategoryIds: string[] = [];
+	const categorySlugsToResolve: string[] = [];
+	if (categorySlug) categorySlugsToResolve.push(categorySlug);
+	if (categorySlugs) {
+		categorySlugs
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean)
+			.forEach((s) => categorySlugsToResolve.push(s));
+	}
+	if (categorySlugsToResolve.length > 0) {
+		const idSet = new Set<string>();
+		for (const slug of categorySlugsToResolve) {
+			const ids = await getCategoryAndDescendantIds(slug);
+			for (const id of ids) idSet.add(id);
+		}
+		allCategoryIds.push(...idSet);
+	}
+	const useCategoryFilter = allCategoryIds.length > 0;
+	if (useCategoryFilter) {
+		productConditions.push(inArray(products.categoryId, allCategoryIds));
 	}
 
 	if (searchTerm) {

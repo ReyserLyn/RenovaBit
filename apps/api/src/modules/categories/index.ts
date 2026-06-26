@@ -12,14 +12,21 @@ export const categoriesRoute = new Elysia({ prefix: "/categories" })
 	// ── Tree ──────────────────────────────────────
 	.get(
 		"/",
-		async () => {
-			return CategoryService.getTreePublic();
+		async ({ query }) => {
+			// query.brands es comma-separated slugs; pasamos array al service
+			const brandSlugs = query.brands
+				?.split(",")
+				.map((s) => s.trim())
+				.filter(Boolean);
+			return CategoryService.getTreePublic(brandSlugs?.length ? brandSlugs : undefined);
 		},
 		{
+			query: CategoryModel.treeQuery,
 			response: { 200: CategoryModel.publicCategoryTreeResponse },
 			detail: {
 				summary: "Árbol de categorías",
-				description: "Árbol jerárquico de categorías activas con conteo de productos.",
+				description:
+					"Árbol jerárquico de categorías activas con conteo de productos. Filtrable por marca (multi).",
 				tags: ["Categories"],
 			},
 		},

@@ -20,6 +20,7 @@ export const productsRoute = new Elysia({ prefix: "/products" })
 				brandSlugs: query.brands,
 				categoryId: query.categoryId,
 				categorySlug: query.categorySlug,
+				categorySlugs: query.categories,
 				isFeatured: query.isFeatured,
 				search: query.search,
 				sortBy: query.sortBy,

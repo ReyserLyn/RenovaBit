@@ -4,6 +4,7 @@ const PRICE_PATTERN = /^\d+(\.\d{1,2})?$/;
 
 export type CatalogSearch = {
 	marcas?: string;
+	categorias?: string;
 	orden?: SortOption;
 	precio_min?: string;
 	precio_max?: string;
@@ -26,7 +27,8 @@ function normalizeSort(value: unknown): SortOption | undefined {
 	return isSortOption(raw) ? raw : undefined;
 }
 
-function normalizeBrands(value: unknown): string | undefined {
+/** Deduplica valores (string o array) en una lista comma-separated. */
+function dedupeList(value: unknown): string | undefined {
 	if (typeof value === "string") {
 		const unique = Array.from(
 			new Set(
@@ -56,7 +58,9 @@ export function normalizeCatalogSearch(
 	includeBrands: boolean,
 ): CatalogSearch {
 	return {
-		marcas: includeBrands ? normalizeBrands(raw.marcas) : undefined,
+		marcas: includeBrands ? dedupeList(raw.marcas) : undefined,
+		// Categorías multi-select (hojas del árbol — no parents)
+		categorias: dedupeList(raw.categorias),
 		orden: normalizeSort(raw.orden),
 		precio_min: normalizePrice(raw.precio_min),
 		precio_max: normalizePrice(raw.precio_max),

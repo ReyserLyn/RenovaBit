@@ -70,6 +70,8 @@ type ListOptions = {
 	brandSlugs?: string;
 	categoryId?: string;
 	categorySlug?: string;
+	/** Comma-separated category slugs (multi-select). Used by /productos. */
+	categorySlugs?: string;
 	isFeatured?: boolean;
 	search?: string;
 	sortBy?: string;
@@ -326,7 +328,24 @@ async function listPublic(
 ): Promise<{ data: PublicProductListItem[]; total: number; offset: number; limit: number }> {
 	// ── Resolve slugs → IDs (agregación de descendientes para categorías) ──
 	let categoryIds: string[] | undefined;
-	if (options.categorySlug) {
+	if (options.categorySlugs) {
+		// Multi-select: union of all leaf/parent IDs (con descendientes).
+		const slugs = options.categorySlugs
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean);
+		if (slugs.length > 0) {
+			const idSet = new Set<string>();
+			for (const slug of slugs) {
+				const ids = await getCategoryAndDescendantIds(slug);
+				for (const id of ids) idSet.add(id);
+			}
+			if (idSet.size === 0) {
+				return { data: [], total: 0, offset: options.offset ?? 0, limit: options.limit ?? 20 };
+			}
+			categoryIds = [...idSet];
+		}
+	} else if (options.categorySlug) {
 		categoryIds = await getCategoryAndDescendantIds(options.categorySlug);
 		if (categoryIds.length === 0) {
 			return { data: [], total: 0, offset: options.offset ?? 0, limit: options.limit ?? 20 };

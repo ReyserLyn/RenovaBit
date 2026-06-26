@@ -18,6 +18,8 @@ export const productKeys = {
 export interface ProductListFilters {
 	categoryId?: string;
 	categorySlug?: string;
+	/** Comma-separated category slugs (multi-select para /productos) */
+	categories?: string;
 	brands?: string;
 	isFeatured?: boolean;
 	search?: string;
@@ -47,6 +49,7 @@ export const productQueries = {
 							brands: filters.brands,
 							categoryId: filters.categoryId,
 							categorySlug: filters.categorySlug,
+							categories: filters.categories,
 							isFeatured: filters.isFeatured,
 							search: filters.search,
 							sortBy: filters.sortBy,
@@ -74,6 +77,7 @@ export const productQueries = {
 							brands: filters.brands,
 							categoryId: filters.categoryId,
 							categorySlug: filters.categorySlug,
+							categories: filters.categories,
 							isFeatured: filters.isFeatured,
 							search: filters.search,
 							sortBy: filters.sortBy,

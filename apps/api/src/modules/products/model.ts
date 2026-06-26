@@ -277,6 +277,8 @@ export const ProductModel = {
 		brands: t.Optional(t.String({ minLength: 1, maxLength: 500 })),
 		categoryId: t.Optional(t.String({ format: "uuid" })),
 		categorySlug: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
+		// Multi-select para filtrado bidireccional de /productos
+		categories: t.Optional(t.String({ minLength: 1, maxLength: 1000 })),
 		isFeatured: t.Optional(t.Boolean()),
 		search: t.Optional(t.String({ minLength: 1, maxLength: 200 })),
 		sortBy: t.Optional(

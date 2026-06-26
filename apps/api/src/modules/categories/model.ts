@@ -158,6 +158,8 @@ export const CategoryModel = {
 	}),
 	treeQuery: t.Object({
 		includeInactive: t.Optional(t.Boolean()),
+		// Multi-select para filtrado bidireccional de /productos (cat ↔ brand)
+		brands: t.Optional(t.String({ minLength: 1, maxLength: 500 })),
 	}),
 
 	// Batch

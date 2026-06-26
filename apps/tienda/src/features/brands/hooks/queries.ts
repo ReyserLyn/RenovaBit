@@ -3,10 +3,15 @@ import { api, getApiSsrHeaders, unwrapResponse } from "@/shared/lib/api";
 
 // ── Query Keys Factory ───────────────────────────────────────
 
+export interface BrandListFilters {
+	/** Comma-separated category slugs (multi). Usado por /productos. */
+	categories?: string;
+}
+
 export const brandKeys = {
 	all: ["brands"] as const,
 	lists: () => [...brandKeys.all, "list"] as const,
-	list: () => [...brandKeys.lists()] as const,
+	list: (filters: BrandListFilters = {}) => [...brandKeys.lists(), filters] as const,
 	listByCategory: (categorySlug: string) =>
 		[...brandKeys.lists(), "category", categorySlug] as const,
 	featured: () => [...brandKeys.all, "featured"] as const,
@@ -27,13 +32,18 @@ export type FeaturedBrand = NonNullable<_FeaturedBrandsResponse>[number];
 // ── Query Options ─────────────────────────────────────────────
 
 export const brandQueries = {
-	/** Lista de marcas activas */
-	list: () =>
+	/** Lista de marcas activas. Opcionalmente filtrada por categorías (multi). */
+	list: (filters: BrandListFilters = {}) =>
 		queryOptions({
-			queryKey: brandKeys.list(),
+			queryKey: brandKeys.list(filters),
 			queryFn: async () => {
 				const headers = await getApiSsrHeaders();
-				return unwrapResponse(api.api.v1.brands.get({ headers }));
+				return unwrapResponse(
+					api.api.v1.brands.get({
+						headers,
+						query: filters.categories ? { categories: filters.categories } : {},
+					}),
+				);
 			},
 			staleTime: 1000 * 60 * 10,
 		}),
