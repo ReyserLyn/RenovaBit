@@ -9,7 +9,8 @@ import ButtonCart from "./button-cart";
 import InputSearch from "./input-search";
 import { MenuBrand } from "./menu-brand";
 import { MenuCategory } from "./menu-category";
-import { MenuInfo } from "./menu-info";
+// TODO: descomentar cuando se agreguen las páginas legales (mañana).
+// import { MenuInfo } from "./menu-info";
 import { UserMenu } from "./user-menu";
 
 export default function Navbar() {
@@ -69,7 +70,8 @@ export default function Navbar() {
 
 						<MenuBrand />
 
-						<MenuInfo />
+						{/* TODO: descomentar cuando se agreguen las páginas legales (mañana). */}
+						{/* <MenuInfo /> */}
 					</NavigationMenuList>
 				</NavigationMenu>
 

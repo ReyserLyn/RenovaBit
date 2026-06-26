@@ -59,14 +59,15 @@ const categoryLinks = [
 	{ name: "Fuentes de poder", to: "/categoria/fuentes-de-poder" },
 ] as const;
 
-const infoLinks = [
-	{ name: "Sobre nosotros", to: "/sobre-nosotros" },
-	{ name: "Contacto", to: "/contacto" },
-	{ name: "Términos y condiciones", to: "/terminos-condiciones" },
-	{ name: "Política de privacidad", to: "/politica-privacidad" },
-	{ name: "Política de envíos", to: "/politica-envios" },
-	{ name: "Devoluciones y garantía", to: "/politica-devoluciones" },
-] as const;
+// TODO: descomentar cuando se agreguen las páginas legales (mañana).
+// const infoLinks = [
+// 	{ name: "Sobre nosotros", to: "/sobre-nosotros" },
+// 	{ name: "Contacto", to: "/contacto" },
+// 	{ name: "Términos y condiciones", to: "/terminos-condiciones" },
+// 	{ name: "Política de privacidad", to: "/politica-privacidad" },
+// 	{ name: "Política de envíos", to: "/politica-envios" },
+// 	{ name: "Devoluciones y garantía", to: "/politica-devoluciones" },
+// ] as const;
 
 const socialLinks = [
 	{
@@ -205,9 +206,10 @@ export default function Footer() {
 							<LinkColumn title="Categorías" links={categoryLinks} />
 						</div>
 
-						<div>
+						{/* TODO: descomentar cuando se agreguen las páginas legales (mañana). */}
+						{/* <div>
 							<LinkColumn title="Información" links={infoLinks} />
-						</div>
+						</div> */}
 					</div>
 				</div>
 
