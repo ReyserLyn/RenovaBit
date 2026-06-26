@@ -7,7 +7,8 @@ import { FeaturedProductsSection } from "@/features/home/components/featured-pro
 import { FinalCtaSection } from "@/features/home/components/final-cta-section";
 import { HeroSection } from "@/features/home/components/hero-section";
 import { HomeOfferSection } from "@/features/home/components/home-offer-section";
-import { TrustSignalsSection } from "@/features/home/components/trust-signals-section";
+// TODO: descomentar import + <TrustSignalsSection /> cuando esté listo el copy final.
+// import { TrustSignalsSection } from "@/features/home/components/trust-signals-section";
 import { offerQueries } from "@/features/offers/hooks/queries";
 import { productQueries } from "@/features/products/hooks/queries";
 import { isApiClientError } from "@/shared/lib/api";
@@ -59,7 +60,7 @@ function HomePage() {
 			<HomeOfferSection />
 			<FeaturedProductsSection />
 			<BrandsSection />
-			<TrustSignalsSection />
+			{/* <TrustSignalsSection /> — TODO: activar cuando el copy esté listo */}
 			<FinalCtaSection />
 		</div>
 	);
