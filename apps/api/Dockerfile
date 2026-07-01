@@ -5,10 +5,13 @@ COPY . .
 RUN bunx turbo prune @renovabit/api --docker
 
 # STAGE 2: Installer — solo prod deps
+# Usamos el bun.lock del build context (commiteado), no el del pruner.
+# turbo prune regenera el lockfile y eso rompe `bun install --production`
+# (bun lo ve como "cambio pendiente" y falla).
 FROM oven/bun:1 AS installer
 WORKDIR /app
 COPY --from=pruner /app/out/json/ .
-COPY --from=pruner /app/bun.lock ./bun.lock
+COPY bun.lock ./bun.lock
 RUN bun install --production
 
 # STAGE 3: Runtime — Bun + código + prod deps
