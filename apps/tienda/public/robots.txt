@@ -1,0 +1,3 @@
+# robots.txt — tienda.renovabit.com
+User-agent: *
+Disallow: /
