@@ -25,23 +25,25 @@ WORKDIR /app/apps/api
 ENV NODE_ENV=production
 
 # Compilar a binario estático (Bun standalone)
-# `--external msgpackr-extract`: la native binding opcional de msgpackr
-# (transitiva de bullmq) no tiene binario ARM64 estable y rompe el bundle.
-# msgpackr cae a pure-JS si la native no está, sin pérdida funcional.
 RUN bun build ./src/index.ts \
     --compile \
     --minify \
     --sourcemap \
     --external msgpackr-extract \
+    --external sharp \
     --outfile server
 
-# STAGE 4: Runner — imagen mínima
-# El binario es standalone, no necesita Bun en runtime
-FROM gcr.io/distroless/base-debian12:nonroot AS runner
+# STAGE 4: Runner — imagen con libvips para sharp
+FROM oven/bun:1-slim AS runner
 WORKDIR /app
 
 COPY --from=builder /app/apps/api/server ./server
 COPY --from=builder /app/apps/api/public ./public
+# Traemos la estructura del workspace (package.jsons + bun.lock) del
+# installer, borramos su node_modules (incluye devDeps) y reinstalamos
+# solo prod deps — patrón recomendado por la doc de Elysia.
+COPY --from=installer /app ./
+RUN rm -rf node_modules && bun install --production
 
 ENV NODE_ENV=production
 ENV PORT=3001
