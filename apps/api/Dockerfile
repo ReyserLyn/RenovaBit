@@ -9,7 +9,7 @@ FROM oven/bun:1 AS installer
 WORKDIR /app
 COPY --from=pruner /app/out/json/ .
 COPY --from=pruner /app/bun.lock ./bun.lock
-RUN bun install --frozen-lockfile --production
+RUN bun install --production
 
 # STAGE 3: Runtime — Bun + código + prod deps
 FROM oven/bun:1-slim AS runtime
