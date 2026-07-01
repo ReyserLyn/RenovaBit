@@ -6,6 +6,7 @@ import { CorsPlugin } from "./plugins/cors";
 import { DocsPlugin } from "./plugins/docs";
 import { errorHandler } from "./plugins/error-handler";
 import { LoggerPlugin } from "./plugins/logger";
+import { rateLimitPlugin } from "./plugins/rate-limit/plugin";
 import { SecurityHeadersPlugin } from "./plugins/security-headers";
 import { registerShutdown, setAppInstance, shutdownPlugin } from "./plugins/shutdown";
 import { logger } from "./utils/logger";
@@ -20,6 +21,7 @@ const app = new Elysia({
 	.use(LoggerPlugin)
 	.use(SecurityHeadersPlugin)
 	.use(CorsPlugin)
+	.use(rateLimitPlugin)
 	.get("/favicon.ico", () => Bun.file("public/favicon.ico"))
 	.use(DocsPlugin)
 	.use(bullBoardPlugin)

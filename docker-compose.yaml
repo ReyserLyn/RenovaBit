@@ -28,6 +28,31 @@ services:
       - renovabit
       - traefik
 
+  renovabit-redis:
+    container_name: renovabit-redis
+    image: redis:8.8-alpine
+    restart: always
+    env_file:
+      - .env.redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - renovabit-redis-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "-a",
+          "${REDIS_PASSWORD}",
+          "--no-auth-warning",
+          "ping",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - renovabit
+
   renovabit-api:
     container_name: renovabit-api
     build:
@@ -38,6 +63,8 @@ services:
       - .env.api
     depends_on:
       renovabit-postgres:
+        condition: service_healthy
+      renovabit-redis:
         condition: service_healthy
     labels:
       - "traefik.enable=true"
@@ -149,6 +176,8 @@ services:
 volumes:
   renovabit-postgres-data:
     name: renovabit-postgres-data
+  renovabit-redis-data:
+    name: renovabit-redis-data
 
 networks:
   renovabit:

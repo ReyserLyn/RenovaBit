@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$DEPLOY_PATH"
-          for f in .env.api .env.db; do
+            for f in .env.api .env.db .env.redis; do
             if [ ! -f "$f" ]; then
               echo "::error::$f no existe en $DEPLOY_PATH"
               exit 1
