@@ -25,10 +25,14 @@ WORKDIR /app/apps/api
 ENV NODE_ENV=production
 
 # Compilar a binario estático (Bun standalone)
+# `--external msgpackr-extract`: la native binding opcional de msgpackr
+# (transitiva de bullmq) no tiene binario ARM64 estable y rompe el bundle.
+# msgpackr cae a pure-JS si la native no está, sin pérdida funcional.
 RUN bun build ./src/index.ts \
     --compile \
     --minify \
     --sourcemap \
+    --external msgpackr-extract \
     --outfile server
 
 # STAGE 4: Runner — imagen mínima
