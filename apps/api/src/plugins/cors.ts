@@ -5,11 +5,24 @@ import { appOrigins } from "@/utils/origins";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+const DEV_ORIGINS = [
+	"http://localhost:3000", // landing
+	"http://localhost:3001", // api
+	"http://localhost:3002", // admin
+	"http://localhost:3003", // tienda
+	"http://127.0.0.1:3000",
+	"http://127.0.0.1:3001",
+	"http://127.0.0.1:3002",
+	"http://127.0.0.1:3003",
+];
+
 function isTrustedOrigin(origin: string | null): boolean {
 	if (!origin) return false;
 
-	// En desarrollo sin origin list permitimos todo
-	if (process.env.NODE_ENV !== "production") return true;
+	// En dev solo permitimos hosts loopback explícitos.
+	if (process.env.NODE_ENV !== "production") {
+		return DEV_ORIGINS.includes(origin);
+	}
 
 	try {
 		const parsed = new URL(origin);
@@ -30,7 +43,7 @@ function isTrustedOrigin(origin: string | null): boolean {
 export const CorsPlugin = new Elysia({ name: "cors" })
 	.use(
 		cors({
-			origin: process.env.NODE_ENV === "production" ? appOrigins : true,
+			origin: process.env.NODE_ENV === "production" ? appOrigins : DEV_ORIGINS,
 			methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 			allowedHeaders: ["Content-Type", "Authorization"],
 			exposeHeaders: ["x-retry-after", "x-guest-token"],
