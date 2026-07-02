@@ -23,7 +23,6 @@ services:
       - "traefik.tcp.routers.renovabit-postgres.tls=true"
       - "traefik.tcp.routers.renovabit-postgres.tls.certresolver=cloudflare"
       - "traefik.tcp.services.renovabit-postgres.loadbalancer.server.port=5432"
-      - "traefik.http.routers.renovabit-postgres.service=renovabit-postgres"
     networks:
       - renovabit
       - traefik
@@ -78,10 +77,6 @@ services:
       - "traefik.http.services.renovabit-api.loadbalancer.server.port=3001"
       - "traefik.http.routers.renovabit-api.service=renovabit-api"
       - "traefik.http.middlewares.renovabit-compress.compress=true"
-      - "traefik.http.transports.renovabit-api-transport.respondingtimeouts.readtimeout=30s"
-      - "traefik.http.transports.renovabit-api-transport.respondingtimeouts.writetimeout=30s"
-      - "traefik.http.transports.renovabit-api-transport.respondingtimeouts.idletimeout=180s"
-      - "traefik.http.services.renovabit-api.loadbalancer.serverstransport=renovabit-api-transport"
       - "traefik.http.routers.renovabit-api.middlewares=renovabit-compress"
     networks:
       - renovabit
@@ -121,10 +116,6 @@ services:
       - "traefik.http.routers.renovabit-admin.tls.certresolver=cloudflare"
       - "traefik.http.services.renovabit-admin.loadbalancer.server.port=3002"
       - "traefik.http.routers.renovabit-admin.service=renovabit-admin"
-      - "traefik.http.transports.renovabit-admin-transport.respondingtimeouts.readtimeout=60s"
-      - "traefik.http.transports.renovabit-admin-transport.respondingtimeouts.writetimeout=60s"
-      - "traefik.http.transports.renovabit-admin-transport.respondingtimeouts.idletimeout=180s"
-      - "traefik.http.services.renovabit-admin.loadbalancer.serverstransport=renovabit-admin-transport"
       - "traefik.http.routers.renovabit-admin.middlewares=renovabit-compress"
     networks:
       - renovabit
@@ -164,12 +155,6 @@ services:
       - "traefik.http.routers.renovabit-tienda.tls.certresolver=cloudflare"
       - "traefik.http.services.renovabit-tienda.loadbalancer.server.port=3003"
       - "traefik.http.routers.renovabit-tienda.service=renovabit-tienda"
-      # Mismo pattern que admin: compress + timeouts 60s (puede haber
-      # páginas con muchas imágenes o queries lentas en /productos).
-      - "traefik.http.transports.renovabit-tienda-transport.respondingtimeouts.readtimeout=60s"
-      - "traefik.http.transports.renovabit-tienda-transport.respondingtimeouts.writetimeout=60s"
-      - "traefik.http.transports.renovabit-tienda-transport.respondingtimeouts.idletimeout=180s"
-      - "traefik.http.services.renovabit-tienda.loadbalancer.serverstransport=renovabit-tienda-transport"
       - "traefik.http.routers.renovabit-tienda.middlewares=renovabit-compress"
     networks:
       - renovabit
