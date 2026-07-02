@@ -1,29 +1,27 @@
-# STAGE 1: Pruner — extrae subset del monorepo
-FROM oven/bun:1 AS pruner
-WORKDIR /app
-COPY . .
-RUN bunx turbo prune @renovabit/api --docker
-
-# STAGE 2: Installer — solo prod deps
-# Usamos el bun.lock del build context (commiteado), no el del pruner.
-# turbo prune regenera el lockfile y eso rompe `bun install --production`
-# (bun lo ve como "cambio pendiente" y falla).
-FROM oven/bun:1 AS installer
-WORKDIR /app
-COPY --from=pruner /app/out/json/ .
-COPY bun.lock ./bun.lock
-RUN bun install --production
-
-# STAGE 3: Runtime — Bun + código + prod deps
-FROM oven/bun:1-slim AS runtime
+FROM oven/bun:1.3.10 AS deps
 WORKDIR /app
 
-COPY --from=installer /app ./
-COPY --from=pruner /app/out/full/ ./
+COPY package.json bun.lock ./
+COPY apps ./apps
+COPY packages ./packages
+
+RUN set -eux; \
+    for i in 1 2 3; do \
+      bun install --frozen-lockfile --production --filter @renovabit/api --network-concurrency 16 && break; \
+      if [ "$i" -eq 3 ]; then exit 1; fi; \
+      echo "bun install falló, reintentando ($i/3)..."; \
+      sleep 5; \
+    done
+
+FROM oven/bun:1.3.10-slim AS runner
+WORKDIR /app
+
+COPY --from=deps /app /app
 
 ENV NODE_ENV=production
 ENV PORT=3001
 
 EXPOSE 3001
 
+WORKDIR /app/apps/api
 CMD ["bun", "run", "src/index.ts"]

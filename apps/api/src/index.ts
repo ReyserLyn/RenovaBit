@@ -28,7 +28,7 @@ const app = new Elysia({
 	.use(modules)
 	.use(shutdownPlugin)
 	.onError(errorHandler)
-	.listen(3001);
+	.listen(Number(process.env.PORT ?? 3001));
 
 setAppInstance(app);
 

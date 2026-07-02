@@ -45,7 +45,7 @@ jobs:
       - name: Tag imágenes actuales como prev (rollback)
         shell: bash
         run: |
-          for img in renovabit-api renovabit-admin; do
+          for img in renovabit-api renovabit-admin renovabit-tienda; do
             docker tag "renovabit-$img:latest" "renovabit-$img:prev" 2>/dev/null && \
               echo "[+] Tagged $img:prev" || echo "[i] No hay imagen previa de $img"
           done
@@ -55,7 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$DEPLOY_PATH"
-          docker compose build
+          COMPOSE_PARALLEL_LIMIT=1 docker compose build --pull
 
       - name: Deploy
         shell: bash
@@ -68,7 +68,7 @@ jobs:
         shell: bash
         run: |
           sleep 5
-          for svc in renovabit-postgres renovabit-api renovabit-admin; do
+          for svc in renovabit-postgres renovabit-redis renovabit-api renovabit-admin renovabit-tienda; do
             STATUS=$(docker inspect --format='{{.State.Status}}' "$svc" 2>/dev/null || echo "not_found")
             if [ "$STATUS" = "running" ]; then
               echo "[+] $svc está running"
@@ -84,7 +84,7 @@ jobs:
         shell: bash
         run: |
           echo "[!] Deploy falló — restaurando versión previa..."
-          for img in renovabit-api renovabit-admin; do
+          for img in renovabit-api renovabit-admin renovabit-tienda; do
             if docker image inspect "renovabit-$img:prev" &>/dev/null; then
               docker tag "renovabit-$img:prev" "renovabit-$img:latest"
               echo "[-] Restaurado $img:prev → $img:latest"
@@ -106,7 +106,7 @@ jobs:
           curl -s -X POST "${{ vars.GOTIFY_URL }}/message" \
             -H "X-Gotify-Key: ${{ secrets.GOTIFY_APP_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{"title": "[+] Deploy exitoso - Renovabit", "message": "API y Admin desplegados correctamente.", "priority": 5}'
+            -d '{"title": "[+] Deploy exitoso - Renovabit", "message": "API, Admin y Tienda desplegados correctamente.", "priority": 5}'
 
       - name: Notificar fallo
         if: failure()
