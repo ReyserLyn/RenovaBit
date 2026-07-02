@@ -61,6 +61,10 @@ services:
     restart: always
     env_file:
       - .env.api
+      - .env.redis
+    environment:
+      - REDIS_HOST=renovabit-redis
+      - REDIS_PORT=6379
     depends_on:
       renovabit-postgres:
         condition: service_healthy
