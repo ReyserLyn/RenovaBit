@@ -34,19 +34,17 @@ services:
     restart: always
     env_file:
       - .env.redis
-    command: redis-server --appendonly yes --requirepass $$REDIS_PASSWORD
+    command:
+      [
+        "sh",
+        "-c",
+        'exec redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"',
+      ]
     volumes:
       - renovabit-redis-data:/data
     healthcheck:
       test:
-        [
-          "CMD",
-          "redis-cli",
-          "-a",
-          "$$REDIS_PASSWORD",
-          "--no-auth-warning",
-          "ping",
-        ]
+        ["CMD-SHELL", 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping']
       interval: 5s
       timeout: 5s
       retries: 5
