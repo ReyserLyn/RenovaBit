@@ -24,7 +24,6 @@ out
 build
 dist
 .turbo
-.astro
 .output
 .nitro
 .tanstack

@@ -5,10 +5,6 @@ pre-commit:
       glob: "*.{js,ts,cjs,mjs,jsx,tsx,json,jsonc}"
       run: bunx biome check --write {staged_files}
       stage_fixed: true
-    format-astro:
-      glob: "*.astro"
-      run: bunx prettier --write {staged_files}
-      stage_fixed: true
 
 commit-msg:
   commands:

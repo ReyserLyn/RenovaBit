@@ -4,12 +4,6 @@
 	"auto_indent_on_paste": true,
 	"file_scan_exclusions": ["**/routeTree.gen.ts"],
 	"languages": {
-		"Astro": {
-			"formatter": "prettier",
-			"language_servers": [
-				"..."
-			]
-		},
 		"CSS": {
 			"formatter": {
 				"language_server": {

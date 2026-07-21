@@ -44,9 +44,6 @@ yarn-error.log*
 # Docker
 docker-volumes/
 
-# Astro
-.astro
-
 # Branding
 brand
 

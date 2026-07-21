@@ -20,8 +20,6 @@
 			"class-variance-authority": "^0.7.1",
 			"drizzle-orm": "0.45.2",
 			"nanoid": "5.1.11",
-			"prettier": "^3.8.3",
-			"prettier-plugin-astro": "^0.14.1",
 			"react": "^19.2.0",
 			"react-dom": "^19.2.0",
 			"serialize-error": "13.0.1",
@@ -37,7 +35,7 @@
 	"scripts": {
 		"build": "turbo run build",
 		"dev": "turbo run dev",
-		"check": "biome check . --write && cd apps/landing && bun run check",
+		"check": "biome check . --write",
 		"check:biome": "biome check . --write",
 		"check-types": "turbo run check-types",
 		"test": "turbo run test",
@@ -54,8 +52,6 @@
 		"@renovabit/biome-config": "*",
 		"@renovabit/ts-config": "*",
 		"lefthook": "^2.1.6",
-		"prettier": "catalog:",
-		"prettier-plugin-astro": "catalog:",
 		"turbo": "^2.9.14",
 		"typescript": "catalog:"
 	},
