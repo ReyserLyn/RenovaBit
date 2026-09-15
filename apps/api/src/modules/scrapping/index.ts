@@ -12,7 +12,7 @@ export const scrapingController = new Elysia({ prefix: "/scraping" })
 	.post(
 		"/run",
 		async ({ query: { limit }, user }) => {
-			const parsed = Number.parseInt(limit ?? "300", 10);
+			const parsed = Number.parseInt(limit ?? "2000", 10);
 
 			if (Number.isNaN(parsed) || parsed < 1 || parsed > 2000) {
 				throw createApiError({
