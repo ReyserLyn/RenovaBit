@@ -5,6 +5,7 @@ export const CHANGE_TYPE_OPTIONS = [
 	{ label: "Imagen", value: "image_changed" },
 	{ label: "Creado", value: "created" },
 	{ label: "Sin stock", value: "out_of_stock" },
+	{ label: "Control manual", value: "manual_control" },
 ] as const;
 
 export const CHANGE_LABELS: Record<
@@ -16,6 +17,7 @@ export const CHANGE_LABELS: Record<
 	stock_changed: { label: "Stock", variant: "info" },
 	image_changed: { label: "Imagen", variant: "info" },
 	out_of_stock: { label: "Sin stock", variant: "destructive" },
+	manual_control: { label: "Control manual", variant: "info" },
 };
 
 export function formatChangeValue(oldVal: unknown, newVal: unknown): string {
@@ -25,6 +27,13 @@ export function formatChangeValue(oldVal: unknown, newVal: unknown): string {
 			const o = v as Record<string, unknown>;
 			if ("price" in o) return `S/ ${o.price}`;
 			if ("stock" in o) return String(o.stock);
+			if ("managedBy" in o) {
+				return o.managedBy === "manual"
+					? "Manual"
+					: o.managedBy === "provider"
+						? "Proveedor"
+						: String(o.managedBy);
+			}
 			if ("hash" in o) return `#${String(o.hash).slice(0, 7)}`;
 			if ("detectada" in o) return o.detectada ? "Sí" : "No";
 			return JSON.stringify(o);

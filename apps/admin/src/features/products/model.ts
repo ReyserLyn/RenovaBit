@@ -25,6 +25,7 @@ export interface Product {
 	sku: string;
 	price: string;
 	supplierPrice: string;
+	managedBy: "provider" | "manual";
 	roleCustomMargins: RoleCustomMargins | null;
 	stock: number;
 	reservedStock?: number;
@@ -104,8 +105,11 @@ export const createProductSchema = z.object({
 		.max(PRODUCT_SKU_MAX, {
 			error: `El SKU no puede superar ${PRODUCT_SKU_MAX} caracteres`,
 		}),
-	price: z.string().min(1, { error: "El precio es obligatorio" }),
-	supplierPrice: z.string(),
+	// `price` es opcional (la API lo deriva de supplierPrice + márgenes cuando falta)
+	// y `supplierPrice` puede enviarse vacío para dejar el valor almacenado intacto.
+	price: z.string().min(1, { error: "El precio debe ser un número válido (ej: 99.99)" }).optional(),
+	supplierPrice: z.string().optional(),
+	managedBy: z.enum(["provider", "manual"]).optional(),
 	roleCustomMargins: z
 		.object({
 			customer: z.object({ enabled: z.literal(true), percent: z.string() }).optional(),
@@ -183,9 +187,11 @@ export const productFormSchema = z.object({
 		.regex(/^\d+(\.\d{1,2})?$/, {
 			error: "El precio debe ser un número válido (ej: 99.99)",
 		}),
-	supplierPrice: z.string().regex(/^\d+(\.\d{1,2})?$/, {
+	// Vacío = sin costo declarado (los productos manuales no usan costo ni márgenes).
+	supplierPrice: z.string().refine((v) => v === "" || /^\d+(\.\d{1,2})?$/.test(v), {
 		error: "El precio debe ser un número válido (ej: 99.99)",
 	}),
+	managedBy: z.enum(["provider", "manual"]),
 	customerEnabled: z.boolean(),
 	customerPercent: z
 		.string()

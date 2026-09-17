@@ -21,6 +21,7 @@ import {
 	useReactTable,
 } from "@tanstack/react-table";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useBrands } from "@/features/brands/hooks";
 import { useCategories } from "@/features/categories/hooks";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
@@ -28,6 +29,7 @@ import { DataGridColumnVisibility } from "@/shared/components/data-grid/data-gri
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/shared/components/data-grid/data-grid-table";
+import { ConfirmDialog } from "@/shared/components/dialog/confirm-dialog";
 import { useProductsTableStore } from "@/shared/lib/stores/tables/products-table";
 import { productKeys, useProducts, useToggleProductField } from "../hooks";
 import { useProductTableFilters } from "../hooks/use-product-table-filters";
@@ -132,6 +134,58 @@ export const ProductTable = function ProductTable({
 		[toggleProductField],
 	);
 
+	// ── Control manual ↔ proveedor ────────────────────
+
+	const [controlConfirmTarget, setControlConfirmTarget] = useState<Product | null>(null);
+	const [isControlPending, setIsControlPending] = useState(false);
+
+	const applyManagedByChange = useCallback(
+		async (product: Product, managedBy: "provider" | "manual") => {
+			await toggleProductField.mutateAsync({
+				id: product.id,
+				data:
+					managedBy === "provider"
+						? {
+								managedBy,
+								// Necesario para que la API recalcule el precio desde el costo + márgenes.
+								supplierPrice: product.supplierPrice,
+							}
+						: { managedBy },
+			});
+			toast.success(
+				managedBy === "provider"
+					? "Control devuelto al proveedor"
+					: "Ahora gestionas este producto manualmente",
+			);
+		},
+		[toggleProductField],
+	);
+
+	const handleChangeManagedBy = useCallback(
+		(product: Product, managedBy: "provider" | "manual") => {
+			// Devolver el control al proveedor puede sobrescribir stock/precio: pedir confirmación.
+			if (managedBy === "provider") {
+				setControlConfirmTarget(product);
+				return;
+			}
+			void applyManagedByChange(product, managedBy).catch(() => {
+				// El error ya se notifica desde el hook de la mutation.
+			});
+		},
+		[applyManagedByChange],
+	);
+
+	const confirmReturnToProvider = useCallback(async () => {
+		if (!controlConfirmTarget) return;
+		setIsControlPending(true);
+		try {
+			await applyManagedByChange(controlConfirmTarget, "provider");
+			setControlConfirmTarget(null);
+		} finally {
+			setIsControlPending(false);
+		}
+	}, [controlConfirmTarget, applyManagedByChange]);
+
 	// ── Table state ──────────────────────────────────
 
 	const [pagination, setPagination] = useState<PaginationState>(() => ({
@@ -153,6 +207,7 @@ export const ProductTable = function ProductTable({
 				onDelete,
 				onToggleStatus: handleToggleStatus,
 				onToggleFeatured: handleToggleFeatured,
+				onChangeManagedBy: handleChangeManagedBy,
 				onHistory,
 				onBlacklist,
 				brandsById,
@@ -163,6 +218,7 @@ export const ProductTable = function ProductTable({
 			onDelete,
 			handleToggleStatus,
 			handleToggleFeatured,
+			handleChangeManagedBy,
 			onHistory,
 			onBlacklist,
 			brandsById,
@@ -437,6 +493,18 @@ export const ProductTable = function ProductTable({
 					</div>
 				</DataGrid>
 			</Card>
+
+			<ConfirmDialog
+				isOpen={controlConfirmTarget !== null}
+				onClose={(open) => {
+					if (!open) setControlConfirmTarget(null);
+				}}
+				onConfirm={confirmReturnToProvider}
+				title="Devolver al proveedor"
+				description={`"${controlConfirmTarget?.name ?? ""}" volverá a ser gestionado por el feed del proveedor: su stock y precio pueden sobrescribirse en la próxima actualización.`}
+				confirmText="Devolver al proveedor"
+				isLoading={isControlPending}
+			/>
 		</div>
 	);
 };

@@ -40,6 +40,8 @@ export function ProductCreateDialog({ open, onOpenChange }: ProductCreateDialogP
 							sku: "",
 							price: "",
 							supplierPrice: "",
+							// Los productos creados desde el admin son de gestión manual.
+							managedBy: "manual",
 							customerEnabled: false,
 							customerPercent: "",
 							stock: 0,

@@ -29,6 +29,7 @@ import {
 	MAX_CUSTOM_MARGIN_PERCENT,
 	roundCurrency,
 } from "@renovabit/pricing";
+import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Button } from "@renovabit/ui/components/ui/button";
 import {
 	Dialog,
@@ -55,12 +56,13 @@ import {
 import { Separator } from "@renovabit/ui/components/ui/separator";
 import { Switch } from "@renovabit/ui/components/ui/switch";
 import { Textarea } from "@renovabit/ui/components/ui/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useBrands } from "@/features/brands/hooks";
 import { useCategories } from "@/features/categories/hooks";
 import { useMarginRules } from "@/features/margin-rules/hooks/use-margin-rules";
+import { ConfirmDialog } from "@/shared/components/dialog/confirm-dialog";
 import { getFieldErrorId, normalizeFieldErrors } from "@/shared/lib/form/form-utils";
 import { generateSlug } from "@/shared/lib/slug";
 import { uploadImage } from "@/shared/lib/storage/storage-service";
@@ -76,6 +78,7 @@ import {
 	PRODUCT_SEO_TITLE_MAX,
 	PRODUCT_SKU_MAX,
 	PRODUCT_SPECS_MAX,
+	type Product,
 	type ProductFormValues,
 	type ProductSpecification,
 	productFormSchema,
@@ -225,6 +228,7 @@ function getDefaultFormValues(props: ProductFormProps): ProductFormValues {
 			sku: props.product.sku,
 			price: props.product.price,
 			supplierPrice: props.product.supplierPrice ?? "",
+			managedBy: props.product.managedBy,
 			customerEnabled: props.product.roleCustomMargins?.customer?.enabled ?? false,
 			customerPercent: props.product.roleCustomMargins?.customer?.percent ?? "",
 			stock: props.product.stock,
@@ -261,6 +265,8 @@ interface ProductFormEditProps {
 		sku: string;
 		price: string;
 		supplierPrice: string;
+		managedBy: "provider" | "manual";
+		providerIds?: Array<{ source: string; externalId: string }>;
 		roleCustomMargins: RoleCustomMargins | null;
 		stock: number;
 		brandId: string | null;
@@ -273,6 +279,8 @@ interface ProductFormEditProps {
 		seoKeywords: string | null;
 	};
 	onMutation: (data: CreateProductValues) => Promise<unknown>;
+	/** Cambia el control del producto (manual ↔ proveedor) y devuelve el producto actualizado. */
+	onControlChange?: (managedBy: "provider" | "manual") => Promise<Product>;
 	onSuccess: () => void;
 	onSubmittingChange?: (isSubmitting: boolean) => void;
 }
@@ -284,6 +292,8 @@ export type ProductFormProps = ProductFormCreateProps | ProductFormEditProps;
 export function ProductForm(props: ProductFormProps) {
 	const { onMutation, onSuccess } = props;
 	const isEdit = props.mode === "edit";
+	const onControlChange = props.mode === "edit" ? props.onControlChange : undefined;
+	const providerIds = props.mode === "edit" ? props.product.providerIds : undefined;
 	const queryClient = useQueryClient();
 
 	const defaultValues: ProductFormValues = getDefaultFormValues(props);
@@ -308,6 +318,8 @@ export function ProductForm(props: ProductFormProps) {
 	const [imageError, setImageError] = useState<string | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [isControlPending, setIsControlPending] = useState(false);
+	const [isReturnConfirmOpen, setIsReturnConfirmOpen] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const prevSubmittingRef = useRef(false);
 	const { onSubmittingChange } = props;
@@ -360,15 +372,21 @@ export function ProductForm(props: ProductFormProps) {
 					customerEnabled: value.customerEnabled,
 					customerPercent: value.customerPercent,
 				});
+				const submitIsManual = value.managedBy === "manual";
+				const price = value.price.trim();
+				const supplierPrice = value.supplierPrice.trim();
 				const result = await onMutation({
 					name: value.name,
 					slug: value.slug,
 					description: toApiValue(value.description),
 					sku: value.sku,
-					price: value.price,
-					supplierPrice: value.supplierPrice,
+					managedBy: value.managedBy,
+					// Vacío = sin precio/costo en el body (la API deriva o conserva).
+					...(price.length > 0 ? { price } : {}),
+					...(supplierPrice.length > 0 ? { supplierPrice } : {}),
 					roleCustomMargins,
-					stock: value.stock,
+					// El stock de un producto del proveedor lo gobierna el sync: no se envía.
+					...(submitIsManual ? { stock: value.stock } : {}),
 					brandId: value.brandId ?? null,
 					categoryId: value.categoryId ?? null,
 					specifications: value.specifications,
@@ -445,6 +463,30 @@ export function ProductForm(props: ProductFormProps) {
 			}
 		},
 	});
+
+	// Modo de gestión actual (reactivo al toggle de control).
+	const managedBy = useSelector(form.store, (state) => state.values.managedBy);
+	const isManual = managedBy === "manual";
+	const hasProviderLink = (providerIds?.length ?? 0) > 0;
+
+	async function handleControlChange(next: "provider" | "manual"): Promise<boolean> {
+		if (!onControlChange) return false;
+		setIsControlPending(true);
+		try {
+			const updated = await onControlChange(next);
+			// Refrescar el formulario con el estado devuelto por la API.
+			form.setFieldValue("managedBy", updated.managedBy);
+			form.setFieldValue("price", updated.price);
+			form.setFieldValue("supplierPrice", updated.supplierPrice);
+			setIsReturnConfirmOpen(false);
+			return true;
+		} catch {
+			// El hook de la mutation ya notifica el error; el diálogo permanece abierto.
+			return false;
+		} finally {
+			setIsControlPending(false);
+		}
+	}
 
 	// ── Image handlers ─────────────────────────────────
 
@@ -947,7 +989,50 @@ export function ProductForm(props: ProductFormProps) {
 				═════════════════════════════════════════════ */}
 			<header className="flex flex-col">
 				<h3 className="font-medium text-foreground text-sm">Precio y stock</h3>
+				<FieldDescription>
+					{isManual
+						? "Tú defines el precio de venta y el stock del producto."
+						: "El feed del proveedor gobierna el stock y el precio."}
+				</FieldDescription>
 			</header>
+
+			{/* ── Control (manual ↔ proveedor) ── */}
+			<div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+				<div className="flex min-w-0 flex-col gap-1">
+					<div className="flex items-center gap-2">
+						<span className="text-sm font-medium">Control</span>
+						<Badge variant={isManual ? "info" : "secondary"} size="sm">
+							{isManual ? "Manual" : "Proveedor"}
+						</Badge>
+					</div>
+					<p className="text-muted-foreground text-xs">
+						{isManual
+							? "El precio y el stock los gestionas tú; las órdenes descuentan stock."
+							: "El sync del proveedor sobrescribe stock y precio en cada actualización."}
+					</p>
+				</div>
+				{onControlChange && (!isManual || hasProviderLink) && (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						disabled={isControlPending || isSubmitting}
+						onClick={() => {
+							if (isManual) {
+								setIsReturnConfirmOpen(true);
+								return;
+							}
+							void handleControlChange("manual");
+						}}
+					>
+						{isControlPending
+							? "Procesando..."
+							: isManual
+								? "Devolver al proveedor"
+								: "Tomar control manual"}
+					</Button>
+				)}
+			</div>
 
 			<FieldGroup>
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -962,14 +1047,23 @@ export function ProductForm(props: ProductFormProps) {
 							return (
 								<Field className="flex-1" data-invalid={isInvalid}>
 									<FieldLabel htmlFor={field.name}>
-										<span>
-											Precio (S/){" "}
-											<span aria-hidden="true" className="text-destructive">
-												*
+										{isManual ? (
+											<span>
+												Precio (S/){" "}
+												<span aria-hidden="true" className="text-destructive">
+													*
+												</span>
+												<span className="sr-only">obligatorio</span>
 											</span>
-											<span className="sr-only">obligatorio</span>
-										</span>
+										) : (
+											<span>Precio (S/)</span>
+										)}
 									</FieldLabel>
+									<FieldDescription>
+										{isManual
+											? "Precio de venta al público. Se cobra tal cual, sin márgenes."
+											: "Calculado automáticamente desde el costo y los márgenes."}
+									</FieldDescription>
 									<Input
 										id={field.name}
 										name={field.name}
@@ -979,7 +1073,7 @@ export function ProductForm(props: ProductFormProps) {
 										onChange={(e) => field.handleChange(e.target.value)}
 										onBlur={field.handleBlur}
 										placeholder="99.99"
-										disabled
+										disabled={!isManual || isSubmitting}
 										className="font-mono tabular-nums"
 										aria-invalid={isInvalid}
 										aria-describedby={isInvalid ? errorMessageId : undefined}
@@ -1006,6 +1100,11 @@ export function ProductForm(props: ProductFormProps) {
 							return (
 								<Field className="flex-1" data-invalid={isInvalid}>
 									<FieldLabel htmlFor={field.name}>Stock</FieldLabel>
+									<FieldDescription>
+										{isManual
+											? "Unidades disponibles. Las órdenes confirmadas descuentan stock."
+											: "Gestionado por el feed del proveedor."}
+									</FieldDescription>
 									<Input
 										id={field.name}
 										name={field.name}
@@ -1020,7 +1119,7 @@ export function ProductForm(props: ProductFormProps) {
 										}
 										onBlur={field.handleBlur}
 										placeholder="0"
-										disabled={isSubmitting}
+										disabled={!isManual || isSubmitting}
 										className="font-mono tabular-nums"
 										aria-invalid={isInvalid}
 										aria-describedby={isInvalid ? errorMessageId : undefined}
@@ -1040,75 +1139,99 @@ export function ProductForm(props: ProductFormProps) {
 
 			<Separator />
 
-			{/* ═════════════════════════════════════════════
-					MARGEN Y PRECIO
-				═════════════════════════════════════════════ */}
-			<header className="flex flex-col">
-				<h3 className="font-medium text-foreground text-sm">Margen y precio</h3>
-				<FieldDescription>
-					Define el costo de compra y el margen personalizado para clientes.
-				</FieldDescription>
-			</header>
+			{isManual ? (
+				<>
+					{/* ═════════════════════════════════════════════
+							GESTIÓN MANUAL — sin costo ni márgenes
+						═════════════════════════════════════════════ */}
+					<header className="flex flex-col">
+						<h3 className="font-medium text-foreground text-sm">Gestión manual</h3>
+						<FieldDescription>
+							No se aplican costo de proveedor ni márgenes: el precio definido arriba se cobra tal
+							cual.
+						</FieldDescription>
+					</header>
 
-			<FieldGroup>
-				{/* ── Supplier Price ── */}
-				<form.Field name="supplierPrice">
-					{(field) => {
-						const wasSubmitted = field.form.state.submissionAttempts > 0;
-						const isInvalid =
-							(field.state.meta.isTouched || wasSubmitted) && field.state.meta.errors.length > 0;
-						const errorMessageId = getFieldErrorId(PRODUCT_FORM_ID, field.name);
+					<FieldGroup>
+						<form.Subscribe selector={(state) => state.values.price}>
+							{(price) => <ProductMarginPreview managedBy="manual" price={price} />}
+						</form.Subscribe>
+					</FieldGroup>
+				</>
+			) : (
+				<>
+					{/* ═════════════════════════════════════════════
+							MARGEN Y PRECIO
+						═════════════════════════════════════════════ */}
+					<header className="flex flex-col">
+						<h3 className="font-medium text-foreground text-sm">Margen y precio</h3>
+						<FieldDescription>
+							Define el costo de compra y el margen personalizado para clientes.
+						</FieldDescription>
+					</header>
 
-						return (
-							<Field data-invalid={isInvalid}>
-								<FieldLabel htmlFor={field.name}>Costo (S/)</FieldLabel>
-								<FieldDescription>Precio de compra al proveedor.</FieldDescription>
-								<Input
-									id={field.name}
-									name={field.name}
-									type="text"
-									inputMode="decimal"
-									value={field.state.value}
-									onChange={(e) => field.handleChange(e.target.value)}
-									onBlur={field.handleBlur}
-									placeholder="99.99"
-									disabled={isSubmitting}
-									className="font-mono tabular-nums"
-									aria-invalid={isInvalid}
-									aria-describedby={isInvalid ? errorMessageId : undefined}
+					<FieldGroup>
+						{/* ── Supplier Price ── */}
+						<form.Field name="supplierPrice">
+							{(field) => {
+								const wasSubmitted = field.form.state.submissionAttempts > 0;
+								const isInvalid =
+									(field.state.meta.isTouched || wasSubmitted) &&
+									field.state.meta.errors.length > 0;
+								const errorMessageId = getFieldErrorId(PRODUCT_FORM_ID, field.name);
+
+								return (
+									<Field data-invalid={isInvalid}>
+										<FieldLabel htmlFor={field.name}>Costo (S/)</FieldLabel>
+										<FieldDescription>Precio de compra al proveedor.</FieldDescription>
+										<Input
+											id={field.name}
+											name={field.name}
+											type="text"
+											inputMode="decimal"
+											value={field.state.value}
+											onChange={(e) => field.handleChange(e.target.value)}
+											onBlur={field.handleBlur}
+											placeholder="99.99"
+											disabled={isSubmitting}
+											className="font-mono tabular-nums"
+											aria-invalid={isInvalid}
+											aria-describedby={isInvalid ? errorMessageId : undefined}
+										/>
+										{isInvalid && (
+											<FieldError
+												id={errorMessageId}
+												errors={normalizeFieldErrors(field.state.meta.errors)}
+											/>
+										)}
+									</Field>
+								);
+							}}
+						</form.Field>
+
+						{/* ── Customer Override ── */}
+						<RoleOverrideSection label="Cliente" placeholder="Ej: 25" />
+
+						{/* ── Preview Card ── */}
+						<form.Subscribe
+							selector={(state) => ({
+								supplierPrice: state.values.supplierPrice,
+								customerEnabled: state.values.customerEnabled,
+								customerPercent: state.values.customerPercent,
+							})}
+						>
+							{(values) => (
+								<ProductMarginPreview
+									supplierPrice={values.supplierPrice}
+									customerEnabled={values.customerEnabled}
+									customerPercent={values.customerPercent}
+									marginRules={marginRules}
 								/>
-								{isInvalid && (
-									<FieldError
-										id={errorMessageId}
-										errors={normalizeFieldErrors(field.state.meta.errors)}
-									/>
-								)}
-							</Field>
-						);
-					}}
-				</form.Field>
-
-				{/* ── Customer Override ── */}
-				<RoleOverrideSection label="Cliente" placeholder="Ej: 25" />
-
-				{/* ── Preview Card ── */}
-				<form.Subscribe
-					selector={(state) => ({
-						supplierPrice: state.values.supplierPrice,
-						customerEnabled: state.values.customerEnabled,
-						customerPercent: state.values.customerPercent,
-					})}
-				>
-					{(values) => (
-						<ProductMarginPreview
-							supplierPrice={values.supplierPrice}
-							customerEnabled={values.customerEnabled}
-							customerPercent={values.customerPercent}
-							marginRules={marginRules}
-						/>
-					)}
-				</form.Subscribe>
-			</FieldGroup>
+							)}
+						</form.Subscribe>
+					</FieldGroup>
+				</>
+			)}
 
 			<Separator />
 
@@ -1697,6 +1820,20 @@ export function ProductForm(props: ProductFormProps) {
 					}}
 				</form.Field>
 			</FieldGroup>
+
+			<ConfirmDialog
+				isOpen={isReturnConfirmOpen}
+				onClose={(open) => {
+					if (!open) setIsReturnConfirmOpen(false);
+				}}
+				onConfirm={async () => {
+					await handleControlChange("provider");
+				}}
+				title="Devolver al proveedor"
+				description="El feed del proveedor volverá a gestionar el stock y el precio. Los cambios manuales de stock y precio pueden sobrescribirse en la próxima actualización."
+				confirmText="Devolver al proveedor"
+				isLoading={isControlPending}
+			/>
 		</form>
 	);
 }

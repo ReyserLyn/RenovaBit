@@ -24,8 +24,10 @@ export function useCreateProduct() {
 				slug: data.slug ?? data.name.toLowerCase().replace(/\s+/g, "-"),
 				description: data.description ?? null,
 				sku: data.sku,
-				price: data.price,
+				price: data.price ?? "0",
 				supplierPrice: data.supplierPrice ?? "",
+				// Los productos creados desde el admin son de gestión manual.
+				managedBy: data.managedBy ?? "manual",
 				roleCustomMargins: data.roleCustomMargins ?? null,
 				stock: data.stock ?? 0,
 				reservedStock: 0,

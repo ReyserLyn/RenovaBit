@@ -4,6 +4,8 @@ import {
 	Delete01Icon,
 	Edit01Icon,
 	MoreHorizontalIcon,
+	RefreshIcon,
+	Settings02Icon,
 	Time01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -124,6 +126,7 @@ interface ProductColumnsProps {
 	onDelete: (product: Product) => void;
 	onToggleStatus: (product: Product, isActive: boolean) => void;
 	onToggleFeatured: (product: Product, isFeatured: boolean) => void;
+	onChangeManagedBy: (product: Product, managedBy: "provider" | "manual") => void;
 	onHistory: (product: Product) => void;
 	onBlacklist: (product: Product) => void;
 	brandsById: Map<string, Brand>;
@@ -137,6 +140,7 @@ export function getProductColumns({
 	onDelete,
 	onToggleStatus,
 	onToggleFeatured,
+	onChangeManagedBy,
 	onHistory,
 	onBlacklist,
 	brandsById,
@@ -228,6 +232,24 @@ export function getProductColumns({
 			cell: ({ row }) => (
 				<span className="tabular-nums font-medium">{formatPrice(row.original.price)}</span>
 			),
+			size: 110,
+		},
+		{
+			accessorKey: "managedBy",
+			meta: {
+				headerTitle: "Control",
+				skeleton: <Skeleton className="h-5 w-16 rounded-full" />,
+			},
+			header: ({ column }) => <DataGridColumnHeader column={column} title="Control" />,
+			cell: ({ row }) => {
+				const managedBy = row.original.managedBy;
+
+				return (
+					<Badge variant={managedBy === "manual" ? "info" : "secondary"} size="xs">
+						{managedBy === "manual" ? "Manual" : "Proveedor"}
+					</Badge>
+				);
+			},
 			size: 110,
 		},
 		{
@@ -537,6 +559,17 @@ export function getProductColumns({
 								<HugeiconsIcon icon={Time01Icon} className="mr-2 size-4" />
 								Ver historial
 							</DropdownMenuItem>
+							{product.managedBy === "provider" ? (
+								<DropdownMenuItem onClick={() => onChangeManagedBy(product, "manual")}>
+									<HugeiconsIcon icon={Settings02Icon} className="mr-2 size-4" />
+									Tomar control manual
+								</DropdownMenuItem>
+							) : product.providerIds && product.providerIds.length > 0 ? (
+								<DropdownMenuItem onClick={() => onChangeManagedBy(product, "provider")}>
+									<HugeiconsIcon icon={RefreshIcon} className="mr-2 size-4" />
+									Devolver al proveedor
+								</DropdownMenuItem>
+							) : null}
 							{product.providerIds && product.providerIds.length > 0 && (
 								<DropdownMenuItem onClick={() => onBlacklist(product)}>
 									<HugeiconsIcon icon={Cancel01Icon} className="mr-2 size-4" />

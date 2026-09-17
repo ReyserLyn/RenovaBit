@@ -8,10 +8,14 @@ import { formatCurrency } from "@/shared/lib/format-currency";
 // ── Types ───────────────────────────────────────────────
 
 type ProductMarginPreviewProps = {
-	supplierPrice: string;
-	customerEnabled: boolean;
-	customerPercent: string;
-	marginRules: MarginRule[] | undefined;
+	/** Modo de gestión. En `manual` se muestra el precio directo, sin márgenes. */
+	managedBy?: "provider" | "manual";
+	/** Precio directo (solo se usa en modo `manual`). */
+	price?: string;
+	supplierPrice?: string;
+	customerEnabled?: boolean;
+	customerPercent?: string;
+	marginRules?: MarginRule[] | undefined;
 };
 
 type SourceBadgeConfig = {
@@ -83,9 +87,11 @@ function PriceRow({
 // ── Component ───────────────────────────────────────────
 
 export function ProductMarginPreview({
-	supplierPrice,
-	customerEnabled,
-	customerPercent,
+	managedBy,
+	price,
+	supplierPrice = "",
+	customerEnabled = false,
+	customerPercent = "",
 	marginRules,
 }: ProductMarginPreviewProps) {
 	const result = useMemo(() => {
@@ -106,6 +112,40 @@ export function ProductMarginPreview({
 
 		return { customerResult };
 	}, [supplierPrice, customerEnabled, customerPercent, marginRules]);
+
+	// Productos manuales: el precio se cobra tal cual, sin márgenes ni reglas.
+	if (managedBy === "manual") {
+		const safePrice = price ?? "";
+		const hasPrice = safePrice.length > 0 && Number(safePrice) > 0;
+
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-sm">Vista previa de precios</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="flex items-center justify-between gap-4">
+						<div className="flex min-w-0 flex-col gap-0.5">
+							<span className="text-muted-foreground text-xs font-medium">Cliente</span>
+							<span
+								className={`font-mono tabular-nums text-sm ${
+									hasPrice ? "text-foreground" : "text-muted-foreground"
+								}`}
+							>
+								{hasPrice ? formatCurrency(safePrice) : "—"}
+							</span>
+						</div>
+						<Badge variant="info" size="xs">
+							Directo
+						</Badge>
+					</div>
+					<p className="text-muted-foreground mt-3 text-xs">
+						No se aplican márgenes ni reglas de precio: el precio se cobra tal cual.
+					</p>
+				</CardContent>
+			</Card>
+		);
+	}
 
 	if (marginRules === undefined) {
 		return (

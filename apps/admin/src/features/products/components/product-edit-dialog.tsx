@@ -8,6 +8,7 @@ import {
 	DialogTitle,
 } from "@renovabit/ui/components/ui/dialog";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useUpdateProduct } from "../hooks";
 import type { Product } from "../model";
 import { PRODUCT_FORM_ID, ProductForm } from "./product-form";
@@ -46,6 +47,8 @@ export function ProductEditDialog({ product, open, onOpenChange }: ProductEditDi
 								sku: product.sku,
 								price: product.price,
 								supplierPrice: product.supplierPrice,
+								managedBy: product.managedBy,
+								providerIds: product.providerIds,
 								roleCustomMargins: product.roleCustomMargins,
 								stock: product.stock,
 								brandId: product.brandId,
@@ -58,6 +61,25 @@ export function ProductEditDialog({ product, open, onOpenChange }: ProductEditDi
 								seoKeywords: product.seoKeywords,
 							}}
 							onMutation={(data) => updateProduct.mutateAsync({ id: product.id, data })}
+							onControlChange={async (managedBy) => {
+								const updated = await updateProduct.mutateAsync({
+									id: product.id,
+									data:
+										managedBy === "provider"
+											? {
+													managedBy,
+													// Necesario para que la API recalcule el precio desde el costo + márgenes.
+													supplierPrice: product.supplierPrice,
+												}
+											: { managedBy },
+								});
+								toast.success(
+									managedBy === "provider"
+										? "Control devuelto al proveedor"
+										: "Ahora gestionas este producto manualmente",
+								);
+								return updated;
+							}}
 							onSuccess={() => onOpenChange(false)}
 							onSubmittingChange={setIsSubmitting}
 						/>

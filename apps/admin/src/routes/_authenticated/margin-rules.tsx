@@ -48,7 +48,7 @@ function MarginRulesPage() {
 		<div className="flex flex-col gap-6">
 			<PageHeader
 				title="Reglas de margen"
-				description="Configura los márgenes de precio por rangos. Cada fila define el porcentaje de ganancia para clientes. Admin no usa reglas (siempre ve el precio de costo). Si dos rangos se solapan, la API rechaza con 409."
+				description="Configura los márgenes de precio por rangos. Cada fila define el porcentaje de ganancia para clientes. Aplica solo a productos gestionados por el proveedor; los productos manuales usan su precio directo. Admin no usa reglas (siempre ve el precio de costo). Si dos rangos se solapan, la API rechaza con 409."
 				actions={
 					<Button onClick={() => setIsCreateOpen(true)}>
 						<HugeiconsIcon icon={Add01Icon} className="mr-2 h-4 w-4" />
