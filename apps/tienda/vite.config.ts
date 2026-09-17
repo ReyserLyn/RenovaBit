@@ -7,22 +7,7 @@ import { defineConfig } from "vite";
 
 const config = defineConfig({
 	resolve: { tsconfigPaths: true },
-	plugins: [
-		devtools(),
-		nitro({ preset: "bun" }),
-		tailwindcss(),
-		tanstackStart({
-			prerender: {
-				enabled: true,
-				crawlLinks: true,
-			},
-			sitemap: {
-				enabled: true,
-				host: "https://tienda.renovabit.com",
-			},
-		}),
-		viteReact(),
-	],
+	plugins: [devtools(), nitro({ preset: "bun" }), tailwindcss(), tanstackStart(), viteReact()],
 });
 
 export default config;
