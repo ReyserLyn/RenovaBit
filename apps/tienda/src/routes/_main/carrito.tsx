@@ -17,7 +17,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { CartItem } from "@/features/cart/components/cart-item";
 import { cartQueries } from "@/features/cart/hooks/queries";
 import { getCartServerFn } from "@/features/cart/hooks/server";
-import { summarizeAvailableCartItems } from "@/features/cart/lib/summary";
+import { summarizeOrderableCartItems } from "@/features/cart/lib/summary";
 import { OrderSuccessPanel } from "@/features/orders/components/order-success-panel";
 import { useCreateOrder } from "@/features/orders/hooks/mutations";
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from "@/features/orders/lib/payment-methods";
@@ -77,8 +77,8 @@ function CartPage() {
 		}
 	}, [cart?.guestToken, guestToken, setGuestToken]);
 
-	const { availableItems, availableItemsCount, availableSubtotal, hasUnavailableItems } =
-		summarizeAvailableCartItems(cart?.items ?? []);
+	const { orderableItems, orderableItemsCount, orderableSubtotal, hasBlockedItems } =
+		summarizeOrderableCartItems(cart?.items ?? []);
 
 	if ((!isLoggedIn && !mounted) || isLoading) {
 		return (
@@ -155,10 +155,10 @@ function CartPage() {
 		<div className="flex flex-1 flex-col gap-8 py-6">
 			<h1 className="text-2xl font-bold tracking-tight">Carrito de compras</h1>
 
-			{hasUnavailableItems && (
+			{hasBlockedItems && (
 				<div className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-warning">
-					Hay productos no disponibles en tu carrito. Retíralos o actualiza cantidades para poder
-					crear el pedido.
+					Hay productos agotados o ya no disponibles en tu carrito. Retíralos para poder crear el
+					pedido.
 				</div>
 			)}
 
@@ -246,12 +246,12 @@ function CartPage() {
 					{/* Summary */}
 					<div className="space-y-2 text-sm">
 						<div className="flex justify-between">
-							<span className="text-muted-foreground">Productos ({availableItemsCount})</span>
-							<span>{formatPrice(availableSubtotal)}</span>
+							<span className="text-muted-foreground">Productos ({orderableItemsCount})</span>
+							<span>{formatPrice(orderableSubtotal)}</span>
 						</div>
 						<div className="flex justify-between font-semibold text-base">
 							<span>Total</span>
-							<span>{formatPrice(availableSubtotal)}</span>
+							<span>{formatPrice(orderableSubtotal)}</span>
 						</div>
 					</div>
 
@@ -261,8 +261,8 @@ function CartPage() {
 						className="w-full"
 						disabled={
 							(!isLoggedIn && !customerName.trim()) ||
-							hasUnavailableItems ||
-							availableItems.length === 0 ||
+							hasBlockedItems ||
+							orderableItems.length === 0 ||
 							createOrder.isPending
 						}
 					>

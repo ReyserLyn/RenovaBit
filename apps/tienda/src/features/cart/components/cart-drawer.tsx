@@ -4,8 +4,7 @@ import { Button } from "@renovabit/ui/components/ui/button";
 import { Separator } from "@renovabit/ui/components/ui/separator";
 import { useNavigate } from "@tanstack/react-router";
 import type { CartResponse } from "@/features/cart/hooks/queries";
-import { getEffectiveLinePrice } from "@/features/cart/lib/pricing";
-import { summarizeAvailableCartItems } from "@/features/cart/lib/summary";
+import { summarizeOrderableCartItems } from "@/features/cart/lib/summary";
 import { formatPrice } from "@/shared/lib/format";
 import { CartItem } from "./cart-item";
 
@@ -19,14 +18,14 @@ interface CartDrawerContentProps {
 
 export function CartDrawerContent({ cart, isLoading, onNavigate }: CartDrawerContentProps) {
 	const navigate = useNavigate();
-	const { availableItems, availableItemsCount, totalSaved } = summarizeAvailableCartItems(
-		cart.items,
-	);
-
-	const hasPriceChange = availableItems.some((item) => item.priceChanged);
-	const availableSubtotal = availableItems
-		.reduce((sum, item) => sum + getEffectiveLinePrice(item).unitPrice * item.quantity, 0)
-		.toFixed(2);
+	const {
+		orderableItems,
+		orderableItemsCount,
+		orderableSubtotal,
+		totalSaved,
+		hasBlockedItems,
+		hasPriceChange,
+	} = summarizeOrderableCartItems(cart.items);
 
 	const handleNavigateCart = () => {
 		onNavigate?.();
@@ -72,7 +71,7 @@ export function CartDrawerContent({ cart, isLoading, onNavigate }: CartDrawerCon
 					{hasPriceChange && (
 						<div className="mb-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-2 text-xs text-warning-foreground">
 							<HugeiconsIcon icon={AlertCircleIcon} size={14} className="mt-0.5 shrink-0" />
-							<span>Algunos precios cambiaron. Revisá antes de pagar.</span>
+							<span>Algunos precios cambiaron. Revisa antes de pagar.</span>
 						</div>
 					)}
 
@@ -90,22 +89,22 @@ export function CartDrawerContent({ cart, isLoading, onNavigate }: CartDrawerCon
 
 						<div className="flex items-center justify-between text-sm">
 							<span className="text-muted-foreground">
-								Subtotal ({availableItemsCount}{" "}
-								{availableItemsCount === 1 ? "producto" : "productos"})
+								Subtotal ({orderableItemsCount}{" "}
+								{orderableItemsCount === 1 ? "producto" : "productos"})
 							</span>
-							<span className="font-semibold">{formatPrice(availableSubtotal)}</span>
+							<span className="font-semibold">{formatPrice(orderableSubtotal)}</span>
 						</div>
 
-						{availableItems.length < cart.items.length && (
+						{hasBlockedItems && (
 							<p className="text-xs text-warning">
-								Algunos productos no están disponibles. Revisa tu carrito.
+								Algunos productos están agotados o ya no están disponibles. Revisa tu carrito.
 							</p>
 						)}
 
 						<Button
 							size="xl"
 							className="w-full"
-							disabled={availableItems.length === 0}
+							disabled={orderableItems.length === 0}
 							onClick={handleNavigateCart}
 						>
 							Ir al carrito

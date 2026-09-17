@@ -355,7 +355,7 @@ function OrderDetailPage() {
 			</Card>
 
 			{/* ── Información adicional ────────────── */}
-			{(order.customerName || order.customerPhone || order.notes || order.adminNotes) && (
+			{(order.customerName || order.customerPhone || order.notes) && (
 				<Card>
 					<CardHeader>
 						<CardTitle>Información adicional</CardTitle>
@@ -380,15 +380,6 @@ function OrderDetailPage() {
 									Tus notas
 								</p>
 								<p className="whitespace-pre-wrap">{order.notes}</p>
-							</div>
-						)}
-						{order.adminNotes && (
-							<div className="space-y-1">
-								<p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
-									<HugeiconsIcon icon={NoteIcon} size={14} strokeWidth={1.5} />
-									Notas del equipo
-								</p>
-								<p className="whitespace-pre-wrap">{order.adminNotes}</p>
 							</div>
 						)}
 					</CardContent>

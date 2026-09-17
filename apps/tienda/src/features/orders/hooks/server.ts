@@ -1,3 +1,4 @@
+import { extractApiError } from "@renovabit/backend-client";
 import { ORDER_STATUSES, type OrderStatus } from "@renovabit/db/orders";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
@@ -21,7 +22,7 @@ export const getOrderDetailServerFn = createServerFn({ method: "GET" })
 		if (error || !data)
 			return {
 				order: null,
-				errorCode: error?.status ? String(error.status) : undefined,
+				errorCode: extractApiError(error)?.code,
 			};
 		return { order: data, errorCode: undefined };
 	});
@@ -48,7 +49,7 @@ export const getOrderListServerFn = createServerFn({ method: "GET" })
 		if (error || !data)
 			return {
 				data: null,
-				errorCode: error?.status ? String(error.status) : undefined,
+				errorCode: extractApiError(error)?.code,
 			};
 		return { data, errorCode: undefined };
 	});
