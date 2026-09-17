@@ -126,6 +126,7 @@ export const productChanges = pgTable(
 		index("product_changes_product_idx").on(table.productId),
 		index("product_changes_report_idx").on(table.syncReportId),
 		index("product_changes_type_idx").on(table.changeType),
+		index("product_changes_created_at_idx").on(table.createdAt),
 	],
 );
 

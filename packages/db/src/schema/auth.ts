@@ -23,7 +23,7 @@ export const users = pgTable(
 		emailVerified: boolean("email_verified").default(false).notNull(),
 		image: text("image"),
 
-		username: varchar("username", { length: 100 }),
+		username: varchar("username", { length: 100 }).unique(),
 		displayUsername: varchar("display_username", { length: 100 }),
 		lastname: varchar("lastname", { length: 100 }),
 		phone: varchar("phone", { length: 20 }),

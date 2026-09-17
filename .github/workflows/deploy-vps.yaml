@@ -86,7 +86,9 @@ jobs:
             echo "::warning::No existe drizzle.__drizzle_migrations — el schema se gestiona fuera de drizzle-kit. Migración automática OMITIDA (revisar baseline)."
             exit 0
           fi
-          docker compose run --rm --no-deps renovabit-api sh -lc "cd /app/packages/db && bun run db:migrate"
+          # Non-interactive runner (programmatic migrator). MIGRATE_CONFIRM
+          # authorizes applying migrations to the production database.
+          docker compose run --rm --no-deps -e MIGRATE_CONFIRM=yes renovabit-api sh -lc "cd /app/packages/db && bun run db:migrate"
 
       - name: Deploy
         shell: bash

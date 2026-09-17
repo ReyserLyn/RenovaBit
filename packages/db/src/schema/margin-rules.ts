@@ -1,4 +1,5 @@
-import { index, integer, numeric, pgTable, varchar } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check, index, integer, numeric, pgTable, varchar } from "drizzle-orm/pg-core";
 import { lifecycleDates, primaryKey as primaryKeyCol } from "./_utils";
 
 /**
@@ -26,5 +27,15 @@ export const marginRules = pgTable(
 
 		...lifecycleDates,
 	},
-	(table) => [index("margin_rules_range_idx").on(table.minPrice, table.maxPrice)],
+	(table) => [
+		index("margin_rules_range_idx").on(table.minPrice, table.maxPrice),
+		check(
+			"margin_rules_valid_range",
+			sql`${table.minPrice} >= 0 AND (${table.maxPrice} IS NULL OR ${table.maxPrice} > ${table.minPrice})`,
+		),
+		check(
+			"margin_rules_customer_pct_range",
+			sql`${table.customerPct} >= 0 AND ${table.customerPct} <= 100`,
+		),
+	],
 );

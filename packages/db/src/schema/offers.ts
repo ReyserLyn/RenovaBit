@@ -76,5 +76,9 @@ export const offerProducts = pgTable(
 		primaryKey({ columns: [table.offerId, table.productId] }),
 		index("offer_products_offer_idx").on(table.offerId),
 		index("offer_products_product_idx").on(table.productId),
+		check(
+			"offer_products_override_range",
+			sql`${table.overrideDiscountValue} IS NULL OR (${table.overrideDiscountValue} >= 0 AND ${table.overrideDiscountValue} <= 100)`,
+		),
 	],
 );

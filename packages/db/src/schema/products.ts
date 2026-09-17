@@ -1,6 +1,7 @@
 import { SQL, sql } from "drizzle-orm";
 import {
 	boolean,
+	check,
 	customType,
 	index,
 	integer,
@@ -87,7 +88,11 @@ export const products = pgTable(
 		index("products_is_active_idx").on(table.isActive),
 		index("products_featured_idx").on(table.isFeatured),
 		index("products_supplier_price_idx").on(table.supplierPrice),
+		index("products_needs_review_idx").on(table.needsReview),
 		index("products_search_vector_idx").using("gin", table.searchVector),
+		check("products_stock_non_negative", sql`${table.stock} >= 0`),
+		check("products_price_non_negative", sql`${table.price} >= 0`),
+		check("products_supplier_price_non_negative", sql`${table.supplierPrice} >= 0`),
 	],
 );
 
