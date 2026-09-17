@@ -19,6 +19,7 @@
 		"db:studio": "drizzle-kit studio"
 	},
 	"dependencies": {
+		"drizzle-kit": "^0.31.10",
 		"drizzle-orm": "catalog:",
 		"postgres": "^3.4.5",
 		"zod": "catalog:"
@@ -27,7 +28,6 @@
 		"@renovabit/biome-config": "*",
 		"@renovabit/ts-config": "*",
 		"@types/node": "^25.9.2",
-		"drizzle-kit": "^0.31.10",
 		"typescript": "catalog:"
 	}
 }

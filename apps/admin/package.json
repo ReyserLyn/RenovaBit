@@ -7,7 +7,7 @@
 		"build": "vite build",
 		"start": "bun run .output/server/index.mjs",
 		"preview": "vite preview",
-		"generate": "bunx @tanstack/router-cli generate",
+		"generate": "tsr generate",
 		"check": "biome check . --write",
 		"check-types": "bun run generate && tsc --noEmit"
 	},
@@ -55,6 +55,7 @@
 		"@tanstack/react-form-devtools": "^0.2.27",
 		"@tanstack/react-query-devtools": "5.101.0",
 		"@tanstack/react-router-devtools": "1.167.0",
+		"@tanstack/router-cli": "catalog:",
 		"@types/node": "^25.9.2",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
