@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { Elysia } from "elysia";
+import * as realRedisModule from "@/utils/redis";
 
 // ── Mock Redis ───────────────────────────────────────────────────────────────
 
@@ -98,10 +99,20 @@ class MockRedis {
 
 const mockRedisInstance = new MockRedis();
 
-// Set up mock BEFORE importing the plugin
+// Replace only getRedis and keep the rest of the module surface intact:
+// mock.module is process-wide in Bun, so a factory that drops exports (like
+// redisConnectionConfig, used by queue connections) leaks into other test
+// files and breaks their imports.
 mock.module("@/utils/redis", () => ({
+	...realRedisModule,
 	getRedis: () => mockRedisInstance as unknown as import("ioredis").Redis,
 }));
+
+// Restore module mocks once this file finishes so later test files see the
+// real module again.
+afterAll(() => {
+	mock.restore();
+});
 
 // Now import the plugin — mock.module ensures getRedis() returns our mock
 const { rateLimitPlugin } = await import("./plugin");
