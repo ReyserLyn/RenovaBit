@@ -43,7 +43,6 @@ export function MarginRuleEditDialog({
 				minPrice: data.minPrice,
 				maxPrice: data.maxPrice ?? null,
 				customerPct: data.customerPct,
-				distributorPct: data.distributorPct,
 				sortOrder: data.sortOrder ?? 0,
 			},
 		});

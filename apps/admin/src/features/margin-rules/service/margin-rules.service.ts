@@ -9,7 +9,6 @@ export interface MarginRule {
 	minPrice: string;
 	maxPrice: string | null;
 	customerPct: string;
-	distributorPct: string;
 	sortOrder: number;
 	createdAt: Date;
 	updatedAt: Date;
@@ -28,7 +27,6 @@ async function create(data: {
 	minPrice: number;
 	maxPrice?: number | null;
 	customerPct: number;
-	distributorPct: number;
 	sortOrder?: number;
 }): Promise<MarginRule> {
 	return unwrapResponse(marginRulesEndpoint.post(data));
@@ -41,7 +39,6 @@ async function update(
 		minPrice?: number;
 		maxPrice?: number | null;
 		customerPct?: number;
-		distributorPct?: number;
 		sortOrder?: number;
 	},
 ): Promise<MarginRule> {

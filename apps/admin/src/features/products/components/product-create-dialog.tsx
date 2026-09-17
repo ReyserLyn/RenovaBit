@@ -42,8 +42,6 @@ export function ProductCreateDialog({ open, onOpenChange }: ProductCreateDialogP
 							supplierPrice: "",
 							customerEnabled: false,
 							customerPercent: "",
-							distributorEnabled: false,
-							distributorPercent: "",
 							stock: 0,
 							brandId: undefined,
 							categoryId: undefined,

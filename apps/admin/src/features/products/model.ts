@@ -109,7 +109,6 @@ export const createProductSchema = z.object({
 	roleCustomMargins: z
 		.object({
 			customer: z.object({ enabled: z.literal(true), percent: z.string() }).optional(),
-			distributor: z.object({ enabled: z.literal(true), percent: z.string() }).optional(),
 		})
 		.nullable()
 		.optional(),
@@ -201,20 +200,6 @@ export const productFormSchema = z.object({
 			},
 			{ error: `El margen no puede superar ${MAX_CUSTOM_MARGIN_PERCENT}%` },
 		),
-	distributorEnabled: z.boolean(),
-	distributorPercent: z
-		.string()
-		.refine((v) => v === "" || /^\d+(\.\d{1,2})?$/.test(v), {
-			error: "El margen debe ser un número válido (ej: 25)",
-		})
-		.refine(
-			(v) => {
-				if (v === "") return true;
-				const n = Number(v);
-				return Number.isFinite(n) && n >= 0 && n <= MAX_CUSTOM_MARGIN_PERCENT;
-			},
-			{ error: `El margen no puede superar ${MAX_CUSTOM_MARGIN_PERCENT}%` },
-		),
 	stock: z.number().int().min(0, { error: "El stock no puede ser negativo" }),
 	brandId: z.uuid().nullable().optional(),
 	categoryId: z.uuid().nullable().optional(),
@@ -250,15 +235,10 @@ export type BulkDeleteValues = z.infer<typeof bulkDeleteSchema>;
 export function toRoleCustomMargins(state: {
 	customerEnabled: boolean;
 	customerPercent: string;
-	distributorEnabled: boolean;
-	distributorPercent: string;
 }): RoleCustomMargins | null {
 	const out: RoleCustomMargins = {};
 	if (state.customerEnabled && state.customerPercent.length > 0) {
 		out.customer = { enabled: true, percent: state.customerPercent };
-	}
-	if (state.distributorEnabled && state.distributorPercent.length > 0) {
-		out.distributor = { enabled: true, percent: state.distributorPercent };
 	}
 	return Object.keys(out).length === 0 ? null : out;
 }

@@ -227,8 +227,6 @@ function getDefaultFormValues(props: ProductFormProps): ProductFormValues {
 			supplierPrice: props.product.supplierPrice ?? "",
 			customerEnabled: props.product.roleCustomMargins?.customer?.enabled ?? false,
 			customerPercent: props.product.roleCustomMargins?.customer?.percent ?? "",
-			distributorEnabled: props.product.roleCustomMargins?.distributor?.enabled ?? false,
-			distributorPercent: props.product.roleCustomMargins?.distributor?.percent ?? "",
 			stock: props.product.stock,
 			brandId: props.product.brandId,
 			categoryId: props.product.categoryId,
@@ -361,8 +359,6 @@ export function ProductForm(props: ProductFormProps) {
 				const roleCustomMargins = toRoleCustomMargins({
 					customerEnabled: value.customerEnabled,
 					customerPercent: value.customerPercent,
-					distributorEnabled: value.distributorEnabled,
-					distributorPercent: value.distributorPercent,
 				});
 				const result = await onMutation({
 					name: value.name,
@@ -587,43 +583,27 @@ export function ProductForm(props: ProductFormProps) {
 	}
 
 	// ── Render helpers ─────────────────────────────────
-	function RoleOverrideSection({
-		role,
-		label,
-		placeholder,
-	}: {
-		role: "customer" | "distributor";
-		label: string;
-		placeholder: string;
-	}) {
+	function RoleOverrideSection({ label, placeholder }: { label: string; placeholder: string }) {
 		const [bufferValue, setBufferValue] = useState("");
-		const percentFieldName = `${role}Percent` as const;
-		const enabledFieldName = `${role}Enabled` as const;
+		const percentFieldName = "customerPercent" as const;
+		const enabledFieldName = "customerEnabled" as const;
 
 		const setPercent = (value: string) => {
-			if (role === "customer") form.setFieldValue("customerPercent", value);
-			else form.setFieldValue("distributorPercent", value);
+			form.setFieldValue("customerPercent", value);
 		};
 		const getPercent = (): string => {
-			if (role === "customer") {
-				const v = form.getFieldValue("customerPercent");
-				return typeof v === "string" ? v : "";
-			}
-			const v = form.getFieldValue("distributorPercent");
+			const v = form.getFieldValue("customerPercent");
 			return typeof v === "string" ? v : "";
 		};
 		const setEnabled = (value: boolean) => {
-			if (role === "customer") form.setFieldValue("customerEnabled", value);
-			else form.setFieldValue("distributorEnabled", value);
+			form.setFieldValue("customerEnabled", value);
 		};
 
 		return (
 			<form.Subscribe
 				selector={(state) => ({
-					enabled:
-						role === "customer" ? state.values.customerEnabled : state.values.distributorEnabled,
-					percent:
-						role === "customer" ? state.values.customerPercent : state.values.distributorPercent,
+					enabled: state.values.customerEnabled,
+					percent: state.values.customerPercent,
 					supplierPrice: state.values.supplierPrice,
 				})}
 			>
@@ -639,12 +619,10 @@ export function ProductForm(props: ProductFormProps) {
 									supplierPrice: safeSupplier,
 									roleCustomMargins:
 										enabled && safePercent.length > 0
-											? ({
-													[role]: { enabled: true, percent: safePercent },
-												} as Record<string, { enabled: true; percent: string }>)
+											? { customer: { enabled: true, percent: safePercent } }
 											: undefined,
 								},
-								role,
+								"customer",
 								marginRules ?? [],
 							)
 						: null;
@@ -1068,7 +1046,7 @@ export function ProductForm(props: ProductFormProps) {
 			<header className="flex flex-col">
 				<h3 className="font-medium text-foreground text-sm">Margen y precio</h3>
 				<FieldDescription>
-					Define el costo de compra y márgenes personalizados por rol.
+					Define el costo de compra y el margen personalizado para clientes.
 				</FieldDescription>
 			</header>
 
@@ -1111,10 +1089,7 @@ export function ProductForm(props: ProductFormProps) {
 				</form.Field>
 
 				{/* ── Customer Override ── */}
-				<RoleOverrideSection role="customer" label="Cliente" placeholder="Ej: 25" />
-
-				{/* ── Distributor Override ── */}
-				<RoleOverrideSection role="distributor" label="Distribuidor" placeholder="Ej: 10" />
+				<RoleOverrideSection label="Cliente" placeholder="Ej: 25" />
 
 				{/* ── Preview Card ── */}
 				<form.Subscribe
@@ -1122,8 +1097,6 @@ export function ProductForm(props: ProductFormProps) {
 						supplierPrice: state.values.supplierPrice,
 						customerEnabled: state.values.customerEnabled,
 						customerPercent: state.values.customerPercent,
-						distributorEnabled: state.values.distributorEnabled,
-						distributorPercent: state.values.distributorPercent,
 					})}
 				>
 					{(values) => (
@@ -1131,8 +1104,6 @@ export function ProductForm(props: ProductFormProps) {
 							supplierPrice={values.supplierPrice}
 							customerEnabled={values.customerEnabled}
 							customerPercent={values.customerPercent}
-							distributorEnabled={values.distributorEnabled}
-							distributorPercent={values.distributorPercent}
 							marginRules={marginRules}
 						/>
 					)}

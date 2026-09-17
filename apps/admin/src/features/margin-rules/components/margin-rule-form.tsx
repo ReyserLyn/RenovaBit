@@ -34,7 +34,6 @@ interface MarginRuleFormEditProps {
 		minPrice: string;
 		maxPrice: string | null;
 		customerPct: string;
-		distributorPct: string;
 		sortOrder: number;
 	};
 	onMutation: (data: MarginRuleFormValues) => Promise<unknown>;
@@ -57,7 +56,6 @@ export function MarginRuleForm(props: MarginRuleFormProps) {
 				minPrice: Number.parseFloat(props.marginRule.minPrice),
 				maxPrice: props.marginRule.maxPrice ? Number.parseFloat(props.marginRule.maxPrice) : null,
 				customerPct: Number.parseFloat(props.marginRule.customerPct),
-				distributorPct: Number.parseFloat(props.marginRule.distributorPct),
 				sortOrder: props.marginRule.sortOrder,
 			}
 		: props.defaultValues;
@@ -229,13 +227,13 @@ export function MarginRuleForm(props: MarginRuleFormProps) {
 					</form.Field>
 				</div>
 
-				{/* ── Margins (one row per role) ── */}
+				{/* ── Margins ── */}
 				<FieldGroup>
 					<header className="flex flex-col">
 						<h3 className="font-medium text-foreground text-sm">Márgenes</h3>
 						<FieldDescription>
-							Porcentaje de ganancia por rol para el rango de precio. Admin no usa reglas (siempre
-							ve el precio de costo).
+							Porcentaje de ganancia para clientes en el rango de precio. Admin no usa reglas
+							(siempre ve el precio de costo).
 						</FieldDescription>
 					</header>
 
@@ -270,52 +268,6 @@ export function MarginRuleForm(props: MarginRuleFormProps) {
 											onChange={(e) => field.handleChange(Number.parseFloat(e.target.value) || 0)}
 											onBlur={field.handleBlur}
 											placeholder="20"
-											disabled={isSubmitting}
-											className="font-mono tabular-nums"
-											aria-invalid={isInvalid}
-											aria-describedby={isInvalid ? errorMessageId : undefined}
-										/>
-										{isInvalid && (
-											<FieldError
-												id={errorMessageId}
-												errors={normalizeFieldErrors(field.state.meta.errors)}
-											/>
-										)}
-									</Field>
-								);
-							}}
-						</form.Field>
-
-						<form.Field name="distributorPct">
-							{(field) => {
-								const wasSubmitted = field.form.state.submissionAttempts > 0;
-								const isInvalid =
-									(field.state.meta.isTouched || wasSubmitted) &&
-									field.state.meta.errors.length > 0;
-								const errorMessageId = getFieldErrorId(MARGIN_RULE_FORM_ID, field.name);
-
-								return (
-									<Field data-invalid={isInvalid}>
-										<FieldLabel htmlFor={field.name}>
-											<span>
-												Margen distribuidor (%){" "}
-												<span aria-hidden="true" className="text-destructive">
-													*
-												</span>
-												<span className="sr-only">obligatorio</span>
-											</span>
-										</FieldLabel>
-										<Input
-											id={field.name}
-											name={field.name}
-											type="number"
-											min={0}
-											max={MARGIN_PERCENT_MAX}
-											step={0.01}
-											value={field.state.value}
-											onChange={(e) => field.handleChange(Number.parseFloat(e.target.value) || 0)}
-											onBlur={field.handleBlur}
-											placeholder="10"
 											disabled={isSubmitting}
 											className="font-mono tabular-nums"
 											aria-invalid={isInvalid}

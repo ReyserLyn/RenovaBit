@@ -24,12 +24,6 @@ export const marginRuleFormSchema = z.object({
 		.max(MARGIN_PERCENT_MAX, {
 			error: `El porcentaje no puede superar ${MARGIN_PERCENT_MAX}%`,
 		}),
-	distributorPct: z
-		.number()
-		.min(0, { error: "El porcentaje debe ser mayor o igual a 0" })
-		.max(MARGIN_PERCENT_MAX, {
-			error: `El porcentaje no puede superar ${MARGIN_PERCENT_MAX}%`,
-		}),
 	sortOrder: z.number().int().min(0).optional(),
 });
 

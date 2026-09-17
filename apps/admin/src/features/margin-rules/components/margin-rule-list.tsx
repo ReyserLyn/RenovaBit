@@ -79,15 +79,6 @@ function getColumns(props: {
 			),
 		},
 		{
-			accessorKey: "distributorPct",
-			header: "Margen distribuidor",
-			cell: ({ row }) => (
-				<Badge variant="outline" size="xs" className="font-mono">
-					{row.original.distributorPct}%
-				</Badge>
-			),
-		},
-		{
 			accessorKey: "sortOrder",
 			header: "Orden",
 			cell: ({ row }) => (

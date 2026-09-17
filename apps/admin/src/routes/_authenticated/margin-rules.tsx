@@ -48,7 +48,7 @@ function MarginRulesPage() {
 		<div className="flex flex-col gap-6">
 			<PageHeader
 				title="Reglas de margen"
-				description="Configura los márgenes de precio por rangos. Cada fila define el porcentaje de ganancia para cliente y distribuidor. Admin no usa reglas (siempre ve el precio de costo). Si dos rangos se solapan, la API rechaza con 409."
+				description="Configura los márgenes de precio por rangos. Cada fila define el porcentaje de ganancia para clientes. Admin no usa reglas (siempre ve el precio de costo). Si dos rangos se solapan, la API rechaza con 409."
 				actions={
 					<Button onClick={() => setIsCreateOpen(true)}>
 						<HugeiconsIcon icon={Add01Icon} className="mr-2 h-4 w-4" />
@@ -79,7 +79,7 @@ function MarginRulesPage() {
 				}}
 				onConfirm={confirmDelete}
 				title="Eliminar regla de margen"
-				description={`¿Estás seguro de eliminar la regla "${deleteTarget?.name ?? ""}"? Esta acción no se puede deshacer. Los productos sin regla usarán el margen por defecto (15% cliente, 10% distribuidor).`}
+				description={`¿Estás seguro de eliminar la regla "${deleteTarget?.name ?? ""}"? Esta acción no se puede deshacer. Los productos sin regla usarán el margen por defecto (20% cliente).`}
 				confirmText="Eliminar"
 				variant="destructive"
 				isLoading={isDeleting}

@@ -20,13 +20,11 @@ function formatDate(value: Date | string): string {
 const roleBadgeClasses: Record<string, string> = {
 	admin: "bg-primary/10 text-primary",
 	customer: "bg-secondary text-secondary-foreground",
-	distributor: "bg-info/10 text-info",
 };
 
 const roleLabels: Record<string, string> = {
 	admin: "Admin",
 	customer: "Cliente",
-	distributor: "Distribuidor",
 };
 
 // ── Columns ─────────────────────────────────────────

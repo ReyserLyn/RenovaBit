@@ -11,8 +11,6 @@ type ProductMarginPreviewProps = {
 	supplierPrice: string;
 	customerEnabled: boolean;
 	customerPercent: string;
-	distributorEnabled: boolean;
-	distributorPercent: string;
 	marginRules: MarginRule[] | undefined;
 };
 
@@ -88,8 +86,6 @@ export function ProductMarginPreview({
 	supplierPrice,
 	customerEnabled,
 	customerPercent,
-	distributorEnabled,
-	distributorPercent,
 	marginRules,
 }: ProductMarginPreviewProps) {
 	const result = useMemo(() => {
@@ -102,25 +98,14 @@ export function ProductMarginPreview({
 				if (customerEnabled && customerPercent.length > 0) {
 					m.customer = { enabled: true, percent: customerPercent };
 				}
-				if (distributorEnabled && distributorPercent.length > 0) {
-					m.distributor = { enabled: true, percent: distributorPercent };
-				}
 				return Object.keys(m).length > 0 ? m : undefined;
 			})(),
 		};
 
 		const customerResult = getEffectiveSalePrice(product, "customer", marginRules);
-		const distributorResult = getEffectiveSalePrice(product, "distributor", marginRules);
 
-		return { customerResult, distributorResult };
-	}, [
-		supplierPrice,
-		customerEnabled,
-		customerPercent,
-		distributorEnabled,
-		distributorPercent,
-		marginRules,
-	]);
+		return { customerResult };
+	}, [supplierPrice, customerEnabled, customerPercent, marginRules]);
 
 	if (marginRules === undefined) {
 		return (
@@ -170,24 +155,6 @@ export function ProductMarginPreview({
 						source={
 							hasSupplier
 								? (result?.customerResult.source ?? "no-supplier-price")
-								: "no-supplier-price"
-						}
-					/>
-
-					{/* Distribuidor row */}
-					<PriceRow
-						label="Distribuidor"
-						price={
-							hasSupplier
-								? formatCurrency(result?.distributorResult.salePrice.toString() ?? "0")
-								: "S/ 0.00"
-						}
-						percent={
-							hasSupplier ? formatPercent(result?.distributorResult.marginPercent ?? 0) : "—"
-						}
-						source={
-							hasSupplier
-								? (result?.distributorResult.source ?? "no-supplier-price")
 								: "no-supplier-price"
 						}
 					/>

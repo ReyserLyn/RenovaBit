@@ -9,7 +9,6 @@ interface RuleRangeRow {
 	minPrice: string;
 	maxPrice: string | null;
 	customerPct: string;
-	distributorPct: string;
 }
 
 interface ExistingRulesPanelProps {
@@ -67,9 +66,6 @@ export function ExistingRulesPanel({
 							<Badge variant="secondary" size="xs">
 								C {rule.customerPct}%
 							</Badge>
-							<Badge variant="outline" size="xs">
-								D {rule.distributorPct}%
-							</Badge>
 						</div>
 					</div>
 				))}
@@ -85,6 +81,5 @@ export function toRuleRangeRow(rule: MarginRule): RuleRangeRow {
 		minPrice: rule.minPrice,
 		maxPrice: rule.maxPrice,
 		customerPct: rule.customerPct,
-		distributorPct: rule.distributorPct,
 	};
 }

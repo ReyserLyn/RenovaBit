@@ -39,7 +39,6 @@ export function MarginRuleCreateDialog({
 			minPrice: data.minPrice,
 			maxPrice: data.maxPrice ?? null,
 			customerPct: data.customerPct,
-			distributorPct: data.distributorPct,
 			sortOrder: data.sortOrder ?? 0,
 		});
 	};
@@ -53,8 +52,7 @@ export function MarginRuleCreateDialog({
 				<DialogHeader className="shrink-0 p-4">
 					<DialogTitle>Nueva regla de margen</DialogTitle>
 					<DialogDescription>
-						Crea una regla para definir el margen según el rango de precio, con un porcentaje por
-						rol.
+						Crea una regla para definir el margen según el rango de precio.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -66,7 +64,6 @@ export function MarginRuleCreateDialog({
 							minPrice: 0,
 							maxPrice: null,
 							customerPct: 20,
-							distributorPct: 10,
 							sortOrder: 0,
 						}}
 						onMutation={handleMutation}
