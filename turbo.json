@@ -4,6 +4,10 @@
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],
+			"env": [
+				"VITE_API_URL",
+				"VITE_SITE_URL"
+			],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				".env*"
@@ -11,11 +15,15 @@
 			"outputs": [
 				".next/**",
 				"!.next/cache/**",
+				".output/**",
 				"dist/**"
 			]
 		},
 		"check-types": {
 			"dependsOn": ["^check-types"]
+		},
+		"test": {
+			"outputs": []
 		},
 		"dev": {
 			"cache": false,

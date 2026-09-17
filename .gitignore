@@ -80,9 +80,6 @@ renovabit-mono
 # Raw working files (AI generations, exports) - per app
 .raw
 
-# Test
-__tests__
-
 # Test artifacts (use the standard test runner artifacts; tests themselves are tracked)
 coverage/
 *.lcov
