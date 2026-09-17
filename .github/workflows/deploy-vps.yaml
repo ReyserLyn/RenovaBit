@@ -57,6 +57,37 @@ jobs:
           cd "$DEPLOY_PATH"
           COMPOSE_PARALLEL_LIMIT=1 docker compose build --pull
 
+      - name: Asegurar servicios base (postgres, redis)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          docker compose up -d --wait renovabit-postgres renovabit-redis
+
+      - name: Backup de base de datos (pre-migración)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          mkdir -p backups
+          STAMP=$(date +%Y%m%d-%H%M%S)
+          docker compose exec -T renovabit-postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom' > "backups/pre-deploy-$STAMP.dump"
+          test -s "backups/pre-deploy-$STAMP.dump"
+          ls -1t backups/pre-deploy-*.dump | tail -n +11 | xargs -r rm -f
+          echo "[+] Backup creado: backups/pre-deploy-$STAMP.dump ($(du -h "backups/pre-deploy-$STAMP.dump" | cut -f1))"
+
+      - name: Migraciones de base de datos
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          JOURNAL=$(echo "SELECT to_regclass('drizzle.__drizzle_migrations');" | docker compose exec -T renovabit-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tA' | tr -d '[:space:]')
+          if [ -z "$JOURNAL" ]; then
+            echo "::warning::No existe drizzle.__drizzle_migrations — el schema se gestiona fuera de drizzle-kit. Migración automática OMITIDA (revisar baseline)."
+            exit 0
+          fi
+          docker compose run --rm --no-deps renovabit-api sh -lc "cd /app/packages/db && bun run db:migrate"
+
       - name: Deploy
         shell: bash
         run: |
