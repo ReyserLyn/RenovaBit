@@ -190,7 +190,7 @@ function buildWhere(options: ListOptions, isPublic: boolean, categoryIds?: strin
 	}
 	// NOTE: price filter is applied in JS after computing the role-specific price.
 	// The stored `products.price` is the customer price (computed from supplierPrice + margins),
-	// not the buyer's role price, so SQL-level filtering would be wrong for admin/distributor views.
+	// not the buyer's role price, so SQL-level filtering would be wrong for admin views.
 
 	return conditions.length === 0 ? undefined : and(...conditions);
 }
@@ -296,7 +296,7 @@ async function getByIdStrict(id: string): Promise<Product> {
 /**
  * Computes offer price enrichment for a single product row.
  * Returns null offerPrice and 0 discount when no offer applies or role is admin.
- * Role-aware: admin sees null/0, customer sees computed offer, distributor sees min(tier, offer).
+ * Role-aware: admin sees null/0, customer sees the computed offer.
  */
 function computeOfferEnrichment(
 	salePrice: number,

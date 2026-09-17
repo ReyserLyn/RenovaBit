@@ -12,7 +12,6 @@ export type CreateMarginRuleInput = {
 	minPrice: number;
 	maxPrice?: number | null;
 	customerPct: number;
-	distributorPct: number;
 	sortOrder?: number;
 };
 
@@ -29,7 +28,6 @@ async function list() {
 
 async function create(data: CreateMarginRuleInput) {
 	ensureValidPercent(data.customerPct, "customerPct");
-	ensureValidPercent(data.distributorPct, "distributorPct");
 	await assertNoOverlap(null, data.minPrice, data.maxPrice ?? null);
 
 	const [row] = await db
@@ -39,7 +37,6 @@ async function create(data: CreateMarginRuleInput) {
 			minPrice: String(data.minPrice),
 			maxPrice: data.maxPrice != null ? String(data.maxPrice) : null,
 			customerPct: String(data.customerPct),
-			distributorPct: String(data.distributorPct),
 			sortOrder: data.sortOrder ?? 0,
 		})
 		.returning()
@@ -65,7 +62,6 @@ async function update(id: string, data: UpdateMarginRuleInput) {
 		});
 	}
 	if (data.customerPct !== undefined) ensureValidPercent(data.customerPct, "customerPct");
-	if (data.distributorPct !== undefined) ensureValidPercent(data.distributorPct, "distributorPct");
 
 	const updateData: Record<string, unknown> = {};
 	if (data.name !== undefined) updateData.name = data.name.trim();
@@ -74,7 +70,6 @@ async function update(id: string, data: UpdateMarginRuleInput) {
 		updateData.maxPrice = data.maxPrice != null ? String(data.maxPrice) : null;
 	}
 	if (data.customerPct !== undefined) updateData.customerPct = String(data.customerPct);
-	if (data.distributorPct !== undefined) updateData.distributorPct = String(data.distributorPct);
 	if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
 
 	if (Object.keys(updateData).length === 0) {

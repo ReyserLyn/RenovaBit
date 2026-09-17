@@ -581,7 +581,7 @@ async function getProductsWithDetails(offerId: string) {
  * effective discount for each product.
  *
  * Role guard: admin returns empty Map (admin always sees raw supplier pricing).
- * Customer and distributor receive all active offers — the role-based price
+ * Customer receives all active offers — the role-based price
  * filtering is done by `applyOfferToProduct` downstream.
  *
  * Result shape: `Map<productId, OfferInput[]>` ready to feed into

@@ -526,29 +526,6 @@ describeDb("OfferService (DB)", () => {
 			expect(result.size).toBe(1);
 			expect(result.get(sampleProductId)?.length).toBeGreaterThanOrEqual(1);
 		});
-
-		it("returns active offers for distributor role", async () => {
-			const slug = uniqueSlug("dist-active");
-			const offer = await OfferService.create(
-				{
-					name: "Distributor Test",
-					slug,
-					discountValue: 20,
-					startsAt: new Date(Date.now() - 86400000).toISOString(),
-					endsAt: new Date(Date.now() + 86400000).toISOString(),
-					isActive: true,
-					productIds: [sampleProductId],
-				},
-				testUserId,
-			);
-			createdOfferIds.push(offer.id);
-
-			const result = await OfferService.getActiveOffersForProducts("distributor", [
-				sampleProductId,
-			]);
-			expect(result.size).toBe(1);
-			expect(result.get(sampleProductId)?.length).toBeGreaterThanOrEqual(1);
-		});
 	});
 
 	describe("getOffersWithProducts", () => {

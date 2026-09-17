@@ -278,7 +278,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			.where(eq(users.id, userId))
 			.limit(1);
 		const r = u?.role;
-		if (r === "admin" || r === "distributor" || r === "customer") {
+		if (r === "admin" || r === "customer") {
 			orderRole = r;
 		}
 	}

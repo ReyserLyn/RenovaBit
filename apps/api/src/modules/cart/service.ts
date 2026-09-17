@@ -7,7 +7,12 @@ import {
 	products,
 	type RoleCustomMargins,
 } from "@renovabit/db/schema";
-import { applyOfferToProduct, getEffectiveSalePrice, type Role } from "@renovabit/pricing";
+import {
+	applyOfferToProduct,
+	getEffectiveSalePrice,
+	type MarginRule,
+	type Role,
+} from "@renovabit/pricing";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { OfferService } from "@/modules/offers/service";
@@ -31,12 +36,7 @@ function getRoleAwarePrice(
 	supplierPrice: string,
 	roleCustomMargins: RoleCustomMargins | null | undefined,
 	role: Role,
-	marginRules: ReadonlyArray<{
-		minPrice: string;
-		maxPrice: string | null;
-		customerPct: string;
-		distributorPct: string;
-	}>,
+	marginRules: ReadonlyArray<MarginRule>,
 ): number {
 	const { salePrice } = getEffectiveSalePrice(
 		{ supplierPrice, roleCustomMargins: roleCustomMargins ?? null },

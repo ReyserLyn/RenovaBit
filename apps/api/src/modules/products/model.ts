@@ -24,12 +24,6 @@ const _insert = createInsertSchema(products, {
 						percent: t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" }),
 					}),
 				),
-				distributor: t.Optional(
-					t.Object({
-						enabled: t.Literal(true),
-						percent: t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" }),
-					}),
-				),
 			}),
 		),
 	),
@@ -49,12 +43,6 @@ const AdminProductResponse = createSelectSchema(products, {
 	roleCustomMargins: t.Nullable(
 		t.Object({
 			customer: t.Optional(
-				t.Object({
-					enabled: t.Literal(true),
-					percent: t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" }),
-				}),
-			),
-			distributor: t.Optional(
 				t.Object({
 					enabled: t.Literal(true),
 					percent: t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" }),

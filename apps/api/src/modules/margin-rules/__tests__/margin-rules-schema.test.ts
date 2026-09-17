@@ -20,7 +20,6 @@ const validRule = {
 	minPrice: "0",
 	maxPrice: "100",
 	customerPct: "20",
-	distributorPct: "15",
 	sortOrder: 0,
 	createdAt: new Date("2026-01-01T00:00:00Z"),
 	updatedAt: new Date("2026-01-01T00:00:00Z"),
@@ -31,7 +30,6 @@ const validCreateBody = {
 	minPrice: 0,
 	maxPrice: 100,
 	customerPct: 20,
-	distributorPct: 15,
 	sortOrder: 0,
 };
 
@@ -94,24 +92,12 @@ describe("CreateMarginRuleBody", () => {
 		expect(Value.Check(CreateMarginRuleBody, { ...validCreateBody, customerPct: 101 })).toBe(false);
 	});
 
-	it("rejects distributorPct > 100", () => {
-		expect(Value.Check(CreateMarginRuleBody, { ...validCreateBody, distributorPct: 101 })).toBe(
-			false,
-		);
-	});
-
 	it("rejects negative customerPct", () => {
 		expect(Value.Check(CreateMarginRuleBody, { ...validCreateBody, customerPct: -5 })).toBe(false);
 	});
 
-	it("accepts 0% for either role (rule is the floor)", () => {
-		expect(
-			Value.Check(CreateMarginRuleBody, {
-				...validCreateBody,
-				customerPct: 0,
-				distributorPct: 0,
-			}),
-		).toBe(true);
+	it("accepts 0% (rule is the floor)", () => {
+		expect(Value.Check(CreateMarginRuleBody, { ...validCreateBody, customerPct: 0 })).toBe(true);
 	});
 });
 
