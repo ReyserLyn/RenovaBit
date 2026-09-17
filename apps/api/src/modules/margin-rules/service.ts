@@ -26,8 +26,21 @@ async function list() {
 		.orderBy(asc(marginRules.sortOrder), desc(marginRules.createdAt));
 }
 
+/** A range must be a real interval: `maxPrice` (when set) strictly above `minPrice`. */
+function assertValidRange(minPrice: number, maxPrice: number | null): void {
+	if (maxPrice !== null && maxPrice <= minPrice) {
+		throw createApiError({
+			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+			message: "El precio máximo debe ser mayor que el mínimo",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+}
+
 async function create(data: CreateMarginRuleInput) {
 	ensureValidPercent(data.customerPct, "customerPct");
+	assertValidRange(data.minPrice, data.maxPrice ?? null);
 	await assertNoOverlap(null, data.minPrice, data.maxPrice ?? null);
 
 	const [row] = await db
@@ -93,6 +106,7 @@ async function update(id: string, data: UpdateMarginRuleInput) {
 				: current.maxPrice === null
 					? null
 					: Number(current.maxPrice);
+		assertValidRange(effectiveMin, effectiveMax);
 		await assertNoOverlap(id, effectiveMin, effectiveMax);
 	}
 

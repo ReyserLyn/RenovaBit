@@ -5,6 +5,13 @@ import { PublicOfferRef } from "../offers/model";
 
 // ── Insert / Update ────────────────────────────────
 
+/**
+ * Money fields map to Postgres `numeric(12,2)` (10 integer digits + 2
+ * decimals). Without the bound, an oversized amount reaches the DB and fails
+ * with a 500 instead of a 400.
+ */
+const MONEY_PATTERN = "^\\d{1,10}(\\.\\d{1,2})?$";
+
 const _insert = createInsertSchema(products, {
 	name: t.String({ minLength: 1, maxLength: 255 }),
 	slug: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
@@ -12,8 +19,8 @@ const _insert = createInsertSchema(products, {
 	sku: t.String({ minLength: 1, maxLength: 100 }),
 	// `price` is optional: honored for owner-managed (`manual`) products; for
 	// provider products the service derives it from supplierPrice + margins.
-	price: t.Optional(t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" })),
-	supplierPrice: t.Optional(t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" })),
+	price: t.Optional(t.String({ pattern: MONEY_PATTERN })),
+	supplierPrice: t.Optional(t.String({ pattern: MONEY_PATTERN })),
 	// Per-role custom margin overrides. Each role is independent.
 	roleCustomMargins: t.Optional(
 		t.Nullable(
@@ -65,6 +72,19 @@ const AdminProductListResponse = t.Composite([
 		createdByName: t.Nullable(t.String()),
 		updatedByName: t.Nullable(t.String()),
 		providerIds: t.Array(ProviderRef),
+		reservedStock: t.Integer({ minimum: 0 }),
+		availableStock: t.Integer({ minimum: 0 }),
+	}),
+]);
+
+/**
+ * Admin detail (GET /admin/products/:id): the product row plus availability,
+ * same shape the admin list exposes. The remaining list-only fields
+ * (images, provider ids, author names) stay out of the detail.
+ */
+const AdminProductDetailResponse = t.Composite([
+	AdminProductResponse,
+	t.Object({
 		reservedStock: t.Integer({ minimum: 0 }),
 		availableStock: t.Integer({ minimum: 0 }),
 	}),
@@ -132,6 +152,7 @@ export const PublicProductListItem = t.Object({
 	offerPrice: t.Nullable(t.String()),
 	discountPercent: t.Nullable(t.Integer({ minimum: 0, maximum: 100 })),
 	stock: t.Integer({ minimum: 0 }),
+	isInStock: t.Boolean(),
 	sku: t.String(),
 	isFeatured: t.Boolean(),
 	primaryImage: t.Nullable(PublicPrimaryImage),
@@ -169,6 +190,7 @@ export const PublicProductDetail = t.Object({
 	offerPrice: t.Nullable(t.String()),
 	discountPercent: t.Nullable(t.Integer({ minimum: 0, maximum: 100 })),
 	stock: t.Integer({ minimum: 0 }),
+	isInStock: t.Boolean(),
 	sku: t.String(),
 	specifications: t.Array(PublicSpecification),
 	images: t.Array(PublicImageRef),
@@ -252,8 +274,20 @@ export const ErrorResponse = t.Object({
 
 export const ProductModel = {
 	// Bodies
-	createBody: t.Omit(_insert, ["id", "createdAt", "updatedAt"]),
-	updateBody: t.Partial(t.Omit(_insert, ["id", "createdAt", "updatedAt"])),
+	// `createdBy`/`updatedBy` are server-owned: the routes stamp the acting admin.
+	// `managedBy` is server-owned on create (always "manual"); only the update
+	// body accepts it, for the manual ↔ provider control handover.
+	createBody: t.Omit(_insert, [
+		"id",
+		"createdAt",
+		"updatedAt",
+		"createdBy",
+		"updatedBy",
+		"managedBy",
+	]),
+	updateBody: t.Partial(
+		t.Omit(_insert, ["id", "createdAt", "updatedAt", "createdBy", "updatedBy"]),
+	),
 
 	// Params
 	idParams: t.Object({ id: t.String({ format: "uuid" }) }),
@@ -278,13 +312,13 @@ export const ProductModel = {
 		minPrice: t.Optional(
 			t.String({
 				minLength: 1,
-				pattern: "^\\d+(\\.\\d{1,2})?$",
+				pattern: MONEY_PATTERN,
 			}),
 		),
 		maxPrice: t.Optional(
 			t.String({
 				minLength: 1,
-				pattern: "^\\d+(\\.\\d{1,2})?$",
+				pattern: MONEY_PATTERN,
 			}),
 		),
 		offset: t.Optional(t.Integer({ minimum: 0, maximum: 10000, default: 0 })),
@@ -308,6 +342,7 @@ export const ProductModel = {
 
 	// Admin Responses
 	adminProductResponse: AdminProductResponse,
+	adminProductDetailResponse: AdminProductDetailResponse,
 	adminProductListResponse: t.Array(AdminProductListResponse),
 	bulkDeleteResponse: BulkDeleteResult,
 	productChangesResponse: ProductChangesResponse,
@@ -319,13 +354,13 @@ export const ProductModel = {
 		minPrice: t.Optional(
 			t.String({
 				minLength: 1,
-				pattern: "^\\d+(\\.\\d{1,2})?$",
+				pattern: MONEY_PATTERN,
 			}),
 		),
 		maxPrice: t.Optional(
 			t.String({
 				minLength: 1,
-				pattern: "^\\d+(\\.\\d{1,2})?$",
+				pattern: MONEY_PATTERN,
 			}),
 		),
 		sortBy: t.Optional(

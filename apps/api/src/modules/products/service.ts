@@ -1,19 +1,7 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import {
-	brands,
-	categories,
-	productChanges,
-	products,
-	type RoleCustomMargins,
-	syncReports,
-} from "@renovabit/db/schema";
-import {
-	applyOfferToProduct,
-	getEffectiveSalePrice,
-	type OfferInput,
-	type Role,
-} from "@renovabit/pricing";
+import { brands, categories, productChanges, products, syncReports } from "@renovabit/db/schema";
+import { getEffectiveSalePrice, type Role } from "@renovabit/pricing";
 import type { InferSelectModel } from "drizzle-orm";
 import {
 	and,
@@ -26,18 +14,19 @@ import {
 	inArray,
 	ne,
 	or,
+	type SQL,
 	sql,
 } from "drizzle-orm";
 import { MAX_BULK_DELETE, SEARCH_PAYLOAD_CAP, SLOW_QUERY_THRESHOLD_MS } from "@/constants";
+import { enrichPublicPricing } from "@/utils/catalog-enrichment";
 import { getCategoryAndDescendantIds } from "@/utils/category-helpers";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
-import { resolveSalePrice } from "@/utils/price";
 import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
-import { type ActiveOfferRef, activeOffersForProductSubquery } from "../offers/service";
+import { activeOffersForProductSubquery } from "../offers/service";
 import type {
 	BulkDeleteResult,
 	ProductModel,
@@ -59,6 +48,10 @@ export type ProductWithImage = Product & {
 	reservedStock: number;
 	availableStock: number;
 };
+
+/** Admin detail row: the product plus the availability pair the list exposes. */
+export type AdminProductDetail = Product &
+	Pick<ProductWithImage, "reservedStock" | "availableStock">;
 
 /**
  * Options for public listings. Admin `list()` ignores `limit`/`offset` —
@@ -272,8 +265,16 @@ async function getBySlug(slug: string): Promise<Product | null> {
 	return row ?? null;
 }
 
-async function getById(id: string): Promise<Product | null> {
-	const [row] = await db.select().from(products).where(eq(products.id, id)).limit(1);
+async function getById(id: string): Promise<AdminProductDetail | null> {
+	const [row] = await db
+		.select({
+			...getTableColumns(products),
+			reservedStock: sql<number>`COALESCE((${getReservedStockSubquery(products.id)})::int, 0)`,
+			availableStock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
+		})
+		.from(products)
+		.where(eq(products.id, id))
+		.limit(1);
 	return row ?? null;
 }
 
@@ -293,36 +294,6 @@ async function getByIdStrict(id: string): Promise<Product> {
 // ═══════════════════════════════════════════════════
 //  PUBLIC QUERIES
 // ═══════════════════════════════════════════════════
-
-/**
- * Computes offer price enrichment for a single product row.
- * Returns null offerPrice and 0 discount when no offer applies or role is admin.
- * Role-aware: admin sees null/0, customer sees the computed offer.
- */
-function computeOfferEnrichment(
-	salePrice: number,
-	offers: ActiveOfferRef[],
-	role: Role,
-): { offerPrice: string | null; discountPercent: number } {
-	if (role === "admin" || !offers.length) {
-		return { offerPrice: null, discountPercent: 0 };
-	}
-
-	const offerInputs: OfferInput[] = offers.map((o) => ({
-		id: o.id,
-		discountValue: Number.parseFloat(o.discountValue) || 0,
-	}));
-
-	const result = applyOfferToProduct(salePrice, offerInputs, role);
-
-	const discountPercent =
-		salePrice > 0 ? Math.round(((salePrice - result.discountedPrice) / salePrice) * 100) : 0;
-
-	return {
-		offerPrice: result.discountedPrice < salePrice ? result.discountedPrice.toFixed(2) : null,
-		discountPercent,
-	};
-}
 
 async function listPublic(
 	options: ListOptions = {},
@@ -377,96 +348,155 @@ async function listPublic(
 	const resolvedOptions: ListOptions = { ...options, brandId: resolvedBrandId };
 	const where = buildWhere(resolvedOptions, true, categoryIds);
 
-	// ── Count total ──
-	const [countRow] = await db
-		.select({ total: count(products.id) })
-		.from(products)
-		.where(where);
-
-	const total = Number(countRow?.total ?? 0);
 	const offset = resolvedOptions.offset ?? 0;
 	const limit = resolvedOptions.limit ?? 20;
+	const role: Role = resolvedOptions.role ?? "customer";
+	const sortBy = resolvedOptions.sortBy;
 
-	// ── Query paginada ──
-	const rows = await db
-		.select({
-			id: products.id,
-			name: products.name,
-			slug: products.slug,
-			supplierPrice: products.supplierPrice,
-			roleCustomMargins: products.roleCustomMargins,
-			managedBy: products.managedBy,
-			price: products.price,
-			stock: sql<number>`GREATEST(0, ${products.stock} - (${getReservedStockSubquery(products.id)})::int)`,
-			sku: products.sku,
-			isFeatured: products.isFeatured,
-			primaryImageUrl: sql<string | null>`(
+	// ── Pagination strategy (two routes) ──
+	// Role-aware pricing (margins + best offer) happens in JS after the fetch,
+	// so price filtering and price sorting cannot be expressed in SQL:
+	// `products.price` is the stored list price — stale for other roles and for
+	// the effective (offer-aware) price. When either is requested, SQL
+	// LIMIT/OFFSET would cut the wrong window and COUNT would include rows the
+	// JS filter drops (gaps between pages, inflated total). Fetch the whole
+	// WHERE set, enrich, then filter/sort/slice in JS. Otherwise SQL
+	// LIMIT/OFFSET + COUNT is exact and cheap.
+	//
+	// TODO(perf): if the catalog grows much larger, materialize the effective
+	// price (per role + best offer) and paginate it in SQL.
+	const priceMin = options.minPrice ? Number.parseFloat(options.minPrice) : null;
+	const priceMax = options.maxPrice ? Number.parseFloat(options.maxPrice) : null;
+	const hasPriceFilter = priceMin !== null || priceMax !== null;
+	const needsJsPagination = hasPriceFilter || sortBy === "price_asc" || sortBy === "price_desc";
+
+	const selectRows = () =>
+		db
+			.select({
+				id: products.id,
+				name: products.name,
+				slug: products.slug,
+				supplierPrice: products.supplierPrice,
+				roleCustomMargins: products.roleCustomMargins,
+				managedBy: products.managedBy,
+				price: products.price,
+				stock: sql<number>`GREATEST(0, ${products.stock} - (${getReservedStockSubquery(products.id)})::int)`,
+				sku: products.sku,
+				isFeatured: products.isFeatured,
+				primaryImageUrl: sql<string | null>`(
 				SELECT pi.url FROM product_images pi
 				WHERE pi.product_id = ${products.id}
 				ORDER BY pi.is_primary DESC, pi.sort_order ASC NULLS LAST
 				LIMIT 1
 			)`,
-			primaryImageAlt: sql<string | null>`(
+				primaryImageAlt: sql<string | null>`(
 				SELECT pi.alt FROM product_images pi
 				WHERE pi.product_id = ${products.id}
 				ORDER BY pi.is_primary DESC, pi.sort_order ASC NULLS LAST
 				LIMIT 1
 			)`,
-			brandId: brands.id,
-			brandName: brands.name,
-			brandSlug: brands.slug,
-			categoryId: categories.id,
-			categoryName: categories.name,
-			categorySlug: categories.slug,
-			offers: activeOffersForProductSubquery(),
-		})
-		.from(products)
-		.leftJoin(brands, eq(products.brandId, brands.id))
-		.leftJoin(categories, eq(products.categoryId, categories.id))
-		.where(where)
-		.orderBy(...buildOrderBy(resolvedOptions.sortBy))
-		.offset(offset)
-		.limit(limit);
+				brandId: brands.id,
+				brandName: brands.name,
+				brandSlug: brands.slug,
+				categoryId: categories.id,
+				categoryName: categories.name,
+				categorySlug: categories.slug,
+				offers: activeOffersForProductSubquery(),
+			})
+			.from(products)
+			.leftJoin(brands, eq(products.brandId, brands.id))
+			.leftJoin(categories, eq(products.categoryId, categories.id))
+			.where(where)
+			.orderBy(...buildOrderBy(sortBy));
+
+	const rawRows = needsJsPagination
+		? await selectRows()
+		: await selectRows().offset(offset).limit(limit);
+	type Row = (typeof rawRows)[number];
+
+	// SQL path: count the full WHERE set. JS path: the exact total is computed
+	// after pricing/filtering below.
+	let total = 0;
+	if (!needsJsPagination) {
+		const [countRow] = await db
+			.select({ total: count(products.id) })
+			.from(products)
+			.where(where);
+		total = Number(countRow?.total ?? 0);
+	}
 
 	const marginRules = await getActiveMarginRules();
-	const role: Role = resolvedOptions.role ?? "customer";
 
-	// Filter by role-specific price (post-filter in JS, not SQL — role-aware
-	// pricing can't be expressed in a single SQL WHERE clause)
-	const filteredByMin = options.minPrice ? Number(options.minPrice) : null;
-	const filteredByMax = options.maxPrice ? Number(options.maxPrice) : null;
+	type Enriched = {
+		row: Row;
+		basePrice: number;
+		offerPrice: string | null;
+		discountPercent: number;
+		effectivePrice: number;
+	};
 
-	const data = rows
-		.map((row) => {
-			const salePrice = resolveSalePrice(row, role, marginRules);
-			const { offerPrice, discountPercent } = computeOfferEnrichment(salePrice, row.offers, role);
-			return {
-				id: row.id,
-				name: row.name,
-				slug: row.slug,
-				price: salePrice.toFixed(2),
-				priceValue: salePrice,
-				offerPrice,
-				discountPercent,
-				stock: row.stock,
-				sku: row.sku,
-				isFeatured: row.isFeatured,
-				primaryImage: row.primaryImageUrl
-					? { url: row.primaryImageUrl, alt: row.primaryImageAlt }
-					: null,
-				brand: row.brandId ? { id: row.brandId, name: row.brandName!, slug: row.brandSlug! } : null,
-				category: row.categoryId
-					? { id: row.categoryId, name: row.categoryName!, slug: row.categorySlug! }
-					: null,
-				offers: row.offers,
-			};
-		})
-		.filter((row) => {
-			if (filteredByMin !== null && row.priceValue < filteredByMin) return false;
-			if (filteredByMax !== null && row.priceValue > filteredByMax) return false;
+	let enriched: Enriched[] = rawRows.map((row) => {
+		const { salePrice, offerPriceStr, discountPercent, effectivePrice } = enrichPublicPricing({
+			row,
+			role,
+			marginRules,
+		});
+		return {
+			row,
+			basePrice: salePrice,
+			offerPrice: offerPriceStr,
+			discountPercent,
+			effectivePrice,
+		};
+	});
+
+	if (needsJsPagination) {
+		enriched = enriched.filter(({ effectivePrice }) => {
+			if (priceMin !== null && effectivePrice < priceMin) return false;
+			if (priceMax !== null && effectivePrice > priceMax) return false;
 			return true;
-		})
-		.map(({ priceValue: _pv, ...rest }) => rest);
+		});
+
+		// Effective-price sort: the stored column can disagree with the
+		// offer-aware price. The id tiebreak keeps pages stable.
+		if (sortBy === "price_asc") {
+			enriched.sort(
+				(a, b) => a.effectivePrice - b.effectivePrice || a.row.id.localeCompare(b.row.id),
+			);
+		} else if (sortBy === "price_desc") {
+			enriched.sort(
+				(a, b) => b.effectivePrice - a.effectivePrice || a.row.id.localeCompare(b.row.id),
+			);
+		}
+
+		total = enriched.length;
+	}
+
+	// SQL path is already paginated; JS path slices after enriching/filtering.
+	const paginated = needsJsPagination ? enriched.slice(offset, offset + limit) : enriched;
+
+	const data: PublicProductListItem[] = paginated.map(
+		({ row, basePrice, offerPrice, discountPercent }) => ({
+			id: row.id,
+			name: row.name,
+			slug: row.slug,
+			price: basePrice.toFixed(2),
+			offerPrice,
+			discountPercent,
+			stock: row.stock,
+			isInStock: row.stock > 0,
+			sku: row.sku,
+			isFeatured: row.isFeatured,
+			primaryImage: row.primaryImageUrl
+				? { url: row.primaryImageUrl, alt: row.primaryImageAlt }
+				: null,
+			brand: row.brandId ? { id: row.brandId, name: row.brandName!, slug: row.brandSlug! } : null,
+			category: row.categoryId
+				? { id: row.categoryId, name: row.categoryName!, slug: row.categorySlug! }
+				: null,
+			offers: row.offers,
+		}),
+	);
 
 	return { data, total, offset, limit };
 }
@@ -520,19 +550,22 @@ async function getBySlugPublic(
 	if (!row) return null;
 
 	const marginRules = await getActiveMarginRules();
-	const salePrice = resolveSalePrice(row, role, marginRules);
-
-	const { offerPrice, discountPercent } = computeOfferEnrichment(salePrice, row.offers, role);
+	const { basePriceStr, offerPriceStr, discountPercent } = enrichPublicPricing({
+		row,
+		role,
+		marginRules,
+	});
 
 	return {
 		id: row.id,
 		name: row.name,
 		slug: row.slug,
 		description: row.description,
-		price: salePrice.toFixed(2),
-		offerPrice,
+		price: basePriceStr,
+		offerPrice: offerPriceStr,
 		discountPercent,
 		stock: row.stock,
+		isInStock: row.stock > 0,
 		sku: row.sku,
 		specifications: row.specifications ?? [],
 		images: row.images,
@@ -570,8 +603,10 @@ async function create(data: CreateBody, userId: string): Promise<Product> {
 	await ensureBrandExists(data.brandId);
 	await ensureCategoryExists(data.categoryId);
 
-	// Admin-created products are owner-managed (`manual`): the price sent in the
-	// body is respected. Without one, seed `price` from supplierPrice + margins.
+	// Admin-created products are owner-managed (`manual`) — that is server-owned:
+	// `managedBy` is excluded from createBody, so no client input can flip it.
+	// The price sent in the body is respected; without one, seed `price` from
+	// supplierPrice + margins.
 	const supplierPrice = data.supplierPrice ?? "0";
 	const marginRules = await getActiveMarginRules();
 	const { salePrice } = getEffectiveSalePrice(
@@ -662,6 +697,21 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Pro
 	const isManualProduct = nextManagedBy === "manual";
 
 	const pricingTouched = patch.supplierPrice !== undefined || patch.roleCustomMargins !== undefined;
+
+	// Provider products must have a real cost: with supplierPrice 0 they would
+	// display and sell at S/ 0.00 until the next sync corrects them.
+	if (!isManualProduct && (pricingTouched || current.managedBy === "manual")) {
+		const effectiveSupplierPrice = Number.parseFloat(patch.supplierPrice ?? current.supplierPrice);
+		if (!Number.isFinite(effectiveSupplierPrice) || effectiveSupplierPrice <= 0) {
+			throw createApiError({
+				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+				message: "Un producto del proveedor necesita un costo (supplierPrice) mayor a 0",
+				logLevel: "info",
+				doNotLog: true,
+			});
+		}
+	}
+
 	let computedPrice: string | undefined;
 	if (pricingTouched) {
 		const supplierPrice = patch.supplierPrice ?? current.supplierPrice;
@@ -723,6 +773,38 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Pro
 					? "Control manual del producto: el sync deja de escribir stock y precio"
 					: "Control devuelto al proveedor",
 		});
+	}
+
+	// Audit real price/stock edits from the panel (`item` carries the stored
+	// values after the update; provider products only change price when their
+	// pricing inputs changed). Nothing is logged when the value is unchanged.
+	const auditRows: Array<typeof productChanges.$inferInsert> = [];
+	if (Number(item.price) !== Number(current.price)) {
+		auditRows.push({
+			productId: id,
+			userId,
+			source: "admin",
+			changeType: "price_changed",
+			field: "price",
+			oldValue: { price: current.price },
+			newValue: { price: item.price },
+			reason: "Edición manual desde el panel",
+		});
+	}
+	if (item.stock !== current.stock) {
+		auditRows.push({
+			productId: id,
+			userId,
+			source: "admin",
+			changeType: "stock_changed",
+			field: "stock",
+			oldValue: { stock: current.stock },
+			newValue: { stock: item.stock },
+			reason: "Edición manual desde el panel",
+		});
+	}
+	if (auditRows.length > 0) {
+		await db.insert(productChanges).values(auditRows);
 	}
 
 	return item;
@@ -808,27 +890,36 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 
 // ── Product Changes (historial) ───────────────────
 
+/** Product history page + the real total (the page itself is capped at `limit`). */
 async function getChanges(productId: string, limit = 200, offset = 0) {
-	return db
-		.select({
-			id: productChanges.id,
-			syncReportId: productChanges.syncReportId,
-			reportTrigger: syncReports.trigger,
-			reportStartedAt: syncReports.startedAt,
-			changeType: productChanges.changeType,
-			field: productChanges.field,
-			oldValue: productChanges.oldValue,
-			newValue: productChanges.newValue,
-			reason: productChanges.reason,
-			source: productChanges.source,
-			createdAt: productChanges.createdAt,
-		})
-		.from(productChanges)
-		.leftJoin(syncReports, eq(productChanges.syncReportId, syncReports.id))
-		.where(eq(productChanges.productId, productId))
-		.orderBy(desc(productChanges.createdAt))
-		.limit(limit)
-		.offset(offset);
+	const [[countRow], changes] = await Promise.all([
+		db
+			.select({ total: sql<number>`COUNT(*)::int` })
+			.from(productChanges)
+			.where(eq(productChanges.productId, productId)),
+		db
+			.select({
+				id: productChanges.id,
+				syncReportId: productChanges.syncReportId,
+				reportTrigger: syncReports.trigger,
+				reportStartedAt: syncReports.startedAt,
+				changeType: productChanges.changeType,
+				field: productChanges.field,
+				oldValue: productChanges.oldValue,
+				newValue: productChanges.newValue,
+				reason: productChanges.reason,
+				source: productChanges.source,
+				createdAt: productChanges.createdAt,
+			})
+			.from(productChanges)
+			.leftJoin(syncReports, eq(productChanges.syncReportId, syncReports.id))
+			.where(eq(productChanges.productId, productId))
+			.orderBy(desc(productChanges.createdAt))
+			.limit(limit)
+			.offset(offset),
+	]);
+
+	return { changes, total: countRow?.total ?? 0 };
 }
 
 /**
@@ -854,16 +945,20 @@ function isTsqueryError(error: unknown): boolean {
 function buildSearchOrder(
 	sortBy: string | undefined,
 	searchVector: ReturnType<typeof sql.identifier>,
-	tsQuery: ReturnType<typeof sql>,
+	tsQuery: SQL | null,
 	searchTerm: string,
 ) {
 	if (!sortBy || sortBy === "relevance") {
-		return [
+		const clauses: SQL[] = [
 			sql`(GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0)) > 0) DESC`,
-			sql`ts_rank_cd(${searchVector}, ${tsQuery}) DESC`,
+		];
+		// Without a valid tsquery (SKU-only fallback) there is no relevance to rank.
+		if (tsQuery) clauses.push(sql`ts_rank_cd(${searchVector}, ${tsQuery}) DESC`);
+		clauses.push(
 			sql`CASE WHEN ${products.sku} ILIKE ${`${escapeLikePattern(searchTerm)}%`} THEN 0 ELSE 1 END`,
 			asc(products.id),
-		];
+		);
+		return clauses;
 	}
 
 	const entry = isSortByKey(sortBy) ? SORT_MAP[sortBy] : undefined;
@@ -899,10 +994,11 @@ async function search(
 
 	// Build a prefix-aware tsquery so "3200" matches "3200MHz", "3200DPI", etc.
 	const prefixQuery = buildPrefixTsQuery(searchTerm);
-	if (!prefixQuery) {
-		// All tokens stripped by sanitization — no FTS to run, fall through to SKU only
-		return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
-	}
+	// Sanitization may strip every token (e.g. "!!!"): with no valid tsquery the
+	// search falls back to a SKU prefix match instead of returning nothing, so
+	// SKUs holding symbols the FTS tokenizer drops still resolve.
+	const tsQuery = prefixQuery ? sql`to_tsquery('spanish', ${prefixQuery})` : null;
+	const skuPrefixPattern = `${escapeLikePattern(searchTerm)}%`;
 
 	const start = performance.now();
 	// Sanitize the user query for logging: strip control/format chars, redact PII, cap length.
@@ -920,19 +1016,17 @@ async function search(
 		// Bound log payload size; schema already caps q at 100 chars, this is defense in depth
 		.slice(0, SEARCH_PAYLOAD_CAP);
 
-	const tsQuery = sql`to_tsquery('spanish', ${prefixQuery})`;
-
 	// search_vector is a GENERATED column from 0001_product_search.sql — not in Drizzle schema
 	const searchVector = sql.identifier("search_vector");
 
 	// ── Build WHERE conditions ──
+	const matchCondition = tsQuery
+		? or(sql`${searchVector} @@ ${tsQuery}`, ilike(products.sku, skuPrefixPattern))
+		: ilike(products.sku, skuPrefixPattern);
 	const conditions: ReturnType<typeof and>[] = [
 		eq(products.isActive, true),
 		eq(products.needsReview, false),
-		or(
-			sql`${searchVector} @@ ${tsQuery}`,
-			ilike(products.sku, `${escapeLikePattern(searchTerm)}%`),
-		),
+		matchCondition,
 	];
 
 	// Brand filter: resolve comma-separated slugs to IDs
@@ -960,59 +1054,21 @@ async function search(
 
 	const where = and(...conditions);
 
-	// ── Count total ──
-	let total = 0;
-	try {
-		const [countRow] = await db
-			.select({ total: count(products.id) })
-			.from(products)
-			.where(where);
-		total = Number(countRow?.total ?? 0);
-	} catch (error) {
-		logger
-			.withMetadata({
-				event: "search.tsquery.malformed",
-				query: safeQuery,
-				stage: "count",
-				durationMs: Math.round(performance.now() - start),
-			})
-			.warn("search received malformed tsquery input");
-		if (isTsqueryError(error)) {
-			return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
-		}
-		throw error;
-	}
+	// ── Pagination strategy (same two-route rule as listPublic) ──
+	// The effective price is role-aware and offer-aware (JS-only), so a price
+	// filter or a price sort cannot ride SQL LIMIT/OFFSET without cutting the
+	// wrong window (and COUNT would include rows the filter drops). Fetch the
+	// full match set and page in JS then; otherwise SQL LIMIT/OFFSET + COUNT
+	// is exact.
+	//
+	// TODO(perf): materialize the effective price if the catalog grows.
+	const priceMin = minPrice ? Number.parseFloat(minPrice) : null;
+	const priceMax = maxPrice ? Number.parseFloat(maxPrice) : null;
+	const hasPriceFilter = priceMin !== null || priceMax !== null;
+	const needsJsPagination = hasPriceFilter || sortBy === "price_asc" || sortBy === "price_desc";
 
-	// ── Query paginada ──
-	let rows: Array<{
-		id: string;
-		name: string;
-		slug: string;
-		sku: string;
-		supplierPrice: string;
-		roleCustomMargins: RoleCustomMargins | null;
-		isFeatured: boolean;
-		stock: number;
-		isInStock: boolean;
-		primaryImageUrl: string | null;
-		primaryImageAlt: string | null;
-		brandName: string | null;
-		brandSlug: string | null;
-		categoryName: string | null;
-		categorySlug: string | null;
-		headline: string | null;
-		offers: Array<{
-			id: string;
-			name: string;
-			slug: string;
-			discountValue: string;
-			isFeatured: boolean;
-			endsAt: Date;
-		}>;
-	}> = [];
-
-	try {
-		rows = await db
+	const selectRows = () =>
+		db
 			.select({
 				id: products.id,
 				name: products.name,
@@ -1041,43 +1097,130 @@ async function search(
 				brandSlug: brands.slug,
 				categoryName: categories.name,
 				categorySlug: categories.slug,
-				headline: sql<
-					string | null
-				>`ts_headline('spanish', ${products.name}, ${tsQuery}, 'MaxFragments=1,MaxWords=15,MinWords=5,StartSel=\u0001,StopSel=\u0002')`,
+				headline: tsQuery
+					? sql<
+							string | null
+						>`ts_headline('spanish', ${products.name}, ${tsQuery}, 'MaxFragments=1,MaxWords=15,MinWords=5,StartSel=\u0001,StopSel=\u0002')`
+					: sql<string | null>`NULL`,
 				offers: activeOffersForProductSubquery(),
 			})
 			.from(products)
 			.leftJoin(brands, eq(products.brandId, brands.id))
 			.leftJoin(categories, eq(products.categoryId, categories.id))
 			.where(where)
-			.orderBy(...buildSearchOrder(sortBy, searchVector, tsQuery, searchTerm))
-			.offset(pageOffset)
-			.limit(pageLimit);
-	} catch (error) {
-		logger
-			.withMetadata({
-				event: "search.tsquery.malformed",
-				query: safeQuery,
-				stage: "data",
-				durationMs: Math.round(performance.now() - start),
-			})
-			.warn("search received malformed tsquery input");
-		if (isTsqueryError(error)) {
-			return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
+			.orderBy(...buildSearchOrder(sortBy, searchVector, tsQuery, searchTerm));
+
+	// Malformed tsquery (SQLSTATE 42601/22P02) → warn + empty result, as before.
+	const runSearchQuery = async () => {
+		try {
+			return needsJsPagination
+				? await selectRows()
+				: await selectRows().offset(pageOffset).limit(pageLimit);
+		} catch (error) {
+			logger
+				.withMetadata({
+					event: "search.tsquery.malformed",
+					query: safeQuery,
+					stage: "data",
+					durationMs: Math.round(performance.now() - start),
+				})
+				.warn("search received malformed tsquery input");
+			if (isTsqueryError(error)) return null;
+			throw error;
 		}
-		throw error;
+	};
+
+	const rawRows = await runSearchQuery();
+	if (!rawRows) {
+		return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
+	}
+	type Row = (typeof rawRows)[number];
+
+	// ── Total ──
+	// SQL path: count every match. JS path: exact count after pricing/filtering.
+	let total = 0;
+	if (!needsJsPagination) {
+		try {
+			const [countRow] = await db
+				.select({ total: count(products.id) })
+				.from(products)
+				.where(where);
+			total = Number(countRow?.total ?? 0);
+		} catch (error) {
+			logger
+				.withMetadata({
+					event: "search.tsquery.malformed",
+					query: safeQuery,
+					stage: "count",
+					durationMs: Math.round(performance.now() - start),
+				})
+				.warn("search received malformed tsquery input");
+			if (isTsqueryError(error)) {
+				return { data: [], total: 0, limit: pageLimit, offset: pageOffset, hasMore: false };
+			}
+			throw error;
+		}
 	}
 
 	const marginRules = await getActiveMarginRules();
-	const data = rows.map((row): ProductSearchResult => {
-		const salePrice = resolveSalePrice(row, role, marginRules);
-		const { offerPrice, discountPercent } = computeOfferEnrichment(salePrice, row.offers, role);
+
+	type Enriched = {
+		row: Row;
+		basePrice: number;
+		offerPrice: string | null;
+		discountPercent: number;
+		effectivePrice: number;
+	};
+
+	let enriched: Enriched[] = rawRows.map((row) => {
+		const { salePrice, offerPriceStr, discountPercent, effectivePrice } = enrichPublicPricing({
+			row,
+			role,
+			marginRules,
+		});
 		return {
+			row,
+			basePrice: salePrice,
+			offerPrice: offerPriceStr,
+			discountPercent,
+			effectivePrice,
+		};
+	});
+
+	if (needsJsPagination) {
+		enriched = enriched.filter(({ effectivePrice }) => {
+			if (priceMin !== null && effectivePrice < priceMin) return false;
+			if (priceMax !== null && effectivePrice > priceMax) return false;
+			return true;
+		});
+
+		// Effective-price sort: the stored column can disagree with the
+		// offer-aware price. The id tiebreak keeps pages stable.
+		if (sortBy === "price_asc") {
+			enriched.sort(
+				(a, b) => a.effectivePrice - b.effectivePrice || a.row.id.localeCompare(b.row.id),
+			);
+		} else if (sortBy === "price_desc") {
+			enriched.sort(
+				(a, b) => b.effectivePrice - a.effectivePrice || a.row.id.localeCompare(b.row.id),
+			);
+		}
+
+		total = enriched.length;
+	}
+
+	// SQL path is already paginated; JS path slices after enriching/filtering.
+	const paginated = needsJsPagination
+		? enriched.slice(pageOffset, pageOffset + pageLimit)
+		: enriched;
+
+	const data = paginated.map(
+		({ row, basePrice, offerPrice, discountPercent }): ProductSearchResult => ({
 			id: row.id,
 			name: row.name,
 			slug: row.slug,
 			sku: row.sku,
-			price: salePrice.toFixed(2),
+			price: basePrice.toFixed(2),
 			offerPrice,
 			discountPercent,
 			isInStock: row.isInStock,
@@ -1090,8 +1233,8 @@ async function search(
 			category: row.categoryName ? { name: row.categoryName, slug: row.categorySlug! } : null,
 			headline: row.headline,
 			offers: row.offers,
-		};
-	});
+		}),
+	);
 
 	const durationMs = Math.round(performance.now() - start);
 

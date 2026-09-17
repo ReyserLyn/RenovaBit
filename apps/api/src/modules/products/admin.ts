@@ -46,7 +46,7 @@ export const adminProductsRoute = new Elysia({ prefix: "/products" })
 			isAdmin: true,
 			params: ProductModel.idParams,
 			response: {
-				200: ProductModel.adminProductResponse,
+				200: ProductModel.adminProductDetailResponse,
 				401: ErrorResponse,
 				403: ErrorResponse,
 				404: ErrorResponse,
@@ -166,14 +166,19 @@ export const adminProductsRoute = new Elysia({ prefix: "/products" })
 	.get(
 		"/:id/changes",
 		async ({ params: { id } }) => {
-			const changes = await ProductService.getChanges(id);
+			// A missing product must 404, not return an empty history 200.
+			const product = await ProductService.getById(id);
+			if (!product) throw notFound("Producto no encontrado");
+
+			const { changes, total } = await ProductService.getChanges(id);
 			return {
 				changes: changes.map((c) => ({
 					...c,
 					reportStartedAt: c.reportStartedAt?.toISOString() ?? null,
 					createdAt: c.createdAt.toISOString(),
 				})),
-				total: changes.length,
+				// Real count of all rows (the page itself is capped at 200).
+				total,
 			};
 		},
 		{
@@ -183,6 +188,7 @@ export const adminProductsRoute = new Elysia({ prefix: "/products" })
 				200: ProductModel.productChangesResponse,
 				401: ErrorResponse,
 				403: ErrorResponse,
+				404: ErrorResponse,
 			},
 			detail: { summary: "Historial de cambios del producto", tags: ["Products"] },
 		},

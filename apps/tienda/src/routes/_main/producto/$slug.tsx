@@ -122,7 +122,7 @@ function ProductPage() {
 			? window.location.href
 			: `${getSiteUrl()}/producto/${product.slug}`;
 	const whatsappMessage = encodeURIComponent(
-		`Hola, me interesa "${product.name}" (SKU: ${product.sku}) - ${formatPrice(product.price)}\n\n${productUrl}`,
+		`Hola, me interesa "${product.name}" (SKU: ${product.sku}) - ${formatPrice(product.offerPrice ?? product.price)}\n\n${productUrl}`,
 	);
 
 	return (

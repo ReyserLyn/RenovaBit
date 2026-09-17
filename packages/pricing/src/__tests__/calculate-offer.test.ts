@@ -46,16 +46,16 @@ describe("applyOfferToProduct — role guard", () => {
 	});
 });
 
-describe("applyOfferToProduct — stacked offers cap (100%)", () => {
-	it("caps stacked offers at 100% of salePrice", () => {
-		// 60% + 50% = 110%, capped at 100% → free product
+describe("applyOfferToProduct — best offer wins (no stacking)", () => {
+	it("applies only the largest discount when offers overlap", () => {
+		// 60% and 50% active: the 60% wins, they do NOT sum to 110%
 		const result = applyOfferToProduct(
 			100,
 			[{ discountValue: 60 }, { discountValue: 50 }],
 			"customer",
 		);
-		expect(result.discountedPrice).toBe(0);
-		expect(result.totalDiscount).toBe(100);
+		expect(result.discountedPrice).toBe(40);
+		expect(result.totalDiscount).toBe(60);
 	});
 
 	it("allows a single offer up to 100% off", () => {
@@ -64,14 +64,20 @@ describe("applyOfferToProduct — stacked offers cap (100%)", () => {
 		expect(result.totalDiscount).toBe(100);
 	});
 
-	it("does not cap below 100% when stacked offers total less", () => {
-		// 30% + 20% = 50%, well under the 100% cap
+	it("caps the best discount at 100%", () => {
+		const result = applyOfferToProduct(100, [{ discountValue: 150 }], "customer");
+		expect(result.discountedPrice).toBe(0);
+		expect(result.totalDiscount).toBe(100);
+	});
+
+	it("ignores lower overlapping offers entirely", () => {
+		// 30% beats 20%: the price uses only the 30%
 		const result = applyOfferToProduct(
 			100,
 			[{ discountValue: 30 }, { discountValue: 20 }],
 			"customer",
 		);
-		expect(result.discountedPrice).toBe(50);
-		expect(result.totalDiscount).toBe(50);
+		expect(result.discountedPrice).toBe(70);
+		expect(result.totalDiscount).toBe(30);
 	});
 });

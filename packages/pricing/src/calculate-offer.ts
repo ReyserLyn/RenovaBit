@@ -26,27 +26,28 @@ export type OfferResult = {
  * Pure function that computes the offer price from a list of offers,
  * unconditionally (no role checking).
  *
- * Multiple offers stack, capped at MAX_OFFER_DISCOUNT_PERCENT of the sale price.
+ * Only the BEST offer applies — the largest discount percentage wins,
+ * discounts never stack. This matches marketplace conventions and prevents
+ * accidental deep discounts when campaigns overlap.
  *
  * @param salePrice - The product's base sale price
  * @param offers - Array of offers to apply (all are percentage-based)
- * @returns The discounted price and total discount amount
+ * @returns The discounted price and discount amount
  */
 export function computeOfferPrice(salePrice: number, offers: OfferInput[]): OfferResult {
 	if (salePrice <= 0 || offers.length === 0) {
 		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
 	}
 
-	const totalRawDiscount = offers.reduce<number>((sum, offer) => {
-		const effectiveValue = Math.max(0, offer.discountValue);
-		return sum + salePrice * (effectiveValue / 100);
-	}, 0);
+	const bestPercent = Math.min(
+		MAX_OFFER_DISCOUNT_PERCENT,
+		offers.reduce((best, offer) => Math.max(best, Math.max(0, offer.discountValue)), 0),
+	);
 
-	const cap = salePrice * (MAX_OFFER_DISCOUNT_PERCENT / 100);
-	const cappedDiscount = roundCurrency(Math.min(totalRawDiscount, cap));
-	const discountedPrice = roundCurrency(Math.max(0, salePrice - cappedDiscount));
+	const discount = roundCurrency(salePrice * (bestPercent / 100));
+	const discountedPrice = roundCurrency(Math.max(0, salePrice - discount));
 
-	return { discountedPrice, totalDiscount: cappedDiscount };
+	return { discountedPrice, totalDiscount: discount };
 }
 
 /**

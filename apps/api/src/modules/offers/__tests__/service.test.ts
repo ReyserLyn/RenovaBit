@@ -11,9 +11,11 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
 import { db } from "@renovabit/db";
 import { brands, offerProducts, offers, products, users } from "@renovabit/db/schema";
+import { applyOfferToProduct, getEffectiveSalePrice } from "@renovabit/pricing";
 import { Value } from "@sinclair/typebox/value";
 import { and, eq, inArray } from "drizzle-orm";
 import { makeSlug } from "@/utils/db-helpers";
+import { getActiveMarginRules } from "@/utils/margin-rules";
 import { OfferModel } from "../model";
 import { OfferService } from "../service";
 
@@ -25,6 +27,9 @@ import { OfferService } from "../service";
 function uniqueSlug(label = "test"): string {
 	return `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+/** Unique suffix for fixtures that need several coordinated values. */
+const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 /**
  * DB-dependent describes use this so they are skipped when no DB is
@@ -99,6 +104,7 @@ beforeAll(async () => {
 // ── Cleanup tracking ─────────────────────────────────────
 
 const createdOfferIds: string[] = [];
+const createdProductIds: string[] = [];
 
 async function cleanupOffers() {
 	if (createdOfferIds.length > 0) {
@@ -108,8 +114,19 @@ async function cleanupOffers() {
 	}
 }
 
+async function cleanupProducts() {
+	if (createdProductIds.length > 0) {
+		// Junction rows also cascade with the product; deleting them explicitly
+		// keeps the cleanup order obvious.
+		await db.delete(offerProducts).where(inArray(offerProducts.productId, createdProductIds));
+		await db.delete(products).where(inArray(products.id, createdProductIds));
+		createdProductIds.length = 0;
+	}
+}
+
 afterEach(async () => {
 	await cleanupOffers();
+	await cleanupProducts();
 });
 
 // ── Pure logic tests (no DB) ────────────────────────────
@@ -561,9 +578,131 @@ describeDb("OfferService (DB)", () => {
 				}
 			}
 		});
+
+		it("paginates the price-filtered product set without repeating page 1", async () => {
+			const marginRules = await getActiveMarginRules();
+			const suppliers = [100, 200, 300, 400, 500];
+			const discountValue = 10;
+
+			const inserted = await db
+				.insert(products)
+				.values(
+					suppliers.map((price, i) => ({
+						name: `OfferPrice ${i} ${suffix}`,
+						slug: `offer-price-${i}-${suffix}`,
+						sku: `OFFERPRICE-${i}-${suffix}`,
+						price: price.toFixed(2),
+						supplierPrice: price.toFixed(2),
+						roleCustomMargins: { customer: { enabled: true as const, percent: "0" } },
+						stock: 10,
+					})),
+				)
+				.returning({
+					id: products.id,
+					supplierPrice: products.supplierPrice,
+					roleCustomMargins: products.roleCustomMargins,
+				});
+			createdProductIds.push(...inserted.map((p) => p.id));
+
+			const offer = await OfferService.create(
+				{
+					name: `Offer Price Page ${suffix}`,
+					slug: uniqueSlug("offer-price-page"),
+					discountValue,
+					startsAt: new Date(Date.now() - 86_400_000).toISOString(),
+					endsAt: new Date(Date.now() + 86_400_000).toISOString(),
+					isActive: true,
+					productIds: inserted.map((p) => p.id),
+				},
+				testUserId,
+			);
+			createdOfferIds.push(offer.id);
+
+			// Expected effective prices from the pricing SSOT, never from the
+			// service output.
+			const effective = inserted
+				.map((p) => ({
+					id: p.id,
+					price: applyOfferToProduct(
+						getEffectiveSalePrice(
+							{ supplierPrice: p.supplierPrice, roleCustomMargins: p.roleCustomMargins },
+							"customer",
+							marginRules,
+						).salePrice,
+						[{ id: offer.id, discountValue }],
+						"customer",
+					).discountedPrice,
+				}))
+				.sort((a, b) => a.price - b.price);
+			expect(effective.length).toBe(5);
+
+			const minPrice = effective[1]!.price;
+			const maxPrice = effective[4]!.price;
+			const matching = effective.filter((e) => e.price >= minPrice && e.price <= maxPrice);
+			expect(matching.length).toBeLessThan(effective.length); // the filter must filter
+			expect(matching.length).toBeGreaterThan(1);
+
+			const page1 = await OfferService.getOffersWithProducts("customer", {
+				offerId: offer.id,
+				productsOffset: 0,
+				productsLimit: 2,
+				minPrice: String(minPrice),
+				maxPrice: String(maxPrice),
+			});
+			const page2 = await OfferService.getOffersWithProducts("customer", {
+				offerId: offer.id,
+				productsOffset: 2,
+				productsLimit: 2,
+				minPrice: String(minPrice),
+				maxPrice: String(maxPrice),
+			});
+
+			const section1 = page1.offers[0]!;
+			const section2 = page2.offers[0]!;
+			expect(section1.products.total).toBe(matching.length);
+			expect(section2.products.total).toBe(matching.length);
+			expect(section1.products.items.map((i) => i.id)).toEqual(
+				matching.slice(0, 2).map((m) => m.id),
+			);
+			expect(section2.products.items.map((i) => i.id)).toEqual(matching.slice(2).map((m) => m.id));
+			expect(section1.products.nextOffset).toBe(2);
+			expect(section2.products.nextOffset).toBeNull();
+
+			const seen = new Set(
+				[...section1.products.items, ...section2.products.items].map((i) => i.id),
+			);
+			expect(seen.size).toBe(matching.length);
+		});
+
+		it("returns no offers when the brand slugs resolve to no brand", async () => {
+			// An active offer exists, so the old behavior (no brand condition when
+			// nothing resolves) would have returned it.
+			const offer = await OfferService.create(
+				{
+					name: `Ghost Brand ${suffix}`,
+					slug: uniqueSlug("ghost-brand"),
+					discountValue: 10,
+					startsAt: new Date(Date.now() - 86_400_000).toISOString(),
+					endsAt: new Date(Date.now() + 86_400_000).toISOString(),
+					isActive: true,
+					productIds: [sampleProductId],
+				},
+				testUserId,
+			);
+			createdOfferIds.push(offer.id);
+
+			const result = await OfferService.getOffersWithProducts("customer", {
+				brandSlugs: `ghost-brand-${suffix}`,
+				limit: 100,
+			});
+
+			expect(result.offers).toEqual([]);
+			expect(Array.isArray(result.filters.brands)).toBe(true);
+		});
 	});
 });
 
 afterAll(async () => {
 	await cleanupOffers();
+	await cleanupProducts();
 });

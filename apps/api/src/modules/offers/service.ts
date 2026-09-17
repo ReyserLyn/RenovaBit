@@ -48,56 +48,57 @@ export type ActiveOfferRef = {
  * product row, as a `jsonb_agg` subquery returning `ActiveOfferRef[]`.
  *
  * The function is role-agnostic — it always returns ALL active offers
- * that match the product. Role-based price filtering is done downstream
- * by `applyOfferToProduct` in the pricing engine.
+ * that match the product. Role-aware price resolution and the "best offer
+ * wins" rule are applied downstream by the pricing engine.
  *
- * An offer applies to a product when:
- *   - `is_active = true` AND `starts_at <= NOW()` AND `ends_at >= NOW()`, AND
- *   - EXISTS a row in `offer_products` linking the offer to this product.
+ * Each entry carries the EFFECTIVE discount for this product: a per-product
+ * override (`offer_products.override_discount_value`) replaces the offer's
+ * base discount. This MUST stay aligned with `getActiveOffersForProducts`
+ * (cart/checkout path) so the displayed price equals the charged price.
  *
  * Must be used inside a `db.select().from(products)` context so the
  * `products.id` column ref resolves.
- *
- * Returns `[]` on error to avoid 500-ing the entire product catalog
- * when the offers table has a transient issue (lock, hiccup, etc.).
  */
 export function activeOffersForProductSubquery() {
-	try {
-		return sql<ActiveOfferRef[]>`COALESCE(
-			(
-				SELECT jsonb_agg(jsonb_build_object(
-					'id', o.id,
-					'name', o.name,
-					'slug', o.slug,
-					'discountValue', o.discount_value::text,
-					'isFeatured', o.is_featured,
-					'endsAt', o.ends_at
-				))
-				FROM offers o
-				WHERE o.is_active = true
-					AND o.starts_at <= NOW()
-					AND o.ends_at >= NOW()
-					AND EXISTS (SELECT 1 FROM offer_products op WHERE op.offer_id = o.id AND op.product_id = ${products.id})
-			),
-			'[]'::jsonb
-		)`;
-	} catch (err) {
-		logger
-			.withError(err)
-			.warn("offers.activeOffersForProductSubquery.failed — returning empty array as fallback");
-		return sql<ActiveOfferRef[]>`'[]'::jsonb`;
-	}
+	return sql<ActiveOfferRef[]>`COALESCE(
+		(
+			SELECT jsonb_agg(jsonb_build_object(
+				'id', o.id,
+				'name', o.name,
+				'slug', o.slug,
+				'discountValue', COALESCE(op.override_discount_value, o.discount_value)::text,
+				'isFeatured', o.is_featured,
+				'endsAt', o.ends_at
+			))
+			FROM offers o
+			INNER JOIN ${offerProducts} op ON op.offer_id = o.id AND op.product_id = ${products.id}
+			WHERE o.is_active = true
+				AND o.starts_at <= NOW()
+				AND o.ends_at >= NOW()
+		),
+		'[]'::jsonb
+	)`;
 }
 
 // ── FK validation ──────────────────────────────────
 
-async function ensureProductsExist(productIds: string[]): Promise<void> {
-	if (productIds.length === 0) return;
+/**
+ * Validates that every product exists and returns the deduplicated list.
+ *
+ * Duplicates (`[P, P]`) must be collapsed before comparing: `rows.length`
+ * counts distinct products, so comparing it against raw input length would
+ * report "Uno o más productos no existen" for a product that does exist.
+ * Callers must use the returned list — the `offer_products` PK is
+ * `(offer_id, product_id)`, so re-inserting a duplicate would 500.
+ */
+async function ensureProductsExist(productIds: string[]): Promise<string[]> {
+	if (productIds.length === 0) return productIds;
+	const uniqueIds = [...new Set(productIds)];
 	const rows = await db
 		.select({ id: products.id })
 		.from(products)
-		.where(inArray(products.id, productIds));
-	if (rows.length !== productIds.length) {
+		.where(inArray(products.id, uniqueIds));
+	if (rows.length !== uniqueIds.length) {
 		throw createApiError({
 			code: BackendErrorCodes.NOT_FOUND_ERROR,
 			message: "Uno o más productos no existen",
@@ -105,6 +106,7 @@ async function ensureProductsExist(productIds: string[]): Promise<void> {
 			doNotLog: true,
 		});
 	}
+	return uniqueIds;
 }
 
 // Note: `ensureBrandsExist` and `ensureCategoriesExist` removed — all offers are product-only now.
@@ -220,10 +222,8 @@ async function create(data: CreateOfferDto, userId: string) {
 	// ── Date validation ──
 	assertDateRange(data.startsAt, data.endsAt);
 
-	// ── FK validation ──
-	if (data.productIds?.length) {
-		await ensureProductsExist(data.productIds);
-	}
+	// ── FK validation (returns the deduplicated list) ──
+	const productIds = data.productIds?.length ? await ensureProductsExist(data.productIds) : [];
 
 	const row = await db.transaction(async (tx) => {
 		const [inserted] = await tx
@@ -235,6 +235,9 @@ async function create(data: CreateOfferDto, userId: string) {
 				discountValue: String(data.discountValue),
 				startsAt: new Date(data.startsAt),
 				endsAt: new Date(data.endsAt),
+				// Offers start INACTIVE unless explicitly activated. Deliberately the
+				// opposite of the column default (`true`) so an offer never goes live
+				// by omitting `isActive`.
 				isActive: data.isActive ?? false,
 				isFeatured: data.isFeatured ?? false,
 				createdBy: userId || null,
@@ -249,9 +252,9 @@ async function create(data: CreateOfferDto, userId: string) {
 			});
 		}
 
-		// Insert product assignments
-		if (data.productIds?.length) {
-			const values = data.productIds.map((productId) => {
+		// Insert product assignments (deduplicated list)
+		if (productIds.length > 0) {
+			const values = productIds.map((productId) => {
 				const override = data.overrides?.[productId];
 				return {
 					offerId: inserted.id,
@@ -272,7 +275,7 @@ async function create(data: CreateOfferDto, userId: string) {
 			offerId: row.id,
 			offerName: row.name,
 			userId,
-			productCount: data.productIds?.length ?? 0,
+			productCount: productIds.length,
 		})
 		.info("offer.created");
 
@@ -292,7 +295,8 @@ async function update(id: string, data: UpdateOfferDto, userId: string) {
 		assertDateRange(nextStartsAt, nextEndsAt);
 	}
 
-	// ── FK validation (before junction replacement) ──
+	// ── FK validation (before junction replacement; returns deduplicated ids) ──
+	let nextProductIds: string[] | undefined;
 	if (data.productIds !== undefined) {
 		if (data.productIds.length === 0) {
 			throw createApiError({
@@ -303,7 +307,7 @@ async function update(id: string, data: UpdateOfferDto, userId: string) {
 				doNotLog: true,
 			});
 		}
-		await ensureProductsExist(data.productIds);
+		nextProductIds = await ensureProductsExist(data.productIds);
 	}
 
 	const { updatedRow } = await db.transaction(async (tx) => {
@@ -356,13 +360,13 @@ async function update(id: string, data: UpdateOfferDto, userId: string) {
 
 		// Update product assignments if provided
 
-		if (data.productIds !== undefined) {
+		if (nextProductIds !== undefined) {
 			const existingRows = await tx
 				.select()
 				.from(offerProducts)
 				.where(eq(offerProducts.offerId, id));
 			const existingByProduct = new Map(existingRows.map((r) => [r.productId, r]));
-			const newSet = new Set(data.productIds);
+			const newSet = new Set(nextProductIds);
 
 			// Delete rows that are no longer in the new set
 			const toRemove = existingRows.filter((r) => !newSet.has(r.productId));
@@ -379,7 +383,7 @@ async function update(id: string, data: UpdateOfferDto, userId: string) {
 			}
 
 			// Insert new products (no overrides — update flow doesn't send them)
-			for (const productId of data.productIds) {
+			for (const productId of nextProductIds) {
 				if (!existingByProduct.has(productId)) {
 					await tx.insert(offerProducts).values({
 						offerId: id,
@@ -457,9 +461,9 @@ async function assignProducts(
 ) {
 	await getByIdStrict(offerId);
 
-	if (productIds.length > 0) {
-		await ensureProductsExist(productIds);
-	}
+	// Deduplicated ids: the junction PK is (offer_id, product_id).
+	const uniqueProductIds =
+		productIds.length > 0 ? await ensureProductsExist(productIds) : productIds;
 
 	return db.transaction(async (tx) => {
 		// Fetch existing junction rows
@@ -469,7 +473,7 @@ async function assignProducts(
 			.where(eq(offerProducts.offerId, offerId));
 		const existingByProduct = new Map(existing.map((r) => [r.productId, r]));
 
-		const newSet = new Set(productIds);
+		const newSet = new Set(uniqueProductIds);
 
 		// Delete rows that are no longer in the new incoming set
 		const toRemove = existing.filter((r) => !newSet.has(r.productId));
@@ -488,7 +492,7 @@ async function assignProducts(
 		// Collect new rows for batch insert
 		const toInsert: Array<typeof offerProducts.$inferInsert> = [];
 
-		for (const productId of productIds) {
+		for (const productId of uniqueProductIds) {
 			const existingRow = existingByProduct.get(productId);
 			const override = overrides?.[productId];
 
@@ -522,17 +526,17 @@ async function assignProducts(
 			await tx.insert(offerProducts).values(toInsert);
 		}
 
-		return { offerId, assignedCount: productIds.length };
+		return { offerId, assignedCount: uniqueProductIds.length };
 	});
 
 	logger
 		.withMetadata({
 			offerId,
-			assignedCount: productIds.length,
+			assignedCount: uniqueProductIds.length,
 		})
 		.info("offer.productsAssigned");
 
-	return { offerId, assignedCount: productIds.length };
+	return { offerId, assignedCount: uniqueProductIds.length };
 }
 
 // ── Get products for an offer (public) ──────────────
@@ -689,18 +693,26 @@ async function getOffersWithProducts(
 				.from(brands)
 				.where(inArray(brands.slug, slugs));
 			resolvedBrandIds = rows.map((r) => r.id);
-			if (resolvedBrandIds.length > 0) {
-				offerConditions.push(
-					sql`EXISTS (
-						SELECT 1 FROM offer_products op
-						INNER JOIN products p ON p.id = op.product_id
-						WHERE op.offer_id = offers.id AND p.brand_id = ANY(ARRAY[${sql.join(
-							resolvedBrandIds.map((id) => sql`${id}::uuid`),
-							sql`, `,
-						)}]::uuid[])
-					)`,
-				);
+			if (resolvedBrandIds.length === 0) {
+				// Unknown slugs: no product can match, so no offer qualifies.
+				// Mirrors `listPublic` (products/service.ts), which returns an
+				// empty set. The brand filter list stays complete so the sidebar
+				// doesn't shrink on a stale slug in the URL.
+				return {
+					offers: [],
+					filters: { brands: await getAllBrandsWithActiveOffers() },
+				};
 			}
+			offerConditions.push(
+				sql`EXISTS (
+					SELECT 1 FROM offer_products op
+					INNER JOIN products p ON p.id = op.product_id
+					WHERE op.offer_id = offers.id AND p.brand_id = ANY(ARRAY[${sql.join(
+						resolvedBrandIds.map((id) => sql`${id}::uuid`),
+						sql`, `,
+					)}]::uuid[])
+				)`,
+			);
 		}
 	}
 	if (options.offerId) {
@@ -733,6 +745,11 @@ async function getOffersWithProducts(
 	// ── 3. Preload margin rules ──
 	const marginRules = await getActiveMarginRules();
 
+	// Effective-price filter bounds (role-aware + offer-aware, JS-only).
+	const priceMin = options.minPrice ? Number.parseFloat(options.minPrice) : null;
+	const priceMax = options.maxPrice ? Number.parseFloat(options.maxPrice) : null;
+	const hasPriceFilter = priceMin !== null || priceMax !== null;
+
 	// ── 4. For each offer, get enriched products ──
 	const offersWithProducts = await Promise.all(
 		activeRows.map(async (offer) => {
@@ -752,66 +769,76 @@ async function getOffersWithProducts(
 			}
 			const prodWhere = prodConditions.length > 0 ? and(...prodConditions) : undefined;
 
-			// Count total matching products (before price filter — price is role-aware
-			// and computed in JS, same approach as products/service.ts listPublic).
-			const [countRow] = await db
-				.select({ total: sql<number>`COUNT(*)::int` })
-				.from(offerProducts)
-				.innerJoin(products, eq(offerProducts.productId, products.id))
-				.where(prodWhere);
-			const total = countRow?.total ?? 0;
-
-			// When price filter is active, over-fetch then filter in JS (role-aware
-			// effective price can't be expressed in SQL). Same pattern as listPublic.
-			const priceMin = options.minPrice ? Number.parseFloat(options.minPrice) : null;
-			const priceMax = options.maxPrice ? Number.parseFloat(options.maxPrice) : null;
-			const hasPriceFilter = priceMin !== null || priceMax !== null;
-			const fetchLimit = hasPriceFilter ? Math.max(prodLimit, 100) : prodLimit;
-
-			// Fetch products
-			const rows = await db
-				.select({
-					id: products.id,
-					name: products.name,
-					slug: products.slug,
-					sku: products.sku,
-					primaryImage: sql<string | null>`(
+			// ── Products fetch + pagination strategy (two routes) ──
+			// Effective price (role margins + best offer) is resolved in JS.
+			// With a price filter, SQL OFFSET/LIMIT would cut the window before
+			// the filter runs (offset applied to the unfiltered set), so page 2
+			// could repeat or skip products. Fetch the full offer set and page
+			// after enriching + filtering. Without a filter, SQL OFFSET/LIMIT is
+			// exact; its stored-price order is an approximation of the
+			// effective-price order — acceptable for the default view.
+			//
+			// TODO(perf): materialize the effective price if catalogs grow.
+			const selectProductRows = () =>
+				db
+					.select({
+						id: products.id,
+						name: products.name,
+						slug: products.slug,
+						sku: products.sku,
+						primaryImage: sql<string | null>`(
 					SELECT pi.url FROM product_images pi
 					WHERE pi.product_id = ${products.id}
 					ORDER BY pi.is_primary DESC, pi.sort_order ASC NULLS LAST
 					LIMIT 1
 				)`,
-					stock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
-					supplierPrice: products.supplierPrice,
-					roleCustomMargins: products.roleCustomMargins,
-					managedBy: products.managedBy,
-					price: products.price,
-					brandId: brands.id,
-					brandName: brands.name,
-					brandSlug: brands.slug,
-					discountValue: sql<string>`COALESCE(${offerProducts.overrideDiscountValue}, ${offers.discountValue})::text`,
-				})
-				.from(offerProducts)
-				.innerJoin(products, eq(offerProducts.productId, products.id))
-				.innerJoin(offers, eq(offers.id, offerProducts.offerId))
-				.leftJoin(brands, eq(products.brandId, brands.id))
-				.where(prodWhere)
-				.orderBy(asc(products.price), asc(products.id))
-				.offset(prodOffset)
-				.limit(fetchLimit);
+						stock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
+						supplierPrice: products.supplierPrice,
+						roleCustomMargins: products.roleCustomMargins,
+						managedBy: products.managedBy,
+						price: products.price,
+						brandId: brands.id,
+						brandName: brands.name,
+						brandSlug: brands.slug,
+					})
+					.from(offerProducts)
+					.innerJoin(products, eq(offerProducts.productId, products.id))
+					.leftJoin(brands, eq(products.brandId, brands.id))
+					.where(prodWhere)
+					.orderBy(asc(products.price), asc(products.id));
 
-			// Compute prices and apply role-aware price filter
+			const rows = hasPriceFilter
+				? await selectProductRows()
+				: await selectProductRows().offset(prodOffset).limit(prodLimit);
+
+			// Count the full offer set. The JS path computes the exact filtered
+			// count after pricing below.
+			let total = 0;
+			if (!hasPriceFilter) {
+				const [countRow] = await db
+					.select({ total: sql<number>`COUNT(*)::int` })
+					.from(offerProducts)
+					.innerJoin(products, eq(offerProducts.productId, products.id))
+					.where(prodWhere);
+				total = countRow?.total ?? 0;
+			}
+
+			// Price with ALL of the product's active offers ("best offer wins"),
+			// exactly like the catalog and checkout — the campaign view must show
+			// the price the customer actually pays.
+			const allOffersByProduct = await getActiveOffersForProducts(
+				role,
+				rows.map((row) => row.id),
+			);
+
+			// Compute prices and apply the role-aware price filter
 			const priceFiltered = rows
 				.map((row) => {
 					const salePrice = resolveSalePrice(row, role, marginRules);
 
 					const offerResult = applyOfferToProduct(
 						salePrice,
-						[
-							{
-								discountValue: Number.parseFloat(row.discountValue),
-							},
-						],
+						allOffersByProduct.get(row.id) ?? [],
 						role,
 					);
 
@@ -842,9 +869,19 @@ async function getOffersWithProducts(
 					return true;
 				});
 
-			// Apply pagination after filtering
-			const paginated = priceFiltered.slice(0, prodLimit);
-			const productsList = paginated.map(
+			// JS path: sort by effective price and slice the requested window of
+			// the FILTERED set; `total` becomes the exact filtered count. SQL
+			// path: the fetch is already the requested window.
+			let pageItems = priceFiltered;
+			if (hasPriceFilter) {
+				priceFiltered.sort(
+					(a, b) => a.effectivePrice - b.effectivePrice || a.row.id.localeCompare(b.row.id),
+				);
+				pageItems = priceFiltered.slice(prodOffset, prodOffset + prodLimit);
+				total = priceFiltered.length;
+			}
+
+			const productsList = pageItems.map(
 				({ row, basePriceStr, offerPriceStr, discountPercent }) => ({
 					id: row.id,
 					name: row.name,
@@ -862,11 +899,9 @@ async function getOffersWithProducts(
 				}),
 			);
 
-			// When price filter is active, total reflects filtered set so the UI
-			// "hasMore" check stays correct. Otherwise use the DB count.
-			const effectiveTotal = hasPriceFilter ? priceFiltered.length + prodOffset : total;
+			// Exact off the filtered set: `prodOffset` is the client's window over it.
 			const nextOffset =
-				prodOffset + productsList.length < effectiveTotal ? prodOffset + productsList.length : null;
+				prodOffset + productsList.length < total ? prodOffset + productsList.length : null;
 
 			return {
 				id: offer.id,

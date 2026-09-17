@@ -380,7 +380,9 @@ export function ProductForm(props: ProductFormProps) {
 					slug: value.slug,
 					description: toApiValue(value.description),
 					sku: value.sku,
-					managedBy: value.managedBy,
+					// En creación el control lo fija el servidor ("manual"); solo la
+					// edición envía managedBy para el toggle manual ↔ proveedor.
+					...(isEdit ? { managedBy: value.managedBy } : {}),
 					// Vacío = sin precio/costo en el body (la API deriva o conserva).
 					...(price.length > 0 ? { price } : {}),
 					...(supplierPrice.length > 0 ? { supplierPrice } : {}),

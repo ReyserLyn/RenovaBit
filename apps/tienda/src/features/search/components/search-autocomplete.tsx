@@ -247,7 +247,7 @@ export default function SearchAutocomplete({
 										</div>
 										<div className="shrink-0 text-right">
 											<div className="text-sm font-semibold whitespace-nowrap tabular-nums">
-												S/ {product.price}
+												S/ {product.offerPrice ?? product.price}
 											</div>
 											{!product.isInStock && (
 												<div className="text-destructive mt-1 block text-[0.7rem] font-semibold uppercase tracking-wider leading-tight">

@@ -2,6 +2,13 @@ import { offers } from "@renovabit/db/schema";
 import { createSelectSchema } from "drizzle-typebox";
 import { t } from "elysia";
 
+/**
+ * Money filter bound: `numeric(12,2)` (10 integer digits + 2 decimals).
+ * Without the bound, an oversized amount reaches the DB and fails with a
+ * 500 instead of a 400.
+ */
+const MONEY_PATTERN = "^\\d{1,10}(\\.\\d{1,2})?$";
+
 // ── Error ──────────────────────────────────────────
 
 export const ErrorResponse = t.Object({
@@ -214,9 +221,9 @@ const _offerListQuery = t.Object({
 	/** Product page limit (requires offerId). */
 	productsLimit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
 	/** Filter products by effective (role-aware) sale price — min bound. */
-	minPrice: t.Optional(t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" })),
+	minPrice: t.Optional(t.String({ pattern: MONEY_PATTERN })),
 	/** Filter products by effective (role-aware) sale price — max bound. */
-	maxPrice: t.Optional(t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" })),
+	maxPrice: t.Optional(t.String({ pattern: MONEY_PATTERN })),
 });
 
 // ── Model ──────────────────────────────────────────

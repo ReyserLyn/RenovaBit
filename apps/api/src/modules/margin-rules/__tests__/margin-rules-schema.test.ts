@@ -12,7 +12,7 @@ import {
 	CreateMarginRuleBody,
 	MarginRuleResponse,
 	UpdateMarginRuleBody,
-} from "@/modules/products/margin-routes";
+} from "@/modules/margin-rules/model";
 
 const validRule = {
 	id: "00000000-0000-0000-0000-000000000001",
@@ -98,6 +98,26 @@ describe("CreateMarginRuleBody", () => {
 
 	it("accepts 0% (rule is the floor)", () => {
 		expect(Value.Check(CreateMarginRuleBody, { ...validCreateBody, customerPct: 0 })).toBe(true);
+	});
+
+	// numeric(10,2): 8 integer digits + 2 decimals. Oversized input must be a
+	// schema rejection (400), not a DB overflow (500).
+	it("rejects minPrice above numeric(10,2)", () => {
+		expect(Value.Check(CreateMarginRuleBody, { ...validCreateBody, minPrice: 100_000_000 })).toBe(
+			false,
+		);
+	});
+
+	it("rejects maxPrice above numeric(10,2)", () => {
+		expect(Value.Check(CreateMarginRuleBody, { ...validCreateBody, maxPrice: 100_000_000 })).toBe(
+			false,
+		);
+	});
+
+	it("accepts the numeric(10,2) ceiling", () => {
+		expect(Value.Check(CreateMarginRuleBody, { ...validCreateBody, minPrice: 99_999_999.99 })).toBe(
+			true,
+		);
 	});
 });
 

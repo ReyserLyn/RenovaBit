@@ -103,7 +103,14 @@ function OfferBlock({
 	const isEnded = status === "ended";
 	const products = offer.products.items;
 	const useInnerCarousel = products.length >= NAV_THRESHOLD;
-	const discountPercent = Math.round(Number.parseFloat(offer.discountValue) || 0);
+	const campaignDiscount = Math.round(Number.parseFloat(offer.discountValue) || 0);
+	// With best-offer-wins and per-product overrides, one campaign percentage can
+	// understate or overstate what customers pay — show the highest discount
+	// visible in this section.
+	const bannerDiscount = Math.max(
+		campaignDiscount,
+		...products.map((product) => product.discountPercent ?? 0),
+	);
 
 	return (
 		<article className="space-y-5">
@@ -111,7 +118,7 @@ function OfferBlock({
 			<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
 				<h3 className="text-lg font-semibold tracking-tight">{offer.name}</h3>
 				<Badge className="bg-destructive text-destructive-foreground px-2.5 py-0.5 text-sm font-bold tracking-wide">
-					-{discountPercent}% OFF
+					{bannerDiscount > 0 ? `Hasta -${bannerDiscount}% OFF` : "Oferta"}
 				</Badge>
 			</div>
 

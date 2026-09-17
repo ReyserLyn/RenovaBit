@@ -8,7 +8,7 @@ import {
 	type RoleCustomMargins,
 } from "@renovabit/db/schema";
 import { applyOfferToProduct, type MarginRule, type Role } from "@renovabit/pricing";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { OfferService } from "@/modules/offers/service";
 import { formatDate, now } from "@/utils/date";
@@ -720,6 +720,7 @@ async function getTotal(cartId: string, role: Role): Promise<CartTotalResponse> 
 
 	const rows = await db
 		.select({
+			productId: cartItems.productId,
 			quantity: cartItems.quantity,
 			supplierPrice: products.supplierPrice,
 			roleCustomMargins: products.roleCustomMargins,
@@ -728,14 +729,33 @@ async function getTotal(cartId: string, role: Role): Promise<CartTotalResponse> 
 		})
 		.from(cartItems)
 		.leftJoin(products, eq(cartItems.productId, products.id))
-		.where(eq(cartItems.cartId, cartId));
+		.where(
+			and(
+				eq(cartItems.cartId, cartId),
+				// Only orderable lines count, mirroring the cart summary/drawer:
+				// out-of-stock or unavailable items are not charged.
+				inArray(cartItems.status, ["available", "price_changed"]),
+			),
+		);
+
+	// The navbar subtotal must match what the cart and checkout charge: apply
+	// the same effective offers (best offer wins).
+	const activeOffersByProduct = await OfferService.getActiveOffersForProducts(
+		role,
+		rows.map((r) => r.productId),
+	);
 
 	let subtotal = 0;
 	let itemsCount = 0;
 	for (const row of rows) {
 		itemsCount += row.quantity;
 		const roleAwarePrice = getRoleAwarePrice(row, role, marginRules);
-		subtotal += roleAwarePrice * row.quantity;
+		const { discountedPrice } = applyOfferToProduct(
+			roleAwarePrice,
+			activeOffersByProduct.get(row.productId) ?? [],
+			role,
+		);
+		subtotal += discountedPrice * row.quantity;
 	}
 
 	return {
