@@ -1,6 +1,6 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { Elysia } from "elysia";
-import { AuthModule } from "@/modules/auth";
+import { AuthMacros } from "@/modules/auth";
 import { ErrorResponse, OrderModel } from "./model";
 import { OrderService } from "./service";
 
@@ -10,7 +10,7 @@ import { OrderService } from "./service";
 // ═══════════════════════════════════════════════════
 
 export const adminOrdersRoute = new Elysia({ prefix: "/orders" })
-	.use(AuthModule)
+	.use(AuthMacros)
 	// ── List ────────────────────────────────────
 	.get(
 		"/",

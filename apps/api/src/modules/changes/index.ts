@@ -1,9 +1,9 @@
 import { Elysia } from "elysia";
-import { AuthModule } from "@/modules/auth";
+import { AuthMacros } from "@/modules/auth";
 import { ChangesModel } from "./changes.model";
 import { getRecentChanges } from "./changes.service";
 
-export const changesRoute = new Elysia({ prefix: "/changes" }).use(AuthModule).get(
+export const changesRoute = new Elysia({ prefix: "/changes" }).use(AuthMacros).get(
 	"/",
 	async ({ query }) => {
 		const page = Number.parseInt(query.page ?? "1", 10) || 1;

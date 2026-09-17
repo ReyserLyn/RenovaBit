@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { AuthModule } from "@/modules/auth";
+import { AuthMacros } from "@/modules/auth";
 import { notFound } from "@/utils/api-helpers";
 import { ErrorResponse, ProductModel } from "./model";
 import { ProductService } from "./service";
@@ -10,7 +10,7 @@ import { ProductService } from "./service";
 // ═══════════════════════════════════════════════════
 
 export const adminProductsRoute = new Elysia({ prefix: "/products" })
-	.use(AuthModule)
+	.use(AuthMacros)
 	// ── List ─────────
 	.get(
 		"/",

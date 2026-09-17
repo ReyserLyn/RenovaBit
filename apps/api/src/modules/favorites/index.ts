@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { AuthModule } from "@/modules/auth";
+import { AuthMacros } from "@/modules/auth";
 import { getUserRole } from "@/utils/auth/helpers";
 import { ErrorResponse, FavoritesModel } from "./model";
 import { FavoritesService } from "./service";
@@ -9,7 +9,7 @@ import { FavoritesService } from "./service";
 // ═══════════════════════════════════════════════════
 
 export const favoritesRoute = new Elysia({ prefix: "/favorites" })
-	.use(AuthModule)
+	.use(AuthMacros)
 	// ── List Favorites ──────────────────────────
 	.get(
 		"/",

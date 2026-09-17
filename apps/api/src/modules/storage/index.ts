@@ -1,9 +1,11 @@
 import { Elysia, t } from "elysia";
+import { AuthMacros } from "@/modules/auth";
 import { cleanupPendingObjects } from "@/utils/storage/helpers";
 import { ErrorResponse, StorageModel } from "./model";
 import { createPresignedUrl } from "./service";
 
 export const storageRoute = new Elysia({ prefix: "/storage" })
+	.use(AuthMacros)
 	// ── Presigned upload URL ─────────────────────────
 	.post("/presign", async ({ body }) => createPresignedUrl(body), {
 		isAdmin: true,

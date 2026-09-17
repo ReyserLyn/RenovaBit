@@ -1,5 +1,6 @@
 import type { ChangeValueObject } from "@renovabit/db/schema";
 import { Elysia } from "elysia";
+import { AuthMacros } from "@/modules/auth";
 import { ErrorResponse } from "@/modules/products/model";
 import { ReportsModel } from "./model";
 import { ReportsService } from "./service";
@@ -22,7 +23,7 @@ function serializeChange(row: {
 	};
 }
 
-export const reportsRoute = new Elysia({ prefix: "/reports" }).get(
+export const reportsRoute = new Elysia({ prefix: "/reports" }).use(AuthMacros).get(
 	"/:reportId/changes",
 	async ({ params: { reportId } }) => {
 		const changes = await ReportsService.getChangesByReport(reportId);

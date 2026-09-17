@@ -1,8 +1,10 @@
 import { Elysia, t } from "elysia";
+import { AuthMacros } from "@/modules/auth";
 import { ErrorResponse, ProductImageModel } from "./model";
 import { ProductImageService } from "./service";
 
 export const productImagesRoute = new Elysia({ prefix: "/product-images" })
+	.use(AuthMacros)
 	// ── List by product (query param para evitar colisión con :id de PATCH/DELETE) ──
 	.get(
 		"/",

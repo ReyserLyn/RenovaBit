@@ -1,12 +1,12 @@
 import { Elysia } from "elysia";
-import { AuthModule } from "@/modules/auth";
+import { AuthMacros } from "@/modules/auth";
 import { ErrorResponse, UserModel } from "./model";
 import { type UpdateProfileInput, UserService } from "./service";
 
 // ── Routes ─────────────────────────────────────────
 
 export const usersRoute = new Elysia({ prefix: "/users" })
-	.use(AuthModule)
+	.use(AuthMacros)
 	// ── List (admin) ────────────────────────────────
 	.get(
 		"/",

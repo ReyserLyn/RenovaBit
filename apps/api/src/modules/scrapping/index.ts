@@ -1,13 +1,13 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { Elysia } from "elysia";
 import { enqueueManualScraping } from "@/jobs/scraping.queue";
-import { AuthModule } from "@/modules/auth";
+import { AuthMacros } from "@/modules/auth";
 import { BlacklistModel, ErrorResponse } from "./blacklist.model";
 import { BlacklistService } from "./blacklist.service";
 import { ScrapingModel } from "./model";
 
 export const scrapingController = new Elysia({ prefix: "/scraping" })
-	.use(AuthModule)
+	.use(AuthMacros)
 	// ── Run sync ────────────────────────────────────
 	.post(
 		"/run",

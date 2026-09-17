@@ -1,11 +1,11 @@
 import { Elysia, t } from "elysia";
-import { AuthModule } from "@/modules/auth";
+import { AuthMacros } from "@/modules/auth";
 import { notFound } from "@/utils/api-helpers";
 import { OfferModel } from "./model";
 import { OfferService } from "./service";
 
 export const adminOffersRoute = new Elysia({ prefix: "/offers" })
-	.use(AuthModule)
+	.use(AuthMacros)
 	// ── List ──────────────────────────────────────
 	.get("/", async ({ query }) => OfferService.list(query), {
 		isAdmin: true,

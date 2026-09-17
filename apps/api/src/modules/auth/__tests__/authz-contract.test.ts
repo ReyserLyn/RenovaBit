@@ -24,8 +24,9 @@ import { LoggerPlugin } from "@/plugins/logger";
 const app = new Elysia().use(LoggerPlugin).use(modules).onError(errorHandler);
 
 /**
- * The Better Auth catch-all is mounted inside some modules (`.use(AuthModule)`);
- * it is a public handler by design and not part of the guarded API surface.
+ * The canonical Better Auth catch-all (/api/v1/auth*) is a public handler by
+ * design and not part of the guarded API surface. It must be mounted exactly
+ * once, outside module prefixes (asserted below).
  */
 const isAuthHandlerRoute = (path: string) => path.includes("/auth*");
 
@@ -80,6 +81,14 @@ describe("authorization contract — admin surface", () => {
 			.map((route) => `${route.method} ${route.path}`);
 
 		expect(missingGuard).toEqual([]);
+	});
+
+	it("mounts the Better Auth catch-all exactly once, outside module prefixes", () => {
+		const authCatchAlls = app.routes
+			.filter((route) => route.path.endsWith("/auth*"))
+			.map((route) => `${route.method} ${route.path}`);
+
+		expect(authCatchAlls).toEqual(["ALL /api/v1/auth*"]);
 	});
 
 	it("schema-gated allowlist stays in sync with the route table", () => {

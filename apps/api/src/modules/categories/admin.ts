@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { AuthModule } from "@/modules/auth";
+import { AuthMacros } from "@/modules/auth";
 import { notFound } from "@/utils/api-helpers";
 import { CategoryModel, ErrorResponse } from "./model";
 import { CategoryService } from "./service";
@@ -10,7 +10,7 @@ import { CategoryService } from "./service";
 // ═══════════════════════════════════════════════════
 
 export const adminCategoriesRoute = new Elysia({ prefix: "/categories" })
-	.use(AuthModule)
+	.use(AuthMacros)
 	// ── List ──────────────────────────────────────
 	.get(
 		"/",

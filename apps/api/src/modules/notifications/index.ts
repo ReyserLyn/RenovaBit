@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { AuthModule } from "@/modules/auth";
+import { AuthMacros } from "@/modules/auth";
 import { ErrorResponse } from "@/modules/orders/model";
 import { NotificationModel } from "./notifications.model";
 import { getNotifications, markAllAsRead, markAsRead } from "./notifications.service";
@@ -8,7 +8,7 @@ const OkResponse = t.Object({ ok: t.Boolean() });
 const IdParams = t.Object({ id: t.String({ format: "uuid" }) });
 
 export const notificationsRoute = new Elysia({ prefix: "/notifications" })
-	.use(AuthModule)
+	.use(AuthMacros)
 	.get(
 		"/",
 		async ({ query, user }) => {
