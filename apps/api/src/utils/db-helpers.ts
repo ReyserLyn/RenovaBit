@@ -12,13 +12,37 @@ export function makeSlug(value: string): string {
 }
 
 /**
+ * Walks the `cause` chain to find the underlying PostgreSQL error node.
+ *
+ * Drizzle wraps driver errors in `DrizzleQueryError`, so the pg fields
+ * (`code`, `constraint_name`, `message`) live in `cause`, never at the top
+ * level. postgres-js also exposes the constraint as `constraint_name`, not
+ * `constraint`.
+ */
+function findPgCause(error: unknown): Record<string, unknown> | null {
+	const seen = new Set<unknown>();
+	let current: unknown = error;
+
+	while (current && typeof current === "object" && !seen.has(current)) {
+		seen.add(current);
+		if (typeof Reflect.get(current as object, "code") === "string") {
+			return current as Record<string, unknown>;
+		}
+		current = Reflect.get(current as object, "cause");
+	}
+
+	return null;
+}
+
+/**
  * Convierte errores de unique violation de PostgreSQL (código 23505)
  * en ApiError tipados. Evita 500s por race conditions en inserts/updates.
  *
  * Usar en `.catch()` de queries Drizzle que puedan violar constraints UNIQUE.
  */
 export function handleUniqueViolation(error: unknown, fallbackMessage: string): never {
-	if (typeof error === "object" && error !== null && Reflect.get(error, "code") === "23505") {
+	const pgError = findPgCause(error);
+	if (pgError && Reflect.get(pgError, "code") === "23505") {
 		throw createApiError({
 			code: BackendErrorCodes.EXISTS_ERROR,
 			message: fallbackMessage,
@@ -40,17 +64,17 @@ export function handleUniqueViolation(error: unknown, fallbackMessage: string): 
  * ```
  */
 export function isUniqueViolationOn(error: unknown, constraintName: string): boolean {
-	if (!error || typeof error !== "object") return false;
+	const pgError = findPgCause(error);
+	if (!pgError || Reflect.get(pgError, "code") !== "23505") return false;
 
-	const getString = (key: "code" | "constraint" | "message") => {
-		const value = Reflect.get(error, key);
-		return typeof value === "string" ? value : "";
-	};
-
-	const code = getString("code");
-	const constraint = getString("constraint");
-	const message = getString("message");
-	return code === "23505" && (constraint === constraintName || message.includes(constraintName));
+	const constraint = Reflect.get(pgError, "constraint");
+	const constraintNameSnake = Reflect.get(pgError, "constraint_name");
+	const message = Reflect.get(pgError, "message");
+	return (
+		constraint === constraintName ||
+		constraintNameSnake === constraintName ||
+		(typeof message === "string" && message.includes(constraintName))
+	);
 }
 
 /**
