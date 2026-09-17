@@ -23,7 +23,8 @@
 			"dependsOn": ["^check-types"]
 		},
 		"test": {
-			"outputs": []
+			"outputs": [],
+			"env": ["DATABASE_URL"]
 		},
 		"dev": {
 			"cache": false,

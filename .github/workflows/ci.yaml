@@ -21,6 +21,7 @@ jobs:
     env:
       VITE_API_URL: https://api.renovabit.com
       VITE_SITE_URL: https://tienda.renovabit.com
+      DATABASE_URL: postgres://ci:ci@127.0.0.1:5432/ci
 
     steps:
       - name: Checkout
