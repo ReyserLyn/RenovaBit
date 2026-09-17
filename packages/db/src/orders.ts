@@ -38,8 +38,3 @@ export type OrderSource = "web" | "whatsapp";
 export const ORDER_SOURCE_TUPLE: [OrderSource, ...OrderSource[]] = ["web", "whatsapp"];
 
 export const ORDER_SOURCES: OrderSource[] = ORDER_SOURCE_TUPLE;
-
-// ── Stock reservation ────────────────────────────────
-
-/** Pedidos que reservan stock físico hasta ser confirmados. */
-export const ORDER_RESERVATION_STATUSES: OrderStatus[] = ["pending"];

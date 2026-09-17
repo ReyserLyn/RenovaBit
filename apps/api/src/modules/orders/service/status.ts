@@ -83,20 +83,24 @@ async function updateStatus(orderId: string, data: AdminUpdateBody): Promise<Ord
 	}
 
 	if (isStatusChanging) {
-		const orderItemsList = await db
+		// Owner-managed products (`manual`) are the only ones whose stock moves
+		// with order state: confirming consumes it, cancelling/refunding a
+		// confirmed order returns it. Provider products never move local stock —
+		// the feed owns it and availability derives from holds (utils/stock.ts).
+		const manualItems = await db
 			.select({
 				productId: orderItems.productId,
 				quantity: orderItems.quantity,
 				productName: orderItems.productName,
 			})
 			.from(orderItems)
-			.where(eq(orderItems.orderId, orderId));
+			.innerJoin(products, eq(products.id, orderItems.productId))
+			.where(and(eq(orderItems.orderId, orderId), eq(products.managedBy, "manual")));
 
 		await db.transaction(async (tx) => {
 			// Claim the transition atomically: only one writer may move the order
-			// out of the status this request validated against. Without this guard
-			// two concurrent confirms both validate on a stale read and move stock
-			// twice.
+			// out of the status this request validated against — concurrent
+			// confirms converge to a single transition.
 			const claimed = await tx
 				.update(orders)
 				.set(updates)
@@ -113,34 +117,36 @@ async function updateStatus(orderId: string, data: AdminUpdateBody): Promise<Ord
 				});
 			}
 
-			if (data.status === "confirmed") {
-				for (const item of orderItemsList) {
-					if (!item.productId) continue;
-					const updatedStock = await tx
-						.update(products)
-						.set({ stock: sql`${products.stock} - ${item.quantity}` })
-						.where(and(eq(products.id, item.productId), gte(products.stock, item.quantity)))
-						.returning({ id: products.id });
+			if (manualItems.length > 0) {
+				if (data.status === "confirmed") {
+					for (const item of manualItems) {
+						if (!item.productId) continue;
+						const updatedStock = await tx
+							.update(products)
+							.set({ stock: sql`${products.stock} - ${item.quantity}` })
+							.where(and(eq(products.id, item.productId), gte(products.stock, item.quantity)))
+							.returning({ id: products.id });
 
-					if (updatedStock.length === 0) {
-						throw createApiError({
-							code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
-							message: `Stock insuficiente para "${item.productName}" al confirmar pedido`,
-							logLevel: "info",
-							doNotLog: true,
-						});
+						if (updatedStock.length === 0) {
+							throw createApiError({
+								code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
+								message: `Stock insuficiente para "${item.productName}" al confirmar pedido`,
+								logLevel: "info",
+								doNotLog: true,
+							});
+						}
 					}
-				}
-			} else if (
-				(data.status === "cancelled" || data.status === "refunded") &&
-				order.status === "confirmed"
-			) {
-				for (const item of orderItemsList) {
-					if (!item.productId) continue;
-					await tx
-						.update(products)
-						.set({ stock: sql`${products.stock} + ${item.quantity}` })
-						.where(eq(products.id, item.productId));
+				} else if (
+					(data.status === "cancelled" || data.status === "refunded") &&
+					order.status === "confirmed"
+				) {
+					for (const item of manualItems) {
+						if (!item.productId) continue;
+						await tx
+							.update(products)
+							.set({ stock: sql`${products.stock} + ${item.quantity}` })
+							.where(eq(products.id, item.productId));
+					}
 				}
 			}
 		});
@@ -241,6 +247,18 @@ async function cancelByUser(orderId: string, userId: string): Promise<OrderRespo
 			.withMetadata({ orderId })
 			.withError(err)
 			.warn("[Orders] failed to remove auto-cancel job"),
+	);
+
+	// Admins may be mid-confirmation for this order — tell them it is gone.
+	notifyAdminsOfCancelledOrder({
+		orderId,
+		orderNumber: order.orderNumber,
+		reason: USER_CANCEL_REASON,
+	}).catch((err) =>
+		logger
+			.withMetadata({ orderId })
+			.withError(err)
+			.error("[Orders] Failed to notify admins of user cancel"),
 	);
 
 	// Non-admin view: admin notes must never reach the order owner.

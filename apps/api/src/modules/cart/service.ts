@@ -7,17 +7,13 @@ import {
 	products,
 	type RoleCustomMargins,
 } from "@renovabit/db/schema";
-import {
-	applyOfferToProduct,
-	getEffectiveSalePrice,
-	type MarginRule,
-	type Role,
-} from "@renovabit/pricing";
+import { applyOfferToProduct, type MarginRule, type Role } from "@renovabit/pricing";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { OfferService } from "@/modules/offers/service";
 import { formatDate, now } from "@/utils/date";
 import { getActiveMarginRules } from "@/utils/margin-rules";
+import { resolveSalePrice } from "@/utils/price";
 import { getReservedStockForProductInTx, getReservedStockSubquery } from "@/utils/stock";
 import type { CartItemResponse, CartModel, CartResponse, CartTotalResponse } from "./model";
 
@@ -29,21 +25,30 @@ type UpdateCartItemBody = CartModel["updateCartItemBody"];
 // ═══════════════════════════════════════════════════
 
 /**
- * Compute the effective sale price for a product given the user's role.
- * Accepts pre-fetched margin rules to avoid re-fetching per item.
+ * Compute the effective sale price for a product given the user's role:
+ * owner-managed products sell at their stored price, provider products are
+ * computed from supplierPrice + margins (see utils/price.ts).
  */
 function getRoleAwarePrice(
-	supplierPrice: string,
-	roleCustomMargins: RoleCustomMargins | null | undefined,
+	product: {
+		managedBy: "provider" | "manual" | null;
+		price?: string | null;
+		supplierPrice: string | null;
+		roleCustomMargins: RoleCustomMargins | null | undefined;
+	},
 	role: Role,
 	marginRules: ReadonlyArray<MarginRule>,
 ): number {
-	const { salePrice } = getEffectiveSalePrice(
-		{ supplierPrice, roleCustomMargins: roleCustomMargins ?? null },
+	return resolveSalePrice(
+		{
+			managedBy: product.managedBy,
+			price: product.price,
+			supplierPrice: product.supplierPrice ?? "0",
+			roleCustomMargins: product.roleCustomMargins ?? null,
+		},
 		role,
 		marginRules,
 	);
-	return salePrice;
 }
 
 // ═══════════════════════════════════════════════════
@@ -129,6 +134,7 @@ async function refreshCartItems(cartId: string, role: Role): Promise<void> {
 			productPrice: products.price,
 			supplierPrice: products.supplierPrice,
 			roleCustomMargins: products.roleCustomMargins,
+			managedBy: products.managedBy,
 			productIsActive: products.isActive,
 			productNeedsReview: products.needsReview,
 			productStock: products.stock,
@@ -160,8 +166,12 @@ async function refreshCartItems(cartId: string, role: Role): Promise<void> {
 			} else {
 				// Compute current role-aware price (without offer)
 				const roleAwarePrice = getRoleAwarePrice(
-					item.supplierPrice ?? "0",
-					item.roleCustomMargins,
+					{
+						managedBy: item.managedBy,
+						price: item.productPrice,
+						supplierPrice: item.supplierPrice,
+						roleCustomMargins: item.roleCustomMargins,
+					},
 					role,
 					marginRules,
 				);
@@ -209,6 +219,8 @@ async function getCartWithItems(cartId: string, role: Role): Promise<CartRespons
 			statusMessage: cartItems.statusMessage,
 			supplierPrice: products.supplierPrice,
 			roleCustomMargins: products.roleCustomMargins,
+			price: products.price,
+			managedBy: products.managedBy,
 			imageUrl: sql<string | null>`(
 				SELECT pi.url FROM ${productImages} pi
 				WHERE pi.product_id = ${products.id}
@@ -235,9 +247,7 @@ async function getCartWithItems(cartId: string, role: Role): Promise<CartRespons
 
 	let subtotal = 0;
 	const items: CartItemResponse[] = rows.map((row) => {
-		const roleAwarePrice = row.supplierPrice
-			? getRoleAwarePrice(row.supplierPrice, row.roleCustomMargins, role, marginRules)
-			: 0;
+		const roleAwarePrice = getRoleAwarePrice(row, role, marginRules);
 		const roleAwarePriceStr = roleAwarePrice.toFixed(2);
 
 		// Compute offer-applied price (F16). Subtotal uses the offer price
@@ -359,6 +369,7 @@ async function addItem(cartId: string, data: AddToCartBody, role: Role): Promise
 			price: products.price,
 			supplierPrice: products.supplierPrice,
 			roleCustomMargins: products.roleCustomMargins,
+			managedBy: products.managedBy,
 		})
 		.from(products)
 		.where(eq(products.id, data.productId))
@@ -374,12 +385,7 @@ async function addItem(cartId: string, data: AddToCartBody, role: Role): Promise
 	}
 
 	// Compute role-aware price + offer-applied price AT ADD TIME
-	const roleAwarePrice = getRoleAwarePrice(
-		productInfo.supplierPrice,
-		productInfo.roleCustomMargins,
-		role,
-		marginRules,
-	);
+	const roleAwarePrice = getRoleAwarePrice(productInfo, role, marginRules);
 	const activeOffers = await OfferService.getActiveOffersForProducts(role, [data.productId]);
 	const offerResult = applyOfferToProduct(
 		roleAwarePrice,
@@ -717,6 +723,8 @@ async function getTotal(cartId: string, role: Role): Promise<CartTotalResponse> 
 			quantity: cartItems.quantity,
 			supplierPrice: products.supplierPrice,
 			roleCustomMargins: products.roleCustomMargins,
+			price: products.price,
+			managedBy: products.managedBy,
 		})
 		.from(cartItems)
 		.leftJoin(products, eq(cartItems.productId, products.id))
@@ -726,9 +734,7 @@ async function getTotal(cartId: string, role: Role): Promise<CartTotalResponse> 
 	let itemsCount = 0;
 	for (const row of rows) {
 		itemsCount += row.quantity;
-		const roleAwarePrice = row.supplierPrice
-			? getRoleAwarePrice(row.supplierPrice, row.roleCustomMargins, role, marginRules)
-			: 0;
+		const roleAwarePrice = getRoleAwarePrice(row, role, marginRules);
 		subtotal += roleAwarePrice * row.quantity;
 	}
 

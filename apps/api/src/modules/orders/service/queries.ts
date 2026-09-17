@@ -35,6 +35,22 @@ function sanitizePagination(
 	return { safePage, safeLimit, offset: safePage * safeLimit };
 }
 
+/** Peru has no DST: fixed UTC-05:00 offset. */
+const LIMA_OFFSET = "-05:00";
+
+/**
+ * Parses a `YYYY-MM-DD` admin date filter as a Lima-day boundary.
+ *
+ * The server runs in UTC, so a raw date parsed as UTC midnight would shift the
+ * window five hours: `to` would drop the Peruvian evening (the sales peak) and
+ * `from` would include the previous evening.
+ */
+function limaDayBoundary(value: string, boundary: "start" | "end"): Date | null {
+	const time = boundary === "start" ? "00:00:00.000" : "23:59:59.999";
+	const parsed = new Date(value.includes("T") ? value : `${value}T${time}${LIMA_OFFSET}`);
+	return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 // ═══════════════════════════════════════════════════
 //  RESPONSE BUILDER (SSOT)
 // ═══════════════════════════════════════════════════
@@ -178,14 +194,27 @@ async function queryOrderList(
 		customerName: orders.customerName,
 	} as const;
 
+	// Business priority instead of alphabetical enum order: orders needing
+	// action first, terminal states last.
+	const statusPriority = sql`CASE ${orders.status}
+		WHEN 'pending' THEN 0
+		WHEN 'confirmed' THEN 1
+		WHEN 'cancelled' THEN 2
+		ELSE 3
+	END`;
+
 	const orderBy =
 		sortBy === "total"
 			? sortOrder === "asc"
 				? sql`${orders.total}::numeric asc`
 				: sql`${orders.total}::numeric desc`
-			: sortOrder === "asc"
-				? asc(sortColumnMap[sortBy])
-				: desc(sortColumnMap[sortBy]);
+			: sortBy === "status"
+				? sortOrder === "asc"
+					? sql`${statusPriority} asc`
+					: sql`${statusPriority} desc`
+				: sortOrder === "asc"
+					? asc(sortColumnMap[sortBy])
+					: desc(sortColumnMap[sortBy]);
 
 	const rows = await db
 		.select({
@@ -284,21 +313,14 @@ async function listAdmin(
 		conditions.push(eq(orders.paymentMethod, options.paymentMethod));
 	}
 	if (options.from) {
-		const fromDate = new Date(options.from);
-		if (!Number.isNaN(fromDate.getTime())) {
+		const fromDate = limaDayBoundary(options.from, "start");
+		if (fromDate) {
 			conditions.push(gte(orders.createdAt, fromDate));
 		}
 	}
 	if (options.to) {
-		const toDate = new Date(options.to);
-		if (!Number.isNaN(toDate.getTime())) {
-			if (
-				toDate.getUTCHours() === 0 &&
-				toDate.getUTCMinutes() === 0 &&
-				toDate.getUTCSeconds() === 0
-			) {
-				toDate.setHours(23, 59, 59, 999);
-			}
+		const toDate = limaDayBoundary(options.to, "end");
+		if (toDate) {
 			conditions.push(lte(orders.createdAt, toDate));
 		}
 	}

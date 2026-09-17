@@ -24,6 +24,7 @@ import {
 	users,
 } from "@renovabit/db/schema";
 import { eq, inArray, sql } from "drizzle-orm";
+import { CONFIRMED_HOLD_HOURS } from "@/constants";
 import { removeOrderAutoCancel } from "@/jobs/orders.queue";
 import { OrderService } from "../service";
 
@@ -53,6 +54,9 @@ const ORDER_CONTEXT = { customerName: "Test Buyer", customerPhone: "999888777" }
 let userAId: string;
 let productAId: string;
 let productBId: string;
+let productCId: string;
+let productDId: string;
+let productEId: string;
 let cartAId: string;
 let guestCartId: string;
 
@@ -99,7 +103,49 @@ beforeAll(async () => {
 		.returning({ id: products.id });
 	productBId = productB!.id;
 
-	createdProductIds.push(productAId, productBId);
+	// Products C and D: isolated fixtures for the stock-hold tests.
+	const [productC] = await db
+		.insert(products)
+		.values({
+			name: `OrderTest Charlie ${suffix}`,
+			slug: `ordertest-charlie-${suffix}`,
+			sku: `ORDERTEST-C-${suffix}`,
+			price: "200.00",
+			supplierPrice: "100.00",
+			stock: 10,
+		})
+		.returning({ id: products.id });
+	productCId = productC!.id;
+
+	const [productD] = await db
+		.insert(products)
+		.values({
+			name: `OrderTest Delta ${suffix}`,
+			slug: `ordertest-delta-${suffix}`,
+			sku: `ORDERTEST-D-${suffix}`,
+			price: "200.00",
+			supplierPrice: "100.00",
+			stock: 10,
+		})
+		.returning({ id: products.id });
+	productDId = productD!.id;
+
+	// Product E: owner-managed fixture (no feed) for manual stock behavior.
+	const [productE] = await db
+		.insert(products)
+		.values({
+			name: `OrderTest Echo ${suffix}`,
+			slug: `ordertest-echo-${suffix}`,
+			sku: `ORDERTEST-E-${suffix}`,
+			price: "500.00",
+			supplierPrice: "0",
+			stock: 5,
+			managedBy: "manual",
+		})
+		.returning({ id: products.id });
+	productEId = productE!.id;
+
+	createdProductIds.push(productAId, productBId, productCId, productDId, productEId);
 
 	const [cart] = await db
 		.insert(carts)
@@ -120,6 +166,18 @@ async function addCartItem(cartId: string, productId: string, quantity: number):
 	await db.insert(cartItems).values({ cartId, productId, quantity, addedAtPrice: "0.00" });
 }
 
+/** Fresh guest cart with its own token (tracks it for cleanup). */
+async function createGuestCart(label: string): Promise<{ cartId: string; token: string }> {
+	const token = `guest-${label}-${suffix}`;
+	const [cart] = await db
+		.insert(carts)
+		.values({ guestToken: token, itemsCount: 0, lastActivityAt: new Date() })
+		.returning({ id: carts.id });
+	const id = cart!.id;
+	createdCartIds.push(id);
+	return { cartId: id, token };
+}
+
 async function fetchOrderRow(orderId: string): Promise<{ cartId: string | null; status: string }> {
 	const [row] = await db
 		.select({ cartId: orders.cartId, status: orders.status })
@@ -129,27 +187,31 @@ async function fetchOrderRow(orderId: string): Promise<{ cartId: string | null; 
 	return row!;
 }
 
-/** Inserts a pending order directly (no checkout side effects). */
+/** Inserts an order directly (no checkout side effects). */
 async function insertPendingOrder(opts: {
 	userId: string;
 	productId: string;
 	quantity: number;
 	adminNotes?: string;
+	status?: "pending" | "confirmed" | "cancelled" | "refunded";
+	createdAt?: Date;
+	confirmedAt?: Date;
 }): Promise<string> {
 	orderNumberCounter += 1;
-	const now = new Date();
+	const now = opts.createdAt ?? new Date();
 	const [order] = await db
 		.insert(orders)
 		.values({
 			userId: opts.userId,
 			orderNumber: `TEST-${suffix}-${orderNumberCounter}`,
-			status: "pending",
+			status: opts.status ?? "pending",
 			source: "web",
 			customerName: "Direct Insert",
 			subtotal: "300.00",
 			discountTotal: "0.00",
 			total: "300.00",
 			adminNotes: opts.adminNotes ?? null,
+			confirmedAt: opts.confirmedAt ?? null,
 			createdAt: now,
 			updatedAt: now,
 		})
@@ -313,7 +375,84 @@ describeDb("OrderService (DB)", () => {
 		expect(cancelled.adminNotes).toBeUndefined();
 	});
 
-	it("never double-moves stock when two confirms race", async () => {
+	it("treats admin date filters as Lima days, not UTC days", async () => {
+		const day = "2026-09-17";
+		// Lima-day orders: a morning one and the evening block that a
+		// UTC-midnight `to` boundary would wrongly exclude.
+		const morning = await insertPendingOrder({
+			userId: userAId,
+			productId: productAId,
+			quantity: 1,
+			createdAt: new Date("2026-09-17T10:00:00-05:00"),
+		});
+		const evening = await insertPendingOrder({
+			userId: userAId,
+			productId: productAId,
+			quantity: 1,
+			createdAt: new Date("2026-09-17T23:30:00-05:00"),
+		});
+		// Neighbouring Lima days must stay outside the window.
+		const before = await insertPendingOrder({
+			userId: userAId,
+			productId: productAId,
+			quantity: 1,
+			createdAt: new Date("2026-09-16T23:30:00-05:00"),
+		});
+		const after = await insertPendingOrder({
+			userId: userAId,
+			productId: productAId,
+			quantity: 1,
+			createdAt: new Date("2026-09-18T00:30:00-05:00"),
+		});
+
+		const { orders: results } = await OrderService.listAdmin({
+			from: day,
+			to: day,
+			search: suffix,
+			limit: 100,
+		});
+
+		const ids = results.map((o) => o.id);
+		expect(ids).toContain(morning);
+		expect(ids).toContain(evening);
+		expect(ids).not.toContain(before);
+		expect(ids).not.toContain(after);
+	});
+
+	it("sorts admin lists by status business priority", async () => {
+		const cancelled = await insertPendingOrder({
+			userId: userAId,
+			productId: productAId,
+			quantity: 1,
+			status: "cancelled",
+		});
+		const confirmed = await insertPendingOrder({
+			userId: userAId,
+			productId: productAId,
+			quantity: 1,
+			status: "confirmed",
+		});
+		const pending = await insertPendingOrder({
+			userId: userAId,
+			productId: productAId,
+			quantity: 1,
+			status: "pending",
+		});
+
+		const { orders: results } = await OrderService.listAdmin({
+			sortBy: "status",
+			sortOrder: "asc",
+			search: suffix,
+			limit: 100,
+		});
+
+		const relevant = results
+			.map((o) => o.id)
+			.filter((id) => [pending, confirmed, cancelled].includes(id));
+		expect(relevant).toEqual([pending, confirmed, cancelled]);
+	});
+
+	it("concurrent confirms converge to one transition and never write stock", async () => {
 		for (let i = 0; i < 3; i++) {
 			const orderId = await insertPendingOrder({
 				userId: userAId,
@@ -332,8 +471,7 @@ describeDb("OrderService (DB)", () => {
 				OrderService.updateStatus(orderId, { status: "confirmed" }),
 			]);
 
-			// At least one confirm must win; the stock delta must be exactly the
-			// ordered quantity regardless of how the race interleaves.
+			// At least one confirm must win.
 			expect(results.filter((r) => r.status === "fulfilled").length).toBeGreaterThanOrEqual(1);
 
 			const [after] = await db
@@ -342,7 +480,86 @@ describeDb("OrderService (DB)", () => {
 				.where(eq(products.id, productBId))
 				.limit(1);
 
-			expect(after!.stock).toBe(before!.stock - 3);
+			// The provider feed owns stock: confirming is a pure transition.
+			expect(after!.stock).toBe(before!.stock);
 		}
+	});
+
+	it("a recently confirmed order keeps holding stock during the grace window", async () => {
+		await insertPendingOrder({
+			userId: userAId,
+			productId: productCId,
+			quantity: 3,
+			status: "confirmed",
+			confirmedAt: new Date(),
+		});
+
+		const { cartId, token } = await createGuestCart("hold-active");
+		await addCartItem(cartId, productCId, 8);
+
+		// Available = 10 - 3 (active hold) = 7 → an 8-unit checkout is rejected.
+		await expect(
+			OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null),
+		).rejects.toThrow(/Disponible: 7/);
+	});
+
+	it("releases the hold once the grace window has passed", async () => {
+		const pastGrace = new Date(Date.now() - (CONFIRMED_HOLD_HOURS + 1) * 60 * 60 * 1000);
+		await insertPendingOrder({
+			userId: userAId,
+			productId: productDId,
+			quantity: 3,
+			status: "confirmed",
+			confirmedAt: pastGrace,
+		});
+
+		const { cartId, token } = await createGuestCart("hold-expired");
+		await addCartItem(cartId, productDId, 10);
+
+		// Available = the full 10: the expired confirmation no longer holds, so
+		// the full-stock checkout goes through.
+		const order = await OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null);
+		createdOrderIds.push(order.id);
+		expect(order.status).toBe("pending");
+	});
+
+	it("moves stock with order state for owner-managed products", async () => {
+		const orderId = await insertPendingOrder({
+			userId: userAId,
+			productId: productEId,
+			quantity: 2,
+		});
+
+		// productE starts at stock 5 (owner-managed, no feed).
+		await OrderService.updateStatus(orderId, { status: "confirmed" });
+		const [afterConfirm] = await db
+			.select({ stock: products.stock })
+			.from(products)
+			.where(eq(products.id, productEId))
+			.limit(1);
+		expect(afterConfirm!.stock).toBe(3); // 5 - 2
+
+		await OrderService.updateStatus(orderId, { status: "cancelled" });
+		const [afterCancel] = await db
+			.select({ stock: products.stock })
+			.from(products)
+			.where(eq(products.id, productEId))
+			.limit(1);
+		expect(afterCancel!.stock).toBe(5); // restored
+	});
+
+	it("holds stock for pending orders on owner-managed products", async () => {
+		await insertPendingOrder({
+			userId: userAId,
+			productId: productEId,
+			quantity: 3,
+		});
+
+		// stock 5, pending hold 3 → available 2 → a 3-unit checkout is rejected.
+		const { cartId, token } = await createGuestCart("manual-hold");
+		await addCartItem(cartId, productEId, 3);
+		await expect(
+			OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null),
+		).rejects.toThrow(/Disponible: 2/);
 	});
 });

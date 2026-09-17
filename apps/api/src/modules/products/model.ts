@@ -10,8 +10,8 @@ const _insert = createInsertSchema(products, {
 	slug: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
 	description: t.Optional(t.Nullable(t.String({ maxLength: 10000 }))),
 	sku: t.String({ minLength: 1, maxLength: 100 }),
-	// `price` is optional in the body — the service ALWAYS recomputes it from
-	// supplierPrice + margin. A value sent here is silently ignored.
+	// `price` is optional: honored for owner-managed (`manual`) products; for
+	// provider products the service derives it from supplierPrice + margins.
 	price: t.Optional(t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" })),
 	supplierPrice: t.Optional(t.String({ pattern: "^\\d+(\\.\\d{1,2})?$" })),
 	// Per-role custom margin overrides. Each role is independent.

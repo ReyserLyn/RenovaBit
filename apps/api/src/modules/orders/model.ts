@@ -87,7 +87,6 @@ const CreateOrderBody = t.Object({
 	customerPhone: t.Optional(t.Nullable(t.String({ minLength: 1, maxLength: 20 }))),
 	notes: t.Optional(t.Nullable(t.String({ maxLength: 2000 }))),
 	paymentMethod: t.Optional(t.Nullable(PaymentMethodSchema)),
-	appliedOfferIds: t.Optional(t.Array(t.String({ format: "uuid" }))),
 });
 
 const AdminUpdateOrderBody = t.Object({

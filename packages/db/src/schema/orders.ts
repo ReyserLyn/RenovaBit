@@ -16,10 +16,6 @@ import { users } from "./auth";
 import { carts } from "./cart";
 import { products } from "./products";
 
-export type OrderMetadata = {
-	applied_offer_ids?: string[];
-};
-
 export type OrderAttachments = string[];
 
 // ── Enums ────────────────────────────────────────────
@@ -50,7 +46,6 @@ export const orders = pgTable(
 		status: orderStatusEnum("status").default("pending").notNull(),
 		source: orderSourceEnum("source").default("web").notNull(),
 		paymentMethod: paymentMethodEnum("payment_method"),
-		paymentProofUrl: text("payment_proof_url"),
 
 		subtotal: numeric("subtotal", { precision: 12, scale: 2 }).default("0").notNull(),
 		discountTotal: numeric("discount_total", { precision: 12, scale: 2 }).default("0").notNull(),
@@ -58,8 +53,6 @@ export const orders = pgTable(
 
 		notes: text("notes"),
 		adminNotes: text("admin_notes"),
-
-		metadata: jsonb("metadata").$type<OrderMetadata>().default({}),
 
 		confirmedAt: timestamp("confirmed_at"),
 		cancelledAt: timestamp("cancelled_at"),

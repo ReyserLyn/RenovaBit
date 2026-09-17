@@ -34,6 +34,7 @@ import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
+import { resolveSalePrice } from "@/utils/price";
 import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
 import { type ActiveOfferRef, activeOffersForProductSubquery } from "../offers/service";
@@ -394,6 +395,8 @@ async function listPublic(
 			slug: products.slug,
 			supplierPrice: products.supplierPrice,
 			roleCustomMargins: products.roleCustomMargins,
+			managedBy: products.managedBy,
+			price: products.price,
 			stock: sql<number>`GREATEST(0, ${products.stock} - (${getReservedStockSubquery(products.id)})::int)`,
 			sku: products.sku,
 			isFeatured: products.isFeatured,
@@ -435,14 +438,7 @@ async function listPublic(
 
 	const data = rows
 		.map((row) => {
-			const { salePrice } = getEffectiveSalePrice(
-				{
-					supplierPrice: row.supplierPrice,
-					roleCustomMargins: row.roleCustomMargins,
-				},
-				role,
-				marginRules,
-			);
+			const salePrice = resolveSalePrice(row, role, marginRules);
 			const { offerPrice, discountPercent } = computeOfferEnrichment(salePrice, row.offers, role);
 			return {
 				id: row.id,
@@ -487,6 +483,8 @@ async function getBySlugPublic(
 			description: products.description,
 			supplierPrice: products.supplierPrice,
 			roleCustomMargins: products.roleCustomMargins,
+			managedBy: products.managedBy,
+			price: products.price,
 			stock: sql<number>`GREATEST(0, ${products.stock} - (${getReservedStockSubquery(products.id)})::int)`,
 			sku: products.sku,
 			specifications: products.specifications,
@@ -522,14 +520,7 @@ async function getBySlugPublic(
 	if (!row) return null;
 
 	const marginRules = await getActiveMarginRules();
-	const { salePrice } = getEffectiveSalePrice(
-		{
-			supplierPrice: row.supplierPrice,
-			roleCustomMargins: row.roleCustomMargins,
-		},
-		role,
-		marginRules,
-	);
+	const salePrice = resolveSalePrice(row, role, marginRules);
 
 	const { offerPrice, discountPercent } = computeOfferEnrichment(salePrice, row.offers, role);
 
@@ -579,7 +570,8 @@ async function create(data: CreateBody, userId: string): Promise<Product> {
 	await ensureBrandExists(data.brandId);
 	await ensureCategoryExists(data.categoryId);
 
-	// Always derive `price` from supplierPrice + customer margin; ignore any value sent in the body.
+	// Admin-created products are owner-managed (`manual`): the price sent in the
+	// body is respected. Without one, seed `price` from supplierPrice + margins.
 	const supplierPrice = data.supplierPrice ?? "0";
 	const marginRules = await getActiveMarginRules();
 	const { salePrice } = getEffectiveSalePrice(
@@ -587,6 +579,7 @@ async function create(data: CreateBody, userId: string): Promise<Product> {
 		"customer",
 		marginRules,
 	);
+	const nextPrice = typeof data.price === "string" ? data.price : salePrice.toFixed(2);
 
 	const [item] = await db
 		.insert(products)
@@ -594,9 +587,10 @@ async function create(data: CreateBody, userId: string): Promise<Product> {
 			name: nextName,
 			slug: nextSlug,
 			description: data.description,
-			price: salePrice.toFixed(2),
+			price: nextPrice,
 			sku: data.sku,
 			stock: data.stock,
+			managedBy: "manual",
 			supplierPrice,
 			roleCustomMargins: data.roleCustomMargins ?? null,
 			brandId: data.brandId,
@@ -661,8 +655,12 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Pro
 		patch.roleCustomMargins = data.roleCustomMargins;
 	}
 
-	// Recompute `price` whenever pricing inputs change. `price` is NOT accepted
-	// from the body — it's always derived.
+	// Pricing: provider products always derive `price` from supplierPrice +
+	// margins. Owner-managed (`manual`) products accept `price` from the body —
+	// it's their price.
+	const nextManagedBy = data.managedBy ?? current.managedBy;
+	const isManualProduct = nextManagedBy === "manual";
+
 	const pricingTouched = patch.supplierPrice !== undefined || patch.roleCustomMargins !== undefined;
 	let computedPrice: string | undefined;
 	if (pricingTouched) {
@@ -677,12 +675,16 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Pro
 		computedPrice = salePrice.toFixed(2);
 	}
 
-	// Drop fields that are not columns / are auto-computed.
-	const { price: _p, supplierPrice: _sp, ...rest } = data;
+	const { price: bodyPrice, supplierPrice: _sp, ...rest } = data;
+	const nextPrice = isManualProduct
+		? typeof bodyPrice === "string"
+			? bodyPrice
+			: computedPrice
+		: computedPrice;
 	const baseUpdate = {
 		...rest,
 		...patch,
-		...(computedPrice !== undefined ? { price: computedPrice } : {}),
+		...(nextPrice !== undefined ? { price: nextPrice } : {}),
 		name: nextName,
 		slug: nextSlug,
 		updatedBy: userId,
@@ -703,6 +705,23 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Pro
 			message: "Producto no encontrado",
 			logLevel: "info",
 			doNotLog: true,
+		});
+	}
+
+	// Audit trail for control handovers (who took/released stock control).
+	if (data.managedBy !== undefined && data.managedBy !== current.managedBy) {
+		await db.insert(productChanges).values({
+			productId: id,
+			userId,
+			source: "admin",
+			changeType: "manual_control",
+			field: "managed_by",
+			oldValue: { managedBy: current.managedBy },
+			newValue: { managedBy: data.managedBy },
+			reason:
+				data.managedBy === "manual"
+					? "Control manual del producto: el sync deja de escribir stock y precio"
+					: "Control devuelto al proveedor",
 		});
 	}
 
@@ -1001,6 +1020,8 @@ async function search(
 				sku: products.sku,
 				supplierPrice: products.supplierPrice,
 				roleCustomMargins: products.roleCustomMargins,
+				managedBy: products.managedBy,
+				price: products.price,
 				isFeatured: products.isFeatured,
 				stock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
 				isInStock: sql<boolean>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0)) > 0`,
@@ -1049,14 +1070,7 @@ async function search(
 
 	const marginRules = await getActiveMarginRules();
 	const data = rows.map((row): ProductSearchResult => {
-		const { salePrice } = getEffectiveSalePrice(
-			{
-				supplierPrice: row.supplierPrice,
-				roleCustomMargins: row.roleCustomMargins,
-			},
-			role,
-			marginRules,
-		);
+		const salePrice = resolveSalePrice(row, role, marginRules);
 		const { offerPrice, discountPercent } = computeOfferEnrichment(salePrice, row.offers, role);
 		return {
 			id: row.id,

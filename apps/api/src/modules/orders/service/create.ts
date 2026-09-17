@@ -6,11 +6,10 @@ import {
 	applyOfferToProduct,
 	type CartItemInput,
 	calculateOrderTotal,
-	getEffectiveSalePrice,
 	type Role,
 } from "@renovabit/pricing";
 import { type Static } from "@sinclair/typebox";
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { MAX_ORDER_NUMBER_RETRIES, MAX_PENDING_ORDERS } from "@/constants";
 import { enqueueOrderAutoCancel } from "@/jobs/orders.queue";
@@ -19,7 +18,8 @@ import { OfferService } from "@/modules/offers/service";
 import { isUniqueViolationOn } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
-import { getReservedStockForProductInTx } from "@/utils/stock";
+import { resolveSalePrice } from "@/utils/price";
+import { getReservedStockSubquery } from "@/utils/stock";
 import type { OrderResponse } from "../model";
 import { OrderModel } from "../model";
 import { buildOrderResponse, getById } from "./queries";
@@ -156,6 +156,8 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			sku: products.sku,
 			supplierPrice: products.supplierPrice,
 			roleCustomMargins: products.roleCustomMargins,
+			managedBy: products.managedBy,
+			price: products.price,
 			stock: products.stock,
 			isActive: products.isActive,
 			needsReview: products.needsReview,
@@ -165,17 +167,24 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 
 	const productMap = new Map(productRows.map((p) => [p.id, p]));
 
-	// Resolve the buyer's role for role-aware pricing (admin always sees raw).
+	// Fetch the buyer's role and profile in one round trip: the role drives
+	// role-aware pricing (admin always sees raw) and the profile fills missing
+	// contact fields.
 	let orderRole: Role = "customer";
+	let profileName: string | null = null;
+	let profilePhone: string | null = null;
 	if (userId) {
 		const [u] = await db
-			.select({ role: users.role })
+			.select({ role: users.role, name: users.name, phone: users.phone })
 			.from(users)
 			.where(eq(users.id, userId))
 			.limit(1);
-		const r = u?.role;
-		if (r === "admin" || r === "customer") {
-			orderRole = r;
+		if (u) {
+			if (u.role === "admin" || u.role === "customer") {
+				orderRole = u.role;
+			}
+			profileName = u.name;
+			profilePhone = u.phone ?? null;
 		}
 	}
 
@@ -214,14 +223,16 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 	// summary and per-line final price computation.
 	const resolveUnitPrice = (item: (typeof cartItemsList)[number]) => {
 		const product = productMap.get(item.productId);
-		return getEffectiveSalePrice(
+		return resolveSalePrice(
 			{
+				managedBy: product?.managedBy ?? null,
+				price: product?.price ?? "0",
 				supplierPrice: product?.supplierPrice ?? "0",
 				roleCustomMargins: product?.roleCustomMargins ?? null,
 			},
 			orderRole,
 			marginRules,
-		).salePrice;
+		);
 	};
 
 	// Pre-compute per-line pricing so the transaction body only persists it.
@@ -257,68 +268,53 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 		typeof data.customerPhone === "string" ? data.customerPhone.trim() || null : null;
 
 	if (userId && (!customerName || !customerPhone)) {
-		const [profile] = await db
-			.select({ name: users.name, phone: users.phone })
-			.from(users)
-			.where(eq(users.id, userId))
-			.limit(1);
-
-		if (profile) {
-			if (!customerName) customerName = profile.name;
-			if (!customerPhone) customerPhone = profile.phone ?? null;
-		}
+		if (!customerName) customerName = profileName;
+		if (!customerPhone) customerPhone = profilePhone;
 	}
 
 	const normalizedNotes = typeof data.notes === "string" ? data.notes.trim() || null : null;
 
-	const appliedOfferIds = data.appliedOfferIds ?? [];
-	if (appliedOfferIds.length > 0) {
-		const validOfferIds = new Set<string>();
-		for (const offers of activeOffersByProduct.values()) {
-			for (const offer of offers) {
-				if (offer.id) validOfferIds.add(offer.id);
-			}
-		}
-		const invalid = appliedOfferIds.filter((id) => !validOfferIds.has(id));
-		if (invalid.length > 0) {
-			throw createApiError({
-				code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
-				message: `Ofertas no válidas o expiradas: ${invalid.join(", ")}`,
-				logLevel: "info",
-				doNotLog: true,
-			});
-		}
-	}
-
 	const runCreateTransaction = () =>
 		db.transaction(async (tx) => {
 			// ── Stock re-validation inside transaction with FOR UPDATE ──
+			// One pass for every line: lock all product rows (id-sorted, so
+			// concurrent checkouts acquire locks in the same order) and compute
+			// each reservation inline instead of one round trip per product.
 			const uniqueProductIds = [...new Set(cartItemsList.map((i) => i.productId))].sort();
-			for (const productId of uniqueProductIds) {
-				const [locked] = await tx
-					.select({ id: products.id, stock: products.stock })
-					.from(products)
-					.where(eq(products.id, productId))
-					.for("update")
-					.limit(1);
+			const availability = await tx
+				.select({
+					id: products.id,
+					stock: products.stock,
+					reserved: sql<number>`(${getReservedStockSubquery(products.id)})::int`,
+				})
+				.from(products)
+				.where(inArray(products.id, uniqueProductIds))
+				.orderBy(asc(products.id))
+				.for("update");
 
-				if (!locked) {
-					throw createApiError({
-						code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
-						message: "Uno o más productos ya no existen",
-						logLevel: "info",
-						doNotLog: true,
-					});
-				}
+			if (availability.length !== uniqueProductIds.length) {
+				throw createApiError({
+					code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
+					message: "Uno o más productos ya no existen",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
 
-				const reserved = await getReservedStockForProductInTx(tx, productId);
-				const availableStock = locked.stock - reserved;
-				const required = cartItemsList
-					.filter((i) => i.productId === productId)
-					.reduce((sum, i) => sum + i.quantity, 0);
+			const requiredByProduct = new Map<string, number>();
+			for (const item of cartItemsList) {
+				requiredByProduct.set(
+					item.productId,
+					(requiredByProduct.get(item.productId) ?? 0) + item.quantity,
+				);
+			}
+
+			for (const row of availability) {
+				const availableStock = row.stock - (row.reserved ?? 0);
+				const required = requiredByProduct.get(row.id) ?? 0;
 
 				if (availableStock < required) {
-					const product = productMap.get(productId);
+					const product = productMap.get(row.id);
 					const name = product?.name ?? "Producto";
 					throw createApiError({
 						code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
@@ -360,10 +356,6 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			for (let attempt = 0; attempt < MAX_ORDER_NUMBER_RETRIES; attempt++) {
 				const orderNumber = generateOrderNumber();
 				try {
-					const metadataValue = {
-						...(appliedOfferIds.length > 0 ? { applied_offer_ids: appliedOfferIds } : {}),
-					};
-
 					const [created] = await tx
 						.insert(orders)
 						.values({
@@ -378,7 +370,6 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 							discountTotal: "0",
 							total: "0",
 							notes: normalizedNotes,
-							metadata: metadataValue,
 							createdAt: now,
 							updatedAt: now,
 						})

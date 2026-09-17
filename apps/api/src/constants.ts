@@ -17,6 +17,15 @@ export const MAX_ATTACHMENTS = 10;
 export const MAX_PENDING_ORDERS = 10;
 export const MAX_ORDER_NUMBER_RETRIES = 5;
 
+/**
+ * Ventana de gracia durante la cual un pedido `confirmed` sigue reteniendo
+ * stock mientras el feed del proveedor refleja la compra (ver utils/stock.ts).
+ * Ajustar según el lag real observado: si las compras al proveedor demoran más
+ * en reflejarse, subir este valor.
+ */
+export const CONFIRMED_HOLD_HOURS = 4;
+export const CONFIRMED_HOLD_SECONDS = CONFIRMED_HOLD_HOURS * 60 * 60;
+
 // ── Search ──────────────────────────────────────────
 export const SLOW_QUERY_THRESHOLD_MS = 200;
 export const SEARCH_MAX_LENGTH = 100;

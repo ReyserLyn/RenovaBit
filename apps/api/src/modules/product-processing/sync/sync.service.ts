@@ -340,7 +340,12 @@ async function updateExistingProduct(
 ): Promise<boolean> {
 	// Leer valores actuales del PRODUCTO (no del provider, que siempre está bien)
 	const [product] = await db
-		.select({ price: products.price, supplierPrice: products.supplierPrice, stock: products.stock })
+		.select({
+			price: products.price,
+			supplierPrice: products.supplierPrice,
+			stock: products.stock,
+			managedBy: products.managedBy,
+		})
 		.from(products)
 		.where(eq(products.id, productId))
 		.limit(1);
@@ -348,6 +353,9 @@ async function updateExistingProduct(
 	const currentPrice = product?.price ?? "0";
 	const currentSupplierPrice = product?.supplierPrice ?? "0";
 	const currentStock = product?.stock ?? 0;
+
+	// Owner-managed products: the feed never overwrites stock or price.
+	const isManual = product?.managedBy === "manual";
 
 	const pricing = await computePricingFromRules(item.rawPrice);
 	const newStock = item.rawStock;
@@ -357,9 +365,9 @@ async function updateExistingProduct(
 	const nextSupplierPrice = pricing?.supplierPrice ?? currentSupplierPrice;
 	const nextSalePrice = pricing?.salePrice ?? currentPrice;
 
-	const priceChanged = currentPrice !== nextSalePrice;
-	const stockChanged = currentStock !== newStock;
-	const supplierChanged = currentSupplierPrice !== nextSupplierPrice;
+	const priceChanged = !isManual && currentPrice !== nextSalePrice;
+	const stockChanged = !isManual && currentStock !== newStock;
+	const supplierChanged = !isManual && currentSupplierPrice !== nextSupplierPrice;
 
 	// Solo escribir si algo cambió (reduce churn en productChanges)
 	if (supplierChanged || priceChanged || stockChanged) {
@@ -549,13 +557,21 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 // ── Mark out of stock ──────────────────────────────
 async function markOutOfStock(scrapedProviderIds: Set<string>, reportId: string): Promise<number> {
 	const active = await db
-		.select({ productId: productProviders.productId, providerId: productProviders.externalId })
+		.select({
+			productId: productProviders.productId,
+			providerId: productProviders.externalId,
+			managedBy: products.managedBy,
+		})
 		.from(productProviders)
+		.innerJoin(products, eq(products.id, productProviders.productId))
 		.where(
 			and(eq(productProviders.source, PROVIDER_SOURCE), eq(productProviders.isUnavailable, false)),
 		);
 
-	const toMark = active.filter((p) => !scrapedProviderIds.has(p.providerId));
+	// Owner-managed products never get zeroed by the feed.
+	const toMark = active.filter(
+		(p) => !scrapedProviderIds.has(p.providerId) && p.managedBy !== "manual",
+	);
 
 	if (toMark.length === 0) return 0;
 

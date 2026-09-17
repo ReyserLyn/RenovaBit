@@ -4,17 +4,13 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { brands, offerProducts, offers, products } from "@renovabit/db/schema";
-import {
-	applyOfferToProduct,
-	getEffectiveSalePrice,
-	type OfferInput,
-	type Role,
-} from "@renovabit/pricing";
+import { applyOfferToProduct, type OfferInput, type Role } from "@renovabit/pricing";
 import { and, asc, desc, eq, getTableColumns, gte, ilike, inArray, lte, sql } from "drizzle-orm";
 import { peruDateToUtcEnd, peruDateToUtcStart } from "@/utils/date";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
+import { resolveSalePrice } from "@/utils/price";
 import { getReservedStockSubquery } from "@/utils/stock";
 import type { CreateOfferDto, UpdateOfferDto } from "./model";
 
@@ -788,6 +784,8 @@ async function getOffersWithProducts(
 					stock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
 					supplierPrice: products.supplierPrice,
 					roleCustomMargins: products.roleCustomMargins,
+					managedBy: products.managedBy,
+					price: products.price,
 					brandId: brands.id,
 					brandName: brands.name,
 					brandSlug: brands.slug,
@@ -805,14 +803,7 @@ async function getOffersWithProducts(
 			// Compute prices and apply role-aware price filter
 			const priceFiltered = rows
 				.map((row) => {
-					const { salePrice } = getEffectiveSalePrice(
-						{
-							supplierPrice: row.supplierPrice,
-							roleCustomMargins: row.roleCustomMargins,
-						},
-						role,
-						marginRules,
-					);
+					const salePrice = resolveSalePrice(row, role, marginRules);
 
 					const offerResult = applyOfferToProduct(
 						salePrice,

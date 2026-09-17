@@ -15,6 +15,20 @@
 			"when": 1789676800831,
 			"tag": "0001_remove_distributor_role",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1789680720572,
+			"tag": "0002_rapid_millenium_guard",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "7",
+			"when": 1789682069427,
+			"tag": "0003_robust_infant_terrible",
+			"breakpoints": true
 		}
 	]
 }

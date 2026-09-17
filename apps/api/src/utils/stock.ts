@@ -1,13 +1,27 @@
-import { ORDER_RESERVATION_STATUSES } from "@renovabit/db/orders";
-import { orderItems, orders } from "@renovabit/db/schema";
+import { orderItems, orders, products } from "@renovabit/db/schema";
 import type { AnyColumn } from "drizzle-orm";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { CONFIRMED_HOLD_SECONDS } from "@/constants";
 
 /**
- * SQL fragment usable en queries Drizzle para computar la reserva inline.
- * El stock físico (`products.stock`) llega del sync del proveedor; al confirmar
- * un pedido se descuenta el stock físico y la reserva se libera, por eso solo
- * los estados en `ORDER_RESERVATION_STATUSES` (e.g. `pending`) reservan.
+ * Modelo de stock (un solo escritor)
+ * ──────────────────────────────────
+ * `products.stock` pertenece al feed del proveedor: el sync lo escribe en
+ * absoluto cada ~10 min y el sistema de pedidos NUNCA lo modifica. La
+ * disponibilidad se calcula como `stock - retenciones`, donde una retención es
+ * cualquier pedido que ya reclamó una unidad:
+ *
+ *   - `pending`: la retiene mientras espera pago/confirmación.
+ *   - `confirmed` dentro de la ventana de gracia (`CONFIRMED_HOLD_SECONDS`):
+ *     sigue retenida porque el feed del proveedor todavía no reflejó nuestra
+ *     compra. Pasada la gracia se libera: el feed ya es la única verdad.
+ *
+ * Esto elimina el doble escritor (el decremento local que el sync pisaba en su
+ * siguiente corrida → phantom stock → sobreventa).
+ */
+
+/**
+ * SQL fragment usable en queries Drizzle para computar la retención inline.
  *
  * Uso:
  * ```ts
@@ -15,25 +29,31 @@ import { and, eq, inArray, sql } from "drizzle-orm";
  * ```
  */
 export function getReservedStockSubquery(productIdCol: AnyColumn) {
-	const statusList = ORDER_RESERVATION_STATUSES.map((s) => `'${s}'`).join(", ");
 	return sql`(
 		SELECT COALESCE(SUM(oi.quantity), 0)
 		FROM ${orderItems} oi
 		INNER JOIN ${orders} o ON o.id = oi.order_id
+		INNER JOIN ${products} p ON p.id = oi.product_id
 		WHERE oi.product_id = ${productIdCol}
-		AND o.status IN (${sql.raw(statusList)})
+		AND (
+			o.status = 'pending'
+			OR (
+				o.status = 'confirmed'
+				AND p.managed_by = 'provider'
+				AND o.confirmed_at > now() - make_interval(secs => ${CONFIRMED_HOLD_SECONDS})
+			)
+		)
 	)`;
 }
 
 /**
- * Obtiene el stock reservado para un producto dentro de una transacción activa.
- * Reemplaza el bloque duplicado de:
- * ```
- * .select({ reserved: sql<number>\`COALESCE(SUM(...)::int, 0)\` })
- * ```
- * que aparece 4 veces en cart/service.ts y orders/service.ts.
+ * Obtiene la retención de un producto dentro de una transacción activa.
  *
- * @param tx — Transacción Drizzle activa (el parámetro del callback de `db.transaction(tx => ...)`)
+ * Reutiliza la subquery canónica (única definición del modelo) usando una fila
+ * de `order_items` como pivote: la subquery es idéntica en cada fila, así que
+ * devolver la primera basta. Si el producto no tiene items, la retención es 0.
+ *
+ * @param tx — Transacción Drizzle activa (el parámetro del callback de `db.transaction`)
  * @param productId — ID del producto a consultar
  */
 export async function getReservedStockForProductInTx(
@@ -41,12 +61,10 @@ export async function getReservedStockForProductInTx(
 	tx: any,
 	productId: string,
 ): Promise<number> {
-	const [result] = await tx
-		.select({ reserved: sql<number>`COALESCE(SUM(${orderItems.quantity})::int, 0)` })
+	const [row] = await tx
+		.select({ reserved: sql<number>`(${getReservedStockSubquery(orderItems.productId)})::int` })
 		.from(orderItems)
-		.innerJoin(orders, eq(orders.id, orderItems.orderId))
-		.where(
-			and(eq(orderItems.productId, productId), inArray(orders.status, ORDER_RESERVATION_STATUSES)),
-		);
-	return result?.reserved ?? 0;
+		.where(eq(orderItems.productId, productId))
+		.limit(1);
+	return row?.reserved ?? 0;
 }

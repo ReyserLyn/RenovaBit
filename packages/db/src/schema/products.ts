@@ -6,6 +6,7 @@ import {
 	integer,
 	jsonb,
 	numeric,
+	pgEnum,
 	pgTable,
 	text,
 	uuid,
@@ -29,6 +30,15 @@ const tsvector = customType<{ data: string }>({
 	},
 });
 
+/**
+ * Who owns stock and price for this product.
+ *
+ * - `provider`: the scrape feed owns them (sync writes absolute values).
+ * - `manual`: the owner controls them — sync never overwrites, the stored
+ *   `price` is displayed as-is, and orders move stock on confirm/refund.
+ */
+export const productManagedByEnum = pgEnum("product_managed_by", ["provider", "manual"]);
+
 export const products = pgTable(
 	"products",
 	{
@@ -43,6 +53,7 @@ export const products = pgTable(
 		supplierPrice: numeric("supplier_price", { precision: 12, scale: 2 }).notNull().default("0"),
 		roleCustomMargins: jsonb("role_custom_margins").$type<RoleCustomMargins | null>(),
 		stock: integer("stock").default(0).notNull(),
+		managedBy: productManagedByEnum("managed_by").default("provider").notNull(),
 
 		brandId: uuid("brand_id").references(() => brands.id, {
 			onDelete: "set null",

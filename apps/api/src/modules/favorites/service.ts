@@ -8,10 +8,11 @@ import {
 	productImages,
 	products,
 } from "@renovabit/db/schema";
-import { applyOfferToProduct, getEffectiveSalePrice, type Role } from "@renovabit/pricing";
+import { applyOfferToProduct, type Role } from "@renovabit/pricing";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { formatDate, now } from "@/utils/date";
 import { getActiveMarginRules } from "@/utils/margin-rules";
+import { resolveSalePrice } from "@/utils/price";
 import { getReservedStockSubquery } from "@/utils/stock";
 import { activeOffersForProductSubquery } from "../offers/service";
 import type {
@@ -246,6 +247,8 @@ async function getItems(
 				stock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
 				supplierPrice: products.supplierPrice,
 				roleCustomMargins: products.roleCustomMargins,
+				managedBy: products.managedBy,
+				price: products.price,
 				brandId: products.brandId,
 				brandName: brands.name,
 				brandSlug: brands.slug,
@@ -307,11 +310,7 @@ async function getItems(
 	};
 
 	let enriched: Enriched[] = rawRows.map((row) => {
-		const { salePrice } = getEffectiveSalePrice(
-			{ supplierPrice: row.supplierPrice, roleCustomMargins: row.roleCustomMargins },
-			role,
-			marginRules,
-		);
+		const salePrice = resolveSalePrice(row, role, marginRules);
 		const offerInputs = row.offers.map((o) => ({
 			id: o.id,
 			discountValue: Number.parseFloat(o.discountValue) || 0,
