@@ -8,5 +8,4 @@
  */
 export type RoleCustomMargins = {
 	customer?: { enabled: true; percent: string };
-	distributor?: { enabled: true; percent: string };
 };

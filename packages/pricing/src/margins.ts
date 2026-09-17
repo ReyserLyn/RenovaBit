@@ -12,12 +12,6 @@
  */
 export const DEFAULT_MARGIN_PERCENT = 20;
 
-/**
- * Default margin percent for the distributor role.
- * Same fallback semantics as `DEFAULT_MARGIN_PERCENT`.
- */
-export const DEFAULT_DISTRIBUTOR_MARGIN_PERCENT = 10;
-
 /** Maximum sanity bound for tier-based margin percent. */
 export const MAX_MARGIN_PERCENT = 100;
 
@@ -26,8 +20,8 @@ export const MAX_MARGIN_PERCENT = 100;
  *
  * Business rationale: premium/luxury products can require very high markups
  * (e.g., specialized industrial equipment, exclusive brands). The 1000% cap
- * (i.e., 10× cost) is deliberately generous to accommodate real distributor
- * catalogs where niche items carry extreme margins. This is not a default —
+ * (i.e., 10× cost) is deliberately generous to accommodate niche catalogs
+ * where specific items carry extreme margins. This is not a default —
  * it's a safety ceiling enforced on per-product overrides only. Tier-based
  * margin rules use MAX_MARGIN_PERCENT (100 %) instead.
  */

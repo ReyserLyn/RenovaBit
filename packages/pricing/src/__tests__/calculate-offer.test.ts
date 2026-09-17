@@ -22,45 +22,6 @@ describe("applyOfferToProduct — role guard", () => {
 		expect(result.totalDiscount).toBe(0);
 	});
 
-	it("returns offer price for distributor when offer is better than sale price", () => {
-		// 20% off 100 = 80, which is better (lower) than the tier price of 100
-		const result = applyOfferToProduct(basePrice, offers, "distributor");
-		expect(result.discountedPrice).toBe(80);
-		expect(result.totalDiscount).toBe(20);
-	});
-
-	it("returns sale price for distributor when no offers apply (empty)", () => {
-		// Empty offers → computeOfferPrice returns salePrice unchanged
-		const result = applyOfferToProduct(basePrice, [], "distributor");
-		expect(result.discountedPrice).toBe(basePrice);
-		expect(result.totalDiscount).toBe(0);
-	});
-
-	it("returns sale price for distributor when offer discount is zero", () => {
-		// 0% offer → offerPrice equals salePrice → no benefit
-		const zeroOffer = [{ discountValue: 0 }];
-		const result = applyOfferToProduct(basePrice, zeroOffer, "distributor");
-		expect(result.discountedPrice).toBe(basePrice);
-		expect(result.totalDiscount).toBe(0);
-	});
-
-	it("returns the better price for distributor with multiple stacked offers", () => {
-		const multiOffers = [{ discountValue: 20 }, { discountValue: 10 }];
-		const result = applyOfferToProduct(basePrice, multiOffers, "distributor");
-		expect(result.discountedPrice).toBe(70);
-		expect(result.totalDiscount).toBeCloseTo(30, 2);
-	});
-
-	it("returns offer price even for low prices when offer still beats sale price", () => {
-		const veryLowPrice = 1;
-		const multiOffers = [{ discountValue: 20 }, { discountValue: 30 }];
-		const result = applyOfferToProduct(veryLowPrice, multiOffers, "distributor");
-		// 20% + 30% = 50% capped at MAX_OFFER_DISCOUNT_PERCENT (100%)
-		// So discount = 1 * 50% = 0.5, offerPrice = 0.5 which is < 1
-		expect(result.discountedPrice).toBe(0.5);
-		expect(result.totalDiscount).toBeCloseTo(0.5, 2);
-	});
-
 	it("returns unchanged price when role is customer but no offers", () => {
 		const result = applyOfferToProduct(basePrice, [], "customer");
 		expect(result.discountedPrice).toBe(basePrice);

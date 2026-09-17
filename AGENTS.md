@@ -81,7 +81,7 @@ Indent is **tabs** (Biome `indentStyle: "tab"`, Prettier `useTabs: true`), line 
 - Adapter: Drizzle (PostgreSQL). `Bun.password.hash`/`verify` for password hashing.
 - **Secondary storage: Redis** (via `@better-auth/redis-storage`) — also powers rate-limit counters. Redis client lives at `apps/api/src/utils/redis/index.ts`.
 - Cookie: `renovabit` prefix, cross-subdomain (`.renovabit.com` in prod, `localhost` in dev). Session: 7-day expiry, 1-day update age, persisted in DB with 1h compact cookie cache.
-- User roles: `admin`, `customer`, `distributor` (with `admin` as the only `adminRoles`).
+- User roles: `admin`, `customer` (with `admin` as the only `adminRoles`).
 - Plugins: `username` (reserved names list in `auth.ts`), `admin` (impersonation 15 min, ban 7-day default), `openAPI`. OpenAPI docs exposed at `/docs` in dev only (`apps/api/src/plugins/docs.ts`).
 - CORS trusted origins are built from `LANDING_URL` + `API_URL` + `ADMIN_URL` + `STORE_URL` env vars.
 

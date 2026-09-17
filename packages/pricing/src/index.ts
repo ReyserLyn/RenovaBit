@@ -19,7 +19,6 @@ export { lookupMarginRule } from "./lookup-margin-rule";
 export type { RoleResolutionSource } from "./margins";
 // ── Constants ──────────────────────────────────────────
 export {
-	DEFAULT_DISTRIBUTOR_MARGIN_PERCENT,
 	DEFAULT_MARGIN_PERCENT,
 	MAX_CUSTOM_MARGIN_PERCENT,
 	MAX_MARGIN_PERCENT,

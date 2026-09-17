@@ -53,11 +53,8 @@ export function computeOfferPrice(salePrice: number, offers: OfferInput[]): Offe
  * Applies a list of offers to a single product's sale price, respecting user role.
  *
  * ROLE CONTRACT:
- *   - `admin`       → No offers applied. Returns `salePrice` unchanged.
- *   - `customer`    → Offers ARE applied. Returns computed offer price.
- *   - `distributor` → Returns the better (lower) of `salePrice` vs `offerPrice`.
- *                      The distributor only sees the offer if it beats their tier price.
- *   - default       → Defensive: returns `salePrice` unchanged.
+ *   - `admin`    → No offers applied. Returns `salePrice` unchanged.
+ *   - `customer` → Offers ARE applied. Returns the computed offer price.
  *
  * @param salePrice - The product's base sale price (role-aware margin already applied)
  * @param offers - Array of resolved offers to apply
@@ -73,18 +70,5 @@ export function applyOfferToProduct(
 		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
 	}
 
-	if (role === "customer") {
-		return computeOfferPrice(salePrice, offers);
-	}
-
-	if (role === "distributor") {
-		const offerResult = computeOfferPrice(salePrice, offers);
-		if (offerResult.discountedPrice < salePrice) {
-			return offerResult;
-		}
-		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
-	}
-
-	// Defensive: unknown role — return price unchanged
-	return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
+	return computeOfferPrice(salePrice, offers);
 }

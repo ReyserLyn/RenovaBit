@@ -8,6 +8,13 @@
 			"when": 1782431749376,
 			"tag": "0000_overconfident_killer_shrike",
 			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1789676800831,
+			"tag": "0001_remove_distributor_role",
+			"breakpoints": true
 		}
 	]
 }

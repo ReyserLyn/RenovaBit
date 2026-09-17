@@ -5,7 +5,7 @@ import { applyOfferToProduct, type OfferInput } from "./calculate-offer";
  * Input representing an item in the cart for order total calculation.
  *
  * The `salePrice` MUST be pre-calculated by the caller using
- * `getEffectiveSalePrice(product, role, customerRules, roleRules)`.
+ * `getEffectiveSalePrice(product, role, marginRules)`.
  * This orchestrator does NOT fetch margin rules — it receives the resolved salePrice.
  */
 export type CartItemInput = {
@@ -41,11 +41,10 @@ export type OrderTotalResult = {
  *
  * DATA FLOW for the caller:
  *   1. Caller queries marginRules from DB (active rules)
- *   2. For each product, call `calculateMarginPercent(product, marginRules)`
- *      to get the effective margin %
- *   3. Call `calculateSalePrice(supplierPrice, marginPercent)` to get salePrice
- *   4. Build CartItemInput[] with the resolved salePrices
- *   5. Call this function
+ *   2. For each product, call `getEffectiveSalePrice(product, role, marginRules)`
+ *      to resolve the role-aware sale price
+ *   3. Build CartItemInput[] with the resolved salePrices
+ *   4. Call this function
  *
  * @param input - Cart items with pre-calculated salePrices
  * @returns Complete pricing breakdown

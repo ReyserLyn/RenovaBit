@@ -1,17 +1,17 @@
 /**
  * Unit tests for calculate-effective-price.ts — role-aware pricing.
  *
- * One row covers both non-admin roles: the function picks the column
- * matching the user's role from whichever rule matches the price.
+ * Admin sees the raw supplier price; customers get the customer margin from
+ * their matching tier rule (or per-product override).
  */
 import { describe, expect, it } from "bun:test";
 import { getEffectiveSalePrice, validateSupplierPrice } from "../calculate-effective-price";
 
-// One row per price tier, with both customer and distributor percentages.
+// One row per price tier with the customer percentage.
 const rules = [
-	{ minPrice: "0", maxPrice: "100", customerPct: "25", distributorPct: "22" },
-	{ minPrice: "100", maxPrice: "800", customerPct: "15", distributorPct: "12" },
-	{ minPrice: "800", maxPrice: null, customerPct: "10", distributorPct: "7" },
+	{ minPrice: "0", maxPrice: "100", customerPct: "25" },
+	{ minPrice: "100", maxPrice: "800", customerPct: "15" },
+	{ minPrice: "800", maxPrice: null, customerPct: "10" },
 ];
 
 describe("getEffectiveSalePrice — admin role", () => {
@@ -56,65 +56,11 @@ describe("getEffectiveSalePrice — customer role", () => {
 	});
 });
 
-describe("getEffectiveSalePrice — distributor role", () => {
-	it("uses distributorPct column of the matching tier", () => {
-		const r = getEffectiveSalePrice({ supplierPrice: "150" }, "distributor", rules);
-		// 150 → tier [100, 800) → distributorPct 12% → 168
-		expect(r).toEqual({ salePrice: 168, marginPercent: 12, source: "tier" });
-	});
-
-	it("uses per-product override when enabled for distributor", () => {
-		const r = getEffectiveSalePrice(
-			{
-				supplierPrice: "150",
-				roleCustomMargins: { distributor: { enabled: true, percent: "7" } },
-			},
-			"distributor",
-			rules,
-		);
-		// override wins → 150 × 1.07 = 160.5
-		expect(r).toEqual({
-			salePrice: 160.5,
-			marginPercent: 7,
-			source: "per-product-override",
-		});
-	});
-
-	it("customer override does NOT apply to distributor", () => {
-		const r = getEffectiveSalePrice(
-			{
-				supplierPrice: "150",
-				roleCustomMargins: { customer: { enabled: true, percent: "40" } },
-			},
-			"distributor",
-			rules,
-		);
-		// customer override is set, but role is distributor → distributorPct 12% wins
-		expect(r).toEqual({ salePrice: 168, marginPercent: 12, source: "tier" });
-	});
-});
-
 describe("getEffectiveSalePrice — edge cases", () => {
 	it("returns DEFAULT (20%) when no rules match and no override", () => {
 		const r = getEffectiveSalePrice({ supplierPrice: "500" }, "customer", []);
 		expect(r.marginPercent).toBe(20);
 		expect(r.salePrice).toBe(600);
-		expect(r.source).toBe("default-fallback");
-	});
-
-	it("distributor fallback uses DEFAULT_DISTRIBUTOR_MARGIN_PERCENT (10%) when no rules match", () => {
-		const r = getEffectiveSalePrice({ supplierPrice: "500" }, "distributor", []);
-		expect(r.marginPercent).toBe(10);
-		expect(r.salePrice).toBe(550);
-		expect(r.source).toBe("default-fallback");
-	});
-
-	it("distributor fallback when no rule matches price range (10%)", () => {
-		const r = getEffectiveSalePrice({ supplierPrice: "99999" }, "distributor", [
-			{ minPrice: "0", maxPrice: "100", customerPct: "25", distributorPct: "22" },
-		]);
-		// 99999 is outside [0, 100), so fallback → 10% → 109998.9
-		expect(r.marginPercent).toBe(10);
 		expect(r.source).toBe("default-fallback");
 	});
 
@@ -210,41 +156,12 @@ describe("getEffectiveSalePrice — edge cases", () => {
 		expect(r.source).toBe("default-fallback");
 	});
 
-	it("no rules, no override → default-fallback for distributor (10%)", () => {
-		const r = getEffectiveSalePrice({ supplierPrice: "500" }, "distributor", []);
-		expect(r.marginPercent).toBe(10);
-		expect(r.salePrice).toBe(550);
-		expect(r.source).toBe("default-fallback");
-	});
-
-	it("distributor with single rule that doesn't match → 10% fallback", () => {
-		const r = getEffectiveSalePrice({ supplierPrice: "500" }, "distributor", [
-			{ minPrice: "0", maxPrice: "100", customerPct: "25", distributorPct: "22" },
-		]);
-		// No rule matches (500 > 100) → distributor fallback 10%
-		expect(r.marginPercent).toBe(10);
-		expect(r.salePrice).toBe(550);
-		expect(r.source).toBe("default-fallback");
-	});
-
-	it("same row returns different pcts for customer vs distributor (column pick)", () => {
-		// Single row at [0, 100) with customerPct=30 and distributorPct=20.
-		// Both roles fall in the same range; only the column differs.
-		const single = [{ minPrice: "0", maxPrice: "100", customerPct: "30", distributorPct: "20" }];
-		const customer = getEffectiveSalePrice({ supplierPrice: "50" }, "customer", single);
-		const distributor = getEffectiveSalePrice({ supplierPrice: "50" }, "distributor", single);
-		// 50 * 1.30 = 65 (customer)
-		expect(customer).toEqual({ salePrice: 65, marginPercent: 30, source: "tier" });
-		// 50 * 1.20 = 60 (distributor)
-		expect(distributor).toEqual({ salePrice: 60, marginPercent: 20, source: "tier" });
-	});
-
 	it("multiple rules — first matching tier wins (no fallthrough)", () => {
 		// Two adjacent tiers; supplier at exactly the boundary 100 goes to the second
 		// tier (range is [min, max) — max exclusive).
 		const tiers = [
-			{ minPrice: "0", maxPrice: "100", customerPct: "25", distributorPct: "20" },
-			{ minPrice: "100", maxPrice: null, customerPct: "15", distributorPct: "12" },
+			{ minPrice: "0", maxPrice: "100", customerPct: "25" },
+			{ minPrice: "100", maxPrice: null, customerPct: "15" },
 		];
 		// 50 → first tier → 25%
 		const at50 = getEffectiveSalePrice({ supplierPrice: "50" }, "customer", tiers);

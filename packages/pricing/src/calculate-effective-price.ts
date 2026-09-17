@@ -3,32 +3,25 @@ import type { Role, RoleCustomMargins } from "@renovabit/db/schema";
 import { calculateSalePrice } from "./calculate-margin";
 import { roundCurrency } from "./currency";
 import { lookupMarginRule } from "./lookup-margin-rule";
-import {
-	DEFAULT_DISTRIBUTOR_MARGIN_PERCENT,
-	DEFAULT_MARGIN_PERCENT,
-	MAX_CUSTOM_MARGIN_PERCENT,
-} from "./margins";
+import { DEFAULT_MARGIN_PERCENT, MAX_CUSTOM_MARGIN_PERCENT } from "./margins";
 
 /**
  * `Role` is re-exported from `@renovabit/db/schema` so consumers of
  * `@renovabit/pricing` (admin UI, storefront, etc.) don't need to add
  * `@renovabit/db` as a direct dependency just to type a role string.
- * The value is stable (`"admin" | "customer" | "distributor"`) and comes
+ * The value is stable (`"admin" | "customer"`) and comes
  * from one source of truth.
  */
 export type { Role };
 
 /**
- * A single margin rule row covers both non-admin roles. The pricing
- * lib reads `customerPct` for the `customer` role and `distributorPct`
- * for the `distributor` role from whichever rule matches the supplier
- * price. Admin never matches a rule.
+ * A margin rule row applies to the `customer` role via `customerPct`.
+ * Admin never matches a rule — they always see the raw supplier price.
  */
 export type MarginRule = {
 	minPrice: string;
 	maxPrice: string | null;
 	customerPct: string;
-	distributorPct: string;
 };
 
 /**
@@ -51,7 +44,7 @@ export function validateSupplierPrice(supplierPrice: string): { price: number } 
  *   1. role === 'admin'              → raw supplierPrice, 0% margin
  *   2. product.roleCustomMargins[role] (per-product override)
  *   3. tier rule lookup (one row, both pcts) — read the role's column
- *   4. DEFAULT_MARGIN_PERCENT (20% customer, 10% distributor) as fallback
+ *   4. DEFAULT_MARGIN_PERCENT (20%) as fallback
  *
  * Admin never gets a margin applied — they see the raw cost.
  *
@@ -80,7 +73,7 @@ export function getEffectiveSalePrice(
 	}
 
 	// 2. Per-product override for this role
-	// Admin already returned early above, so role is always "customer" or "distributor" here.
+	// Admin already returned early above, so role is always "customer" here.
 	const custom = product.roleCustomMargins?.[role];
 	if (custom?.enabled) {
 		const pct = Number(custom.percent);
@@ -93,10 +86,10 @@ export function getEffectiveSalePrice(
 		}
 	}
 
-	// 3. Tier rule — one row, pick the role's column
+	// 3. Tier rule — customer margin column
 	const rule = lookupMarginRule(supplierPrice, marginRules);
 	if (rule !== null) {
-		const pct = Number(role === "distributor" ? rule.distributorPct : rule.customerPct);
+		const pct = Number(rule.customerPct);
 		return {
 			salePrice: calculateSalePrice(supplierPrice, pct),
 			marginPercent: pct,
@@ -105,8 +98,7 @@ export function getEffectiveSalePrice(
 	}
 
 	// 4. Hardcoded fallback — no rule matched the supplier price (or no rules at all).
-	const fallbackPercent =
-		role === "distributor" ? DEFAULT_DISTRIBUTOR_MARGIN_PERCENT : DEFAULT_MARGIN_PERCENT;
+	const fallbackPercent = DEFAULT_MARGIN_PERCENT;
 	return {
 		salePrice: calculateSalePrice(supplierPrice, fallbackPercent),
 		marginPercent: fallbackPercent,
