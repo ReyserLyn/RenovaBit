@@ -39,6 +39,9 @@ interface BrandCountRow {
 	productCount: number;
 }
 
+/** Sorts that depend on role-aware pricing, so they are applied after the fetch. */
+const JS_PAGINATED_SORTS = new Set(["price_asc", "price_desc", "name_asc", "name_desc"]);
+
 // ═══════════════════════════════════════════════════
 //  INTERNAL HELPERS
 // ═══════════════════════════════════════════════════
@@ -217,80 +220,93 @@ async function getItems(
 		conditions.push(inArray(products.brandId, brandIdsForFilter));
 	}
 
-	// Default ORDER BY (newest first); price/name sorts are applied in JS post-pricing.
-	const orderBy = desc(favoriteItems.createdAt);
-
-	// Count is the pre-filter, pre-sort total (brand-filter only). The displayed
-	// `total` reflects the post price-filter + post-sort count.
-	const [countResult] = await db
-		.select({
-			total: sql<number>`COUNT(*)::int`,
-		})
-		.from(favoriteItems)
-		.innerJoin(products, eq(favoriteItems.productId, products.id))
-		.where(and(...conditions));
-
-	const total = countResult?.total ?? 0;
-
-	// Fetch the page (over-fetch when price filter is active so the JS filter
-	// still returns a full page, same pattern as products listPublic).
+	// ── Pagination strategy ──
+	// Role-aware pricing (margins + offers) happens in JS after the fetch, so
+	// price filtering and price/name sorting cannot be pushed into SQL. When
+	// either is requested, SQL LIMIT/OFFSET would cut the wrong window: fetch
+	// the whole (brand-filtered) set and paginate after enrichment. Otherwise
+	// SQL LIMIT/OFFSET is exact and cheap.
 	const priceMin = filters.minPrice ? Number.parseFloat(filters.minPrice) : null;
 	const priceMax = filters.maxPrice ? Number.parseFloat(filters.maxPrice) : null;
 	const hasPriceFilter = priceMin !== null || priceMax !== null;
-	const fetchLimit = hasPriceFilter ? Math.max(limit, 100) : limit;
+	const sortBy = filters.sortBy;
+	const needsJsPagination = hasPriceFilter || JS_PAGINATED_SORTS.has(sortBy ?? "");
 
-	const rows = await db
-		.select({
-			itemId: favoriteItems.id,
-			productId: favoriteItems.productId,
-			productName: products.name,
-			productSlug: products.slug,
-			productSku: products.sku,
-			isFeatured: products.isFeatured,
-			stock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
-			supplierPrice: products.supplierPrice,
-			roleCustomMargins: products.roleCustomMargins,
-			brandId: products.brandId,
-			brandName: brands.name,
-			brandSlug: brands.slug,
-			categoryId: products.categoryId,
-			categoryName: categories.name,
-			categorySlug: categories.slug,
-			imageUrl: sql<string | null>`(
+	// Deterministic SQL order (newest first) with an id tiebreak so pages stay
+	// stable when timestamps collide.
+	const selectItemRows = () =>
+		db
+			.select({
+				itemId: favoriteItems.id,
+				productId: favoriteItems.productId,
+				productName: products.name,
+				productSlug: products.slug,
+				productSku: products.sku,
+				isFeatured: products.isFeatured,
+				stock: sql<number>`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0))`,
+				supplierPrice: products.supplierPrice,
+				roleCustomMargins: products.roleCustomMargins,
+				brandId: products.brandId,
+				brandName: brands.name,
+				brandSlug: brands.slug,
+				categoryId: products.categoryId,
+				categoryName: categories.name,
+				categorySlug: categories.slug,
+				imageUrl: sql<string | null>`(
 				SELECT pi.url FROM ${productImages} pi
 				WHERE pi.product_id = ${products.id}
 				ORDER BY pi.is_primary DESC, pi.sort_order ASC NULLS LAST
 				LIMIT 1
 			)`,
-			imageAlt: sql<string | null>`(
+				imageAlt: sql<string | null>`(
 				SELECT pi.alt FROM ${productImages} pi
 				WHERE pi.product_id = ${products.id}
 				ORDER BY pi.is_primary DESC, pi.sort_order ASC NULLS LAST
 				LIMIT 1
 			)`,
-			createdAt: favoriteItems.createdAt,
-			offers: activeOffersForProductSubquery(),
-		})
-		.from(favoriteItems)
-		.innerJoin(products, eq(favoriteItems.productId, products.id))
-		.leftJoin(brands, eq(products.brandId, brands.id))
-		.leftJoin(categories, eq(products.categoryId, categories.id))
-		.where(and(...conditions))
-		.orderBy(orderBy)
-		.limit(fetchLimit);
+				createdAt: favoriteItems.createdAt,
+				offers: activeOffersForProductSubquery(),
+			})
+			.from(favoriteItems)
+			.innerJoin(products, eq(favoriteItems.productId, products.id))
+			.leftJoin(brands, eq(products.brandId, brands.id))
+			.leftJoin(categories, eq(products.categoryId, categories.id))
+			.where(and(...conditions))
+			.orderBy(desc(favoriteItems.createdAt), desc(favoriteItems.id));
+
+	const rawRows = needsJsPagination
+		? await selectItemRows()
+		: await selectItemRows().limit(limit).offset(offset);
+
+	type ItemRow = (typeof rawRows)[number];
+
+	// ── Total ──
+	// SQL path: count all brand-filtered rows. JS path: exact count computed
+	// after pricing/filtering below.
+	let total = 0;
+	if (!needsJsPagination) {
+		const [countResult] = await db
+			.select({
+				total: sql<number>`COUNT(*)::int`,
+			})
+			.from(favoriteItems)
+			.innerJoin(products, eq(favoriteItems.productId, products.id))
+			.where(and(...conditions));
+		total = countResult?.total ?? 0;
+	}
 
 	// ── Role-aware pricing + JS price filter ──
 	const marginRules = await getActiveMarginRules();
 
 	type Enriched = {
-		row: (typeof rows)[number];
+		row: ItemRow;
 		basePrice: number;
 		offerPrice: number | null;
 		discountPercent: number;
 		effectivePrice: number;
 	};
 
-	const enriched: Enriched[] = rows.map((row) => {
+	let enriched: Enriched[] = rawRows.map((row) => {
 		const { salePrice } = getEffectiveSalePrice(
 			{ supplierPrice: row.supplierPrice, roleCustomMargins: row.roleCustomMargins },
 			role,
@@ -312,28 +328,30 @@ async function getItems(
 		};
 	});
 
-	const priceFiltered = enriched.filter(({ effectivePrice }) => {
-		if (priceMin !== null && effectivePrice < priceMin) return false;
-		if (priceMax !== null && effectivePrice > priceMax) return false;
-		return true;
-	});
+	if (needsJsPagination) {
+		enriched = enriched.filter(({ effectivePrice }) => {
+			if (priceMin !== null && effectivePrice < priceMin) return false;
+			if (priceMax !== null && effectivePrice > priceMax) return false;
+			return true;
+		});
 
-	// ── Apply sort post-pricing (only for price/name; default already handled) ──
-	const sortBy = filters.sortBy;
-	if (sortBy === "price_asc") {
-		priceFiltered.sort((a, b) => a.effectivePrice - b.effectivePrice);
-	} else if (sortBy === "price_desc") {
-		priceFiltered.sort((a, b) => b.effectivePrice - a.effectivePrice);
-	} else if (sortBy === "name_asc") {
-		priceFiltered.sort((a, b) => a.row.productName.localeCompare(b.row.productName));
-	} else if (sortBy === "name_desc") {
-		priceFiltered.sort((a, b) => b.row.productName.localeCompare(a.row.productName));
+		// Sort post-pricing; the default (newest first) is the SQL order.
+		if (sortBy === "price_asc") {
+			enriched.sort((a, b) => a.effectivePrice - b.effectivePrice);
+		} else if (sortBy === "price_desc") {
+			enriched.sort((a, b) => b.effectivePrice - a.effectivePrice);
+		} else if (sortBy === "name_asc") {
+			enriched.sort((a, b) => a.row.productName.localeCompare(b.row.productName));
+		} else if (sortBy === "name_desc") {
+			enriched.sort((a, b) => b.row.productName.localeCompare(a.row.productName));
+		}
+
+		total = enriched.length;
 	}
 
-	// ── Paginate post-filter ──
-	const effectiveTotal = hasPriceFilter ? priceFiltered.length + offset : total;
-	const paginated = priceFiltered.slice(0, limit);
-	const hasMore = offset + paginated.length < effectiveTotal;
+	// ── Page (SQL path already paginated; JS path slices after enrichment) ──
+	const paginated = needsJsPagination ? enriched.slice(offset, offset + limit) : enriched;
+	const hasMore = offset + paginated.length < total;
 
 	const items: FavoriteItemResponse[] = paginated.map(
 		({ row, basePrice, offerPrice, discountPercent }) => ({
@@ -405,7 +423,7 @@ async function getItems(
 
 	return {
 		data: items,
-		total: effectiveTotal,
+		total,
 		offset,
 		limit,
 		hasMore,
