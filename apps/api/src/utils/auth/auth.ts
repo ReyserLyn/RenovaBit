@@ -10,6 +10,9 @@ import { getRedis } from "@/utils/redis";
 
 const isProd = process.env.NODE_ENV === "production";
 
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
 export const auth = betterAuth({
 	baseURL: process.env.API_URL ?? "http://localhost:3001",
 	basePath: "/api/v1/auth",
@@ -116,18 +119,23 @@ export const auth = betterAuth({
 			enabled: true,
 		},
 	},
-	socialProviders: {
-		google: {
-			clientId: process.env.GOOGLE_CLIENT_ID ?? "",
-			clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-			mapProfileToUser: (profile) => {
-				const lastname =
-					profile.family_name ??
-					(profile.name?.trim().split(/\s+/).slice(1).join(" ") || undefined);
-				return { lastname };
-			},
-		},
-	},
+	// Only register the provider when credentials exist: an empty clientId
+	// configures Google with broken credentials and fails at sign-in time.
+	socialProviders:
+		googleClientId && googleClientSecret
+			? {
+					google: {
+						clientId: googleClientId,
+						clientSecret: googleClientSecret,
+						mapProfileToUser: (profile) => {
+							const lastname =
+								profile.family_name ??
+								(profile.name?.trim().split(/\s+/).slice(1).join(" ") || undefined);
+							return { lastname };
+						},
+					},
+				}
+			: {},
 	plugins: [
 		username({
 			minUsernameLength: 3,
@@ -157,6 +165,9 @@ export const auth = betterAuth({
 			impersonationSessionDuration: 60 * 15, // 15 min
 			defaultBanExpiresIn: 60 * 60 * 24 * 7,
 		}),
-		openAPI(),
+		// The openAPI schema endpoint (/open-api/generate-schema) would be
+		// publicly reachable through the auth catch-all; keep it dev-only like
+		// the docs plugin.
+		...(isProd ? [] : [openAPI()]),
 	],
 });

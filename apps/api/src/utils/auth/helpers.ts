@@ -23,7 +23,7 @@ export async function getUserId(request: Request): Promise<string | null> {
 export async function getUserRole(request: Request): Promise<Role> {
 	const session = await auth.api.getSession({ headers: request.headers });
 	const role = session?.user.role;
-	if (role === "admin" || role === "distributor" || role === "customer") {
+	if (role === "admin" || role === "customer") {
 		return role;
 	}
 	return "customer";
