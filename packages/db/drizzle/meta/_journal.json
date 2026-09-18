@@ -36,6 +36,13 @@
 			"when": 1789688159297,
 			"tag": "0004_confused_mephisto",
 			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1789689000000,
+			"tag": "0005_out_of_range_price_means_out_of_stock",
+			"breakpoints": true
 		}
 	]
 }

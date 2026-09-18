@@ -17,6 +17,14 @@ export const MAX_ATTACHMENTS = 10;
 export const MAX_PENDING_ORDERS = 10;
 export const MAX_ORDER_NUMBER_RETRIES = 5;
 
+// ── Provider feed sanity ────────────────────────────
+/**
+ * Ceiling for a supplier price coming from the scrape. Values above it are
+ * feed anomalies (the page has been seen reporting 10M/100M) and are skipped
+ * instead of being imported as a real price.
+ */
+export const MAX_FEED_SUPPLIER_PRICE = 50_000;
+
 /**
  * Ventana de gracia durante la cual un pedido `confirmed` sigue reteniendo
  * stock mientras el feed del proveedor refleja la compra (ver utils/stock.ts).

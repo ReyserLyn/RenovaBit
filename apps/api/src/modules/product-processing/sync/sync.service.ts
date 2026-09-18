@@ -20,6 +20,7 @@ import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
 import { extractFromRawName } from "../ai/ai.service";
 import { processProductImage, removeImageReviewReason } from "../image-pipeline/process";
+import { isInvalidFeedPrice, parseFeedPrice } from "./feed-price";
 import type { SyncStats } from "./sync.model";
 
 const PROVIDER_SOURCE = "rematazo";
@@ -47,8 +48,8 @@ function makeSku(providerId: string): string {
 async function computePricingFromRules(
 	rawPrice: string,
 ): Promise<{ supplierPrice: string; salePrice: string } | null> {
-	const supplierPrice = Number.parseFloat(rawPrice);
-	if (!Number.isFinite(supplierPrice) || supplierPrice <= 0) return null;
+	// Rejects unparseable, zero/negative and out-of-range (feed anomaly) prices.
+	if (parseFeedPrice(rawPrice) === null) return null;
 
 	const rules = await getActiveMarginRules();
 
@@ -59,14 +60,6 @@ async function computePricingFromRules(
 	);
 
 	return { supplierPrice: rawPrice, salePrice: salePrice.toFixed(2) };
-}
-
-/** Detecta precios placeholder (9999, 99999…, "2") */
-function isPlaceholderPrice(rawPrice: string): boolean {
-	const cleaned = rawPrice.replace(/[^0-9]/g, "");
-	if (cleaned.length >= 4 && /^9+$/.test(cleaned)) return true;
-	if (cleaned === "2") return true;
-	return false;
 }
 
 async function ensureUniqueSlug(baseSlug: string, providerId: string): Promise<string> {
@@ -208,12 +201,16 @@ export async function runSync(
 				.info(`Sync: ${skippedCount} items omitidos por lista negra`);
 		}
 
-		// ── Filtrar precios placeholder (9999, 99999…) y stock 0: no se procesan pero
-		// se marcan como vistos para que no se consideren out-of-stock.
+		// ── Invalid feed price = the supplier's "no stock" marker; stock 0 items
+		// are also skipped. Neither is processed: they are marked as seen so they
+		// don't count as out-of-stock disappearances, and existing products with
+		// a bogus price are explicitly set out of stock below.
 		const skipIds: string[] = [];
+		const invalidPriceIds: string[] = [];
 		const activeItems = filtered.filter((item) => {
-			if (isPlaceholderPrice(item.rawPrice)) {
+			if (isInvalidFeedPrice(item.rawPrice)) {
 				skipIds.push(item.providerId);
+				invalidPriceIds.push(item.providerId);
 				return false;
 			}
 			if (item.rawStock === 0) {
@@ -223,10 +220,42 @@ export async function runSync(
 			return true;
 		});
 
+		// A bogus feed price means no stock at the supplier. Products that already
+		// exist go out of stock keeping their price (so they return to normal once
+		// the feed publishes a sane price); unseen products are not created.
+		if (invalidPriceIds.length > 0) {
+			const outOfStock = await db
+				.update(products)
+				.set({ stock: 0 })
+				.where(
+					inArray(
+						products.id,
+						db
+							.select({ id: productProviders.productId })
+							.from(productProviders)
+							.where(
+								and(
+									eq(productProviders.source, PROVIDER_SOURCE),
+									inArray(productProviders.externalId, invalidPriceIds),
+								),
+							),
+					),
+				)
+				.returning({ id: products.id });
+
+			logger
+				.withMetadata({
+					reportId,
+					productsOutOfStock: outOfStock.length,
+					invalidPriceItems: invalidPriceIds.length,
+				})
+				.info("Sync: precio inválido del proveedor → productos marcados sin stock");
+		}
+
 		if (skipIds.length > 0) {
 			logger
 				.withMetadata({ reportId, count: skipIds.length })
-				.info(`Sync: ${skipIds.length} items omitidos (placeholder o stock 0)`);
+				.info(`Sync: ${skipIds.length} items omitidos (precio inválido o stock 0)`);
 		}
 
 		logger.withMetadata({ reportId, count: activeItems.length, trigger }).info("Sync iniciado");
@@ -485,6 +514,7 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 	if (!brandId) reviewReasons.push("Sin marca");
 	if (!categoryId) reviewReasons.push("Sin categoria");
 	if (!imageUrl) reviewReasons.push("Sin imagen");
+	if (!pricing) reviewReasons.push("Precio inválido o fuera de rango");
 	if (aiResult.needsReview) reviewReasons.push("IA no confia en datos");
 
 	const [product] = await db
