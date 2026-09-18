@@ -21,7 +21,12 @@ jobs:
     env:
       VITE_API_URL: https://api.renovabit.com
       VITE_SITE_URL: https://tienda.renovabit.com
-      DATABASE_URL: postgres://ci:ci@127.0.0.1:5432/ci
+      # Import-time only: lets @renovabit/db load without a live database.
+      # DB-backed tests probe the connection and skip when unreachable (declared
+      # in turbo.json — strict env mode filters undeclared vars). Port 1 refuses
+      # instantly: 5432 on this runner is answered by Traefik's TCP entrypoint,
+      # which accepts the connection and hangs the handshake (5s test timeout).
+      DATABASE_URL: postgres://ci:ci@127.0.0.1:1/ci
 
     steps:
       - name: Checkout
