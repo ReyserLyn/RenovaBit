@@ -3,7 +3,19 @@ import { auth } from "./auth";
 
 // OpenAPI integration
 let _schema: ReturnType<typeof auth.api.generateOpenAPISchema>;
-const getSchema = async () => (_schema ??= auth.api.generateOpenAPISchema());
+
+/**
+ * The Better Auth `openAPI` plugin is only registered outside production, so
+ * `generateOpenAPISchema` does not exist there. Everything here is lazy (the
+ * `components` promise resolves on access) so merely importing this module
+ * never throws.
+ */
+const getSchema = async () => {
+	if (typeof auth.api.generateOpenAPISchema !== "function") {
+		throw new Error("Better Auth openAPI plugin is not enabled in this environment");
+	}
+	return (_schema ??= auth.api.generateOpenAPISchema());
+};
 
 export const OpenAPI = {
 	getPaths: (prefix = "/api/v1/auth") =>
@@ -24,5 +36,7 @@ export const OpenAPI = {
 
 			return reference;
 		}) as Promise<any>,
-	components: getSchema().then(({ components }) => components) as Promise<any>,
+	get components() {
+		return getSchema().then(({ components }) => components) as Promise<any>;
+	},
 } as const;
