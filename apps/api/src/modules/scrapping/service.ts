@@ -76,12 +76,22 @@ async function fetchProductList(limit: number): Promise<ScrapedItem[]> {
 				if ($cells.length < 5) return;
 
 				const stockText = $cells.eq(2).find("p").text().trim();
-				const rawStock = Number.parseInt(stockText, 10);
+				const parsedStock = Number.parseInt(stockText, 10);
 
-				if (Number.isNaN(rawStock)) {
+				if (Number.isNaN(parsedStock)) {
 					logger.withMetadata({ stockText }).warn("No se pudo parsear stock, se salta la fila");
 					return;
 				}
+
+				// The supplier page can report negative availability for oversold
+				// items. Our catalog never stores negative stock — clamp and log the
+				// anomaly (sync and a DB check constraint are extra safety nets).
+				if (parsedStock < 0) {
+					logger
+						.withMetadata({ stockText, parsedStock })
+						.warn("Stock negativo del proveedor; se ajusta a 0");
+				}
+				const rawStock = Math.max(0, parsedStock);
 
 				const $form = $cells.eq(4).find("form");
 				const providerId = $form.find('input[name="id"]').attr("value") ?? "";

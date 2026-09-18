@@ -358,7 +358,8 @@ async function updateExistingProduct(
 	const isManual = product?.managedBy === "manual";
 
 	const pricing = await computePricingFromRules(item.rawPrice);
-	const newStock = item.rawStock;
+	// Defense in depth: the feed can report negative availability.
+	const newStock = Math.max(0, item.rawStock);
 
 	// If the raw price is invalid, keep the existing supplier + sale price.
 	// If valid, sync both: supplierPrice from raw, salePrice from tier rules.
@@ -495,7 +496,7 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 			price: pricing?.salePrice ?? "0.00",
 			supplierPrice: pricing?.supplierPrice ?? "0",
 			roleCustomMargins: null,
-			stock: rawStock,
+			stock: Math.max(0, rawStock),
 			description: aiResult.description || null,
 			specifications: aiResult.specifications,
 			brandId,
