@@ -1,3 +1,21 @@
+-- Self-healing: production may hold legacy negative values written by older
+-- pricing flows. Normalize them (clamping to 0 is display-equivalent) before
+-- enforcing the new constraints so this migration is safe to apply unattended.
+DO $$ DECLARE n int; BEGIN
+	UPDATE "products" SET "stock" = 0 WHERE "stock" < 0;
+	GET DIAGNOSTICS n = ROW_COUNT;
+	IF n > 0 THEN RAISE NOTICE '[0004] normalized % product(s) with negative stock', n; END IF;
+END $$;--> statement-breakpoint
+DO $$ DECLARE n int; BEGIN
+	UPDATE "products" SET "price" = '0' WHERE "price" < 0;
+	GET DIAGNOSTICS n = ROW_COUNT;
+	IF n > 0 THEN RAISE NOTICE '[0004] normalized % product(s) with negative price', n; END IF;
+END $$;--> statement-breakpoint
+DO $$ DECLARE n int; BEGIN
+	UPDATE "products" SET "supplier_price" = '0' WHERE "supplier_price" < 0;
+	GET DIAGNOSTICS n = ROW_COUNT;
+	IF n > 0 THEN RAISE NOTICE '[0004] normalized % product(s) with negative supplier price', n; END IF;
+END $$;--> statement-breakpoint
 CREATE INDEX "products_needs_review_idx" ON "products" USING btree ("needs_review");--> statement-breakpoint
 CREATE INDEX "product_changes_created_at_idx" ON "product_changes" USING btree ("created_at");--> statement-breakpoint
 ALTER TABLE "users" ADD CONSTRAINT "users_username_unique" UNIQUE("username");--> statement-breakpoint
