@@ -8,7 +8,7 @@ import { AppInfoSchema, HealthCheckSchema } from "./model";
 type HealthCheck = (typeof HealthCheckSchema)["static"];
 type ServiceKey = "database" | "redis";
 
-const HEALTH_TIMEOUT_MS = 3_000;
+const HEALTH_TIMEOUT_MS = 2_000;
 
 async function checkWithTimeout(
 	key: ServiceKey,
@@ -58,7 +58,21 @@ export const homeRoute = new Elysia({ name: "home" })
 			};
 
 			await checkWithTimeout("database", () => db.execute(sql`SELECT 1`), health);
-			await checkWithTimeout("redis", () => getRedis().ping(), health);
+			await checkWithTimeout(
+				"redis",
+				() => {
+					// A Redis client that is not connected queues the ping until the
+					// connection succeeds, which hangs this endpoint (and the deploy
+					// health gate) for as long as Redis is unreachable. Report it down
+					// now instead of waiting.
+					const redis = getRedis();
+					if (redis.status !== "ready") {
+						return Promise.reject(new Error(`redis client is ${redis.status}`));
+					}
+					return redis.ping();
+				},
+				health,
+			);
 
 			if (health.status === "degraded") set.status = 503;
 			return health;
