@@ -157,12 +157,15 @@ describeDb("ProductService public catalog (DB)", () => {
 	it("listPublic filters minPrice/maxPrice before pagination with an exact total (regression)", async () => {
 		const minPrice = 150;
 		const maxPrice = 400;
-		// The SQL default order is stored price asc, which is the fixture order.
+		// The default order is effective-price ascending (same as price_asc, id tiebreak).
 		const expected = fixtures
 			.filter((f) => {
 				const price = expectedEffectivePrice(f);
 				return price >= minPrice && price <= maxPrice;
 			})
+			.sort(
+				(a, b) => expectedEffectivePrice(a) - expectedEffectivePrice(b) || a.id.localeCompare(b.id),
+			)
 			.map((f) => f.id);
 		expect(expected.length).toBeGreaterThan(1);
 		expect(expected.length).toBeLessThan(fixtures.length); // the filter must actually filter

@@ -401,12 +401,19 @@ async function listPublic(
 	// WHERE set, enrich, then filter/sort/slice in JS. Otherwise SQL
 	// LIMIT/OFFSET + COUNT is exact and cheap.
 	//
+	// The DEFAULT order is "cheapest first", so it takes the JS route too: the
+	// response is sorted by the price customers actually see, not by the stored
+	// column (an active offer can move a product ahead of cheaper base prices).
+	// Previously the default used the stored price and the visible order looked
+	// unsorted whenever offers were running.
+	//
 	// TODO(perf): if the catalog grows much larger, materialize the effective
 	// price (per role + best offer) and paginate it in SQL.
 	const priceMin = options.minPrice ? Number.parseFloat(options.minPrice) : null;
 	const priceMax = options.maxPrice ? Number.parseFloat(options.maxPrice) : null;
 	const hasPriceFilter = priceMin !== null || priceMax !== null;
-	const needsJsPagination = hasPriceFilter || sortBy === "price_asc" || sortBy === "price_desc";
+	const needsJsPagination =
+		hasPriceFilter || sortBy === "price_asc" || sortBy === "price_desc" || sortBy === undefined;
 
 	const selectRows = () =>
 		db
@@ -496,8 +503,10 @@ async function listPublic(
 		});
 
 		// Effective-price sort: the stored column can disagree with the
-		// offer-aware price. The id tiebreak keeps pages stable.
-		if (sortBy === "price_asc") {
+		// offer-aware price. The id tiebreak keeps pages stable. No sortBy means
+		// the default "cheapest first" order, so it sorts by the effective price
+		// exactly like `price_asc`.
+		if (sortBy === "price_asc" || sortBy === undefined) {
 			enriched.sort(
 				(a, b) => a.effectivePrice - b.effectivePrice || a.row.id.localeCompare(b.row.id),
 			);
@@ -993,11 +1002,22 @@ async function getChanges(productId: string, limit = 200, offset = 0) {
 /**
  * True if the error is a tsquery syntax error (SQLSTATE 42601) or invalid text
  * representation (22P02). Using SQLSTATE codes avoids swallowing legitimate DB errors.
+ *
+ * Drizzle wraps driver errors in `DrizzleQueryError` and drops the SQLSTATE from
+ * the wrapper, so the cause chain is walked: without this, malformed tsquery
+ * input (e.g. `q="'%"`) escaped the guard and surfaced as a 500 instead of the
+ * documented empty result.
  */
 function isTsqueryError(error: unknown): boolean {
-	if (typeof error !== "object" || error === null) return false;
-	const code = Reflect.get(error, "code");
-	return code === "42601" || code === "22P02";
+	let current: unknown = error;
+	// Bounded walk: Drizzle wraps once, drivers may wrap once more.
+	for (let depth = 0; depth < 5; depth++) {
+		if (typeof current !== "object" || current === null) return false;
+		const code = Reflect.get(current, "code");
+		if (code === "42601" || code === "22P02") return true;
+		current = Reflect.get(current, "cause");
+	}
+	return false;
 }
 
 /**
