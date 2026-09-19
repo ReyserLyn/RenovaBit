@@ -11,6 +11,7 @@ import { rateLimitPlugin } from "./plugins/rate-limit/plugin";
 import { SecurityHeadersPlugin } from "./plugins/security-headers";
 import { registerShutdown, setAppInstance, shutdownPlugin } from "./plugins/shutdown";
 import { logger } from "./utils/logger";
+import { ensureRedisConnection } from "./utils/redis";
 
 registerShutdown();
 
@@ -32,6 +33,12 @@ const app = new Elysia({
 	.listen(Number(process.env.PORT ?? 3001));
 
 setAppInstance(app);
+
+// Warm the shared Redis connection (created with lazyConnect) so health
+// checks, rate limiting and auth storage report a real status from boot.
+void ensureRedisConnection().catch(() => {
+	// Connection failures are logged by the client's own error handler.
+});
 
 logger.info(`🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`);
 

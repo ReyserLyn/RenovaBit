@@ -49,3 +49,15 @@ const _redis = createClient("main");
 export function getRedis(): Redis {
 	return _redis;
 }
+
+/**
+ * Connects the shared client if it never connected (lazyConnect) or the
+ * connection was closed. Without this the client stays in the "wait" state
+ * until the first command, which makes health checks and deploy gates lie
+ * about Redis being down.
+ */
+export async function ensureRedisConnection(): Promise<void> {
+	if (_redis.status === "wait" || _redis.status === "end") {
+		await _redis.connect();
+	}
+}

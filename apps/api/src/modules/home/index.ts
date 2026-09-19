@@ -2,7 +2,7 @@ import { db } from "@renovabit/db";
 import { sql } from "drizzle-orm";
 import { Elysia } from "elysia";
 import { logger } from "@/utils/logger";
-import { getRedis } from "@/utils/redis";
+import { ensureRedisConnection, getRedis } from "@/utils/redis";
 import { AppInfoSchema, HealthCheckSchema } from "./model";
 
 type HealthCheck = (typeof HealthCheckSchema)["static"];
@@ -60,16 +60,12 @@ export const homeRoute = new Elysia({ name: "home" })
 			await checkWithTimeout("database", () => db.execute(sql`SELECT 1`), health);
 			await checkWithTimeout(
 				"redis",
-				() => {
-					// A Redis client that is not connected queues the ping until the
-					// connection succeeds, which hangs this endpoint (and the deploy
-					// health gate) for as long as Redis is unreachable. Report it down
-					// now instead of waiting.
-					const redis = getRedis();
-					if (redis.status !== "ready") {
-						return Promise.reject(new Error(`redis client is ${redis.status}`));
-					}
-					return redis.ping();
+				async () => {
+					// lazyConnect keeps the client idle until the first command, so
+					// connect it on demand. The 2s timeout guards a hanging connect;
+					// a client mid-connect queues the ping and is reported down.
+					await ensureRedisConnection();
+					return getRedis().ping();
 				},
 				health,
 			);
