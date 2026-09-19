@@ -19,6 +19,7 @@ import { isUniqueViolationOn } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
 import { resolveSalePrice } from "@/utils/price";
+import { isPurchasable } from "@/utils/product-visibility";
 import { getReservedStockSubquery } from "@/utils/stock";
 import type { OrderResponse } from "../model";
 import { OrderModel } from "../model";
@@ -161,6 +162,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			stock: products.stock,
 			isActive: products.isActive,
 			needsReview: products.needsReview,
+			reviewReason: products.reviewReason,
 		})
 		.from(products)
 		.where(inArray(products.id, productIds));
@@ -200,7 +202,7 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 				doNotLog: true,
 			});
 		}
-		if (!product.isActive || product.needsReview) {
+		if (!isPurchasable(product)) {
 			throw createApiError({
 				code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
 				message: `"${product.name}" ya no está disponible`,

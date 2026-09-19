@@ -31,6 +31,7 @@ import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
+import { reviewVisibleCondition } from "@/utils/product-visibility";
 import { recomputeReviewReasons } from "@/utils/review-reasons";
 import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
@@ -97,7 +98,9 @@ type UpdateBody = ProductModel["updateBody"];
 /** Condiciones para detalle de producto (seguir mostrando aunque esté agotado) */
 const PUBLIC_DETAIL_CONDITIONS = [
 	eq(products.isActive, true),
-	eq(products.needsReview, false),
+	// Advisory reasons (e.g. "Sin imagen") flag the operator without hiding the
+	// product; blocking reasons still do.
+	reviewVisibleCondition,
 ] as const;
 
 /** Condiciones para listados públicos */
@@ -1090,7 +1093,7 @@ async function search(
 		: ilike(products.sku, skuPrefixPattern);
 	const conditions: ReturnType<typeof and>[] = [
 		eq(products.isActive, true),
-		eq(products.needsReview, false),
+		reviewVisibleCondition,
 		matchCondition,
 	];
 

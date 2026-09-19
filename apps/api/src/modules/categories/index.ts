@@ -46,7 +46,7 @@ export const categoriesRoute = new Elysia({ prefix: "/categories" })
 			detail: {
 				summary: "Categorías featured para el home",
 				description:
-					"Lista plana de categorías activas marcadas como featured, ordenadas por productCount DESC. Cap de 20 (aplicado en SQL).",
+					"Lista plana de categorías activas marcadas como featured con al menos un producto visible (en sí misma o en su subárbol), ordenadas por productCount del subárbol DESC. Cap de 20.",
 				tags: ["Categories"],
 			},
 		},

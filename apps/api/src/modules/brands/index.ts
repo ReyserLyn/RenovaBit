@@ -21,7 +21,7 @@ export const brandsRoute = new Elysia({ prefix: "/brands" })
 			detail: {
 				summary: "Listar marcas",
 				description:
-					"Marcas activas con conteo de productos. Filtrable por categoría (single o multi).",
+					"Marcas activas con al menos un producto visible y su conteo. Filtrable por categoría (single o multi).",
 				tags: ["Brands"],
 			},
 		},
@@ -41,7 +41,7 @@ export const brandsRoute = new Elysia({ prefix: "/brands" })
 			detail: {
 				summary: "Marcas featured para el home",
 				description:
-					"Lista plana de marcas activas marcadas como featured, ordenadas por productCount DESC. Cap de 20 (aplicado en SQL).",
+					"Lista plana de marcas activas marcadas como featured con al menos un producto visible, ordenadas por productCount DESC. Cap de 20 (aplicado en SQL).",
 				tags: ["Brands"],
 			},
 		},

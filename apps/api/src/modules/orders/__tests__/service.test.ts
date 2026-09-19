@@ -26,6 +26,7 @@ import {
 import { eq, inArray, sql } from "drizzle-orm";
 import { CONFIRMED_HOLD_HOURS } from "@/constants";
 import { removeOrderAutoCancel } from "@/jobs/orders.queue";
+import { REVIEW_REASONS } from "@/utils/review-reasons";
 import { OrderService } from "../service";
 
 // ── DB probe (same pattern as the other DB-backed suites) ────────────────
@@ -57,6 +58,9 @@ let productBId: string;
 let productCId: string;
 let productDId: string;
 let productEId: string;
+let productFId: string;
+let productGId: string;
+let productHId: string;
 let cartAId: string;
 let guestCartId: string;
 
@@ -145,7 +149,64 @@ beforeAll(async () => {
 		.returning({ id: products.id });
 	productEId = productE!.id;
 
-	createdProductIds.push(productAId, productBId, productCId, productDId, productEId);
+	// Product F: advisory-only reason ("Sin imagen") — checkout must accept it.
+	const [productF] = await db
+		.insert(products)
+		.values({
+			name: `OrderTest Foxtrot ${suffix}`,
+			slug: `ordertest-foxtrot-${suffix}`,
+			sku: `ORDERTEST-F-${suffix}`,
+			price: "200.00",
+			supplierPrice: "100.00",
+			stock: 10,
+			needsReview: true,
+			reviewReason: REVIEW_REASONS.missingImage,
+		})
+		.returning({ id: products.id });
+	productFId = productF!.id;
+
+	// Product G: blocking reason — checkout must reject it.
+	const [productG] = await db
+		.insert(products)
+		.values({
+			name: `OrderTest Golf ${suffix}`,
+			slug: `ordertest-golf-${suffix}`,
+			sku: `ORDERTEST-G-${suffix}`,
+			price: "200.00",
+			supplierPrice: "100.00",
+			stock: 10,
+			needsReview: true,
+			reviewReason: REVIEW_REASONS.invalidPrice,
+		})
+		.returning({ id: products.id });
+	productGId = productG!.id;
+
+	// Product H: flag set without a reason — nothing actionable, so purchasable.
+	const [productH] = await db
+		.insert(products)
+		.values({
+			name: `OrderTest Hotel ${suffix}`,
+			slug: `ordertest-hotel-${suffix}`,
+			sku: `ORDERTEST-H-${suffix}`,
+			price: "200.00",
+			supplierPrice: "100.00",
+			stock: 10,
+			needsReview: true,
+			reviewReason: null,
+		})
+		.returning({ id: products.id });
+	productHId = productH!.id;
+
+	createdProductIds.push(
+		productAId,
+		productBId,
+		productCId,
+		productDId,
+		productEId,
+		productFId,
+		productGId,
+		productHId,
+	);
 
 	const [cart] = await db
 		.insert(carts)
@@ -561,5 +622,53 @@ describeDb("OrderService (DB)", () => {
 		await expect(
 			OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null),
 		).rejects.toThrow(/Disponible: 2/);
+	});
+
+	it("checks out an advisory-only product (Sin imagen) and leaves its review data intact", async () => {
+		const { cartId, token } = await createGuestCart("advisory-review");
+		await addCartItem(cartId, productFId, 1);
+
+		const order = await OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null);
+		createdOrderIds.push(order.id);
+
+		expect(order.status).toBe("pending");
+		expect(order.items.map((item) => item.productId)).toEqual([productFId]);
+
+		// The advisory flag stays for the operator: checkout never rewrites it.
+		const [row] = await db
+			.select({ needsReview: products.needsReview, reviewReason: products.reviewReason })
+			.from(products)
+			.where(eq(products.id, productFId))
+			.limit(1);
+		expect(row?.needsReview).toBe(true);
+		expect(row?.reviewReason).toBe(REVIEW_REASONS.missingImage);
+	});
+
+	it("checks out a product flagged for review with no reason", async () => {
+		const { cartId, token } = await createGuestCart("flag-no-reason");
+		await addCartItem(cartId, productHId, 1);
+
+		const order = await OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null);
+		createdOrderIds.push(order.id);
+
+		expect(order.items.map((item) => item.productId)).toEqual([productHId]);
+	});
+
+	it("rejects checkout for a product with a blocking review reason", async () => {
+		const { cartId, token } = await createGuestCart("blocking-review");
+		await addCartItem(cartId, productGId, 1);
+
+		await expect(
+			OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null),
+		).rejects.toThrow(/ya no está disponible/);
+
+		// The rejected checkout persisted no order and left the cart untouched.
+		const linked = await db.select({ id: orders.id }).from(orders).where(eq(orders.cartId, cartId));
+		expect(linked.length).toBe(0);
+		const items = await db
+			.select({ id: cartItems.id })
+			.from(cartItems)
+			.where(eq(cartItems.cartId, cartId));
+		expect(items.length).toBe(1);
 	});
 });

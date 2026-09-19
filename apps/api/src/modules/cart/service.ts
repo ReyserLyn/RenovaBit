@@ -14,6 +14,7 @@ import { OfferService } from "@/modules/offers/service";
 import { formatDate, now } from "@/utils/date";
 import { getActiveMarginRules } from "@/utils/margin-rules";
 import { resolveSalePrice } from "@/utils/price";
+import { hasBlockingReviewReason, isPurchasable } from "@/utils/product-visibility";
 import { getReservedStockForProductInTx, getReservedStockSubquery } from "@/utils/stock";
 import type { CartItemResponse, CartModel, CartResponse, CartTotalResponse } from "./model";
 
@@ -137,6 +138,7 @@ async function refreshCartItems(cartId: string, role: Role): Promise<void> {
 			managedBy: products.managedBy,
 			productIsActive: products.isActive,
 			productNeedsReview: products.needsReview,
+			productReviewReason: products.reviewReason,
 			productStock: products.stock,
 			reserved: sql<number>`(${getReservedStockSubquery(cartItems.productId)})`,
 		})
@@ -155,7 +157,7 @@ async function refreshCartItems(cartId: string, role: Role): Promise<void> {
 		if (!item.productPrice) {
 			status = "unavailable";
 			statusMessage = "Producto no disponible";
-		} else if (!item.productIsActive || item.productNeedsReview) {
+		} else if (!item.productIsActive || hasBlockingReviewReason(item.productReviewReason)) {
 			status = "unavailable";
 			statusMessage = "Producto no disponible";
 		} else {
@@ -403,6 +405,7 @@ async function addItem(cartId: string, data: AddToCartBody, role: Role): Promise
 				stock: products.stock,
 				isActive: products.isActive,
 				needsReview: products.needsReview,
+				reviewReason: products.reviewReason,
 			})
 			.from(products)
 			.where(eq(products.id, data.productId))
@@ -418,7 +421,7 @@ async function addItem(cartId: string, data: AddToCartBody, role: Role): Promise
 			});
 		}
 
-		if (!product.isActive || product.needsReview) {
+		if (!isPurchasable(product)) {
 			throw createApiError({
 				code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
 				message: "Este producto no está disponible actualmente",

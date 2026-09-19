@@ -2,11 +2,12 @@ import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { brands, categories, products } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, asc, count, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, like, ne, sql } from "drizzle-orm";
 import { MAX_BULK_DELETE } from "@/constants";
 import { processEntityImage } from "@/modules/image-processing/service";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
+import { reviewVisibleCondition } from "@/utils/product-visibility";
 import { getReservedStockSubquery } from "@/utils/stock";
 import {
 	deleteEntityFolder,
@@ -192,7 +193,7 @@ async function getTreeAdmin(includeInactive?: boolean): Promise<AdminCategoryTre
 async function getProductCounts(brandSlugs?: string[]): Promise<Map<string, number>> {
 	const conditions = [
 		eq(products.isActive, true),
-		eq(products.needsReview, false),
+		reviewVisibleCondition,
 		sql`${products.stock} > (${getReservedStockSubquery(products.id)})`,
 	];
 
@@ -224,6 +225,59 @@ async function getProductCounts(brandSlugs?: string[]): Promise<Map<string, numb
 	return map;
 }
 
+type CategoryParentRef = Pick<Category, "id" | "parentId">;
+
+/**
+ * Subtree product totals (node + descendants) keyed by categoryId, computed
+ * bottom-up. Shared by the public tree and the featured list so both report
+ * the same "visible products in this category or below" number.
+ *
+ * Every row is visited (not just roots) so orphaned nodes stay countable.
+ */
+function computeSubtreeCounts(
+	rows: CategoryParentRef[],
+	productCounts: Map<string, number>,
+): Map<string, number> {
+	const byParent = new Map<string | null, CategoryParentRef[]>();
+	for (const row of rows) {
+		const key = row.parentId ?? null;
+		const group = byParent.get(key) ?? [];
+		group.push(row);
+		byParent.set(key, group);
+	}
+
+	const totals = new Map<string, number>();
+	const visit = (row: CategoryParentRef): number => {
+		const cached = totals.get(row.id);
+		if (cached !== undefined) return cached;
+		const childrenTotal = (byParent.get(row.id) ?? []).reduce(
+			(sum, child) => sum + visit(child),
+			0,
+		);
+		const total = (productCounts.get(row.id) ?? 0) + childrenTotal;
+		totals.set(row.id, total);
+		return total;
+	};
+
+	for (const row of rows) visit(row);
+	return totals;
+}
+
+/**
+ * Drops every node whose merged subtree count is 0. Merged counts already
+ * include descendants, so a node with count 0 takes its whole subtree with
+ * it; a parent with products only in children stays because its merged count
+ * is greater than 0.
+ */
+function pruneEmptyNodes(nodes: PublicCategoryTree[]): PublicCategoryTree[] {
+	const pruned: PublicCategoryTree[] = [];
+	for (const node of nodes) {
+		if (node.productCount === 0) continue;
+		pruned.push({ ...node, children: pruneEmptyNodes(node.children) });
+	}
+	return pruned;
+}
+
 function buildPublicTree(
 	flatRows: Category[],
 	productCounts: Map<string, number>,
@@ -245,11 +299,7 @@ function buildPublicTree(
 		});
 	}
 
-	const mergeCounts = (node: PublicCategoryTree): number => {
-		const childrenTotal = node.children.reduce((sum, child) => sum + mergeCounts(child), 0);
-		node.productCount = (productCounts.get(node.id) ?? 0) + childrenTotal;
-		return node.productCount;
-	};
+	const subtreeCounts = computeSubtreeCounts(flatRows, productCounts);
 
 	const mapNode = (row: Category): PublicCategoryTree => ({
 		id: row.id,
@@ -257,13 +307,12 @@ function buildPublicTree(
 		slug: row.slug,
 		imageUrl: row.imageUrl,
 		description: row.description,
-		productCount: 0,
+		productCount: subtreeCounts.get(row.id) ?? 0,
 		children: (byParent.get(row.id) ?? []).map(mapNode),
 	});
 
 	const roots = (byParent.get(null) ?? []).map(mapNode);
-	for (const root of roots) mergeCounts(root);
-	return roots;
+	return pruneEmptyNodes(roots);
 }
 
 async function getTreePublic(brandSlugs?: string[]): Promise<PublicCategoryTree[]> {
@@ -282,36 +331,38 @@ async function getTreePublic(brandSlugs?: string[]): Promise<PublicCategoryTree[
 }
 
 /**
- * Featured categories for the home carousel. Flat list (no tree),
- * sorted by productCount DESC. Limit aplicado en SQL para que la DB
- * no retorne rows innecesarias.
+ * Featured categories for the home carousel. Flat list (no tree), sorted by
+ * subtree productCount DESC. A category only appears when it (or any active
+ * descendant) has at least one publicly visible product — same rule as the
+ * public tree.
+ *
+ * The subtree rollup runs in JS instead of SQL: `getProductCounts` already
+ * owns the public visibility conditions (isActive, the review-visibility rule,
+ * stock minus reserved holds), and re-expressing them inside a descendant
+ * subquery would duplicate that rule. Featured categories are few, so the JS
+ * pass and the `slice(limit)` are cheap.
  */
 async function getFeaturedPublic(limit = 20): Promise<PublicFeaturedCategory[]> {
-	const rows = await db
-		.select({
-			id: categories.id,
-			name: categories.name,
-			slug: categories.slug,
-			description: categories.description,
-			imageUrl: categories.imageUrl,
-			productCount: count(products.id).mapWith(Number),
-		})
-		.from(categories)
-		.leftJoin(
-			products,
-			and(
-				eq(products.categoryId, categories.id),
-				eq(products.isActive, true),
-				eq(products.needsReview, false),
-				sql`${products.stock} > (${getReservedStockSubquery(products.id)})`,
-			),
-		)
-		.where(and(eq(categories.isActive, true), eq(categories.isFeatured, true)))
-		.groupBy(categories.id)
-		.orderBy(desc(sql`count(${products.id})`), asc(categories.name))
-		.limit(limit);
+	const [rows, productCounts] = await Promise.all([
+		db.select().from(categories).where(eq(categories.isActive, true)),
+		getProductCounts(),
+	]);
 
-	return rows;
+	const subtreeCounts = computeSubtreeCounts(rows, productCounts);
+
+	return rows
+		.filter((row) => row.isFeatured)
+		.map((row) => ({
+			id: row.id,
+			name: row.name,
+			slug: row.slug,
+			description: row.description,
+			imageUrl: row.imageUrl,
+			productCount: subtreeCounts.get(row.id) ?? 0,
+		}))
+		.filter((row) => row.productCount > 0)
+		.sort((a, b) => b.productCount - a.productCount || a.name.localeCompare(b.name))
+		.slice(0, limit);
 }
 
 async function getBySlugPublic(slug: string): Promise<PublicCategoryDetail | null> {
@@ -358,7 +409,7 @@ async function getBySlugPublic(slug: string): Promise<PublicCategoryDetail | nul
 			and(
 				inArray(products.categoryId, categoryIds),
 				eq(products.isActive, true),
-				eq(products.needsReview, false),
+				reviewVisibleCondition,
 				sql`${products.stock} > (${getReservedStockSubquery(products.id)})`,
 			),
 		);

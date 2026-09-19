@@ -8,6 +8,7 @@ import { getCategoryAndDescendantIds } from "@/utils/category-helpers";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
+import { reviewVisibleCondition } from "@/utils/product-visibility";
 import { getReservedStockSubquery } from "@/utils/stock";
 import {
 	deleteEntityFolder,
@@ -44,7 +45,7 @@ async function resolveBrandImage(
 }
 const PUBLIC_PRODUCT_CONDITIONS = [
 	eq(products.isActive, true),
-	eq(products.needsReview, false),
+	reviewVisibleCondition,
 	sql`GREATEST(0, ${products.stock} - COALESCE((${getReservedStockSubquery(products.id)})::int, 0)) > 0`,
 ] as const;
 
@@ -102,8 +103,7 @@ async function listPublic(
 		}
 		allCategoryIds.push(...idSet);
 	}
-	const useCategoryFilter = allCategoryIds.length > 0;
-	if (useCategoryFilter) {
+	if (allCategoryIds.length > 0) {
 		productConditions.push(inArray(products.categoryId, allCategoryIds));
 	}
 
@@ -135,7 +135,7 @@ async function listPublic(
 		.leftJoin(products, and(eq(products.brandId, brands.id), ...productConditions))
 		.where(eq(brands.isActive, true))
 		.groupBy(brands.id)
-		.having(useCategoryFilter || useSearchFilter ? sql`count(${products.id}) > 0` : undefined)
+		.having(sql`count(${products.id}) > 0`)
 		.orderBy(
 			useSearchFilter ? desc(sql`count(${products.id})`) : asc(brands.name),
 			asc(brands.name),
@@ -175,8 +175,9 @@ async function getBySlugPublic(slug: string): Promise<PublicBrandDetail | null> 
 }
 
 /**
- * Featured brands for the home carousel. Flat list, ordered by productCount DESC.
- * Limit aplicado en SQL para que la DB no retorne rows innecesarias.
+ * Featured brands for the home carousel. Flat list, ordered by productCount
+ * DESC. Brands without publicly visible products are excluded. Limit applied
+ * in SQL so the DB does not return unnecessary rows.
  */
 async function getFeaturedPublic(limit = 20): Promise<PublicFeaturedBrand[]> {
 	const rows = await db
@@ -191,6 +192,7 @@ async function getFeaturedPublic(limit = 20): Promise<PublicFeaturedBrand[]> {
 		.leftJoin(products, and(eq(products.brandId, brands.id), ...PUBLIC_PRODUCT_CONDITIONS))
 		.where(and(eq(brands.isActive, true), eq(brands.isFeatured, true)))
 		.groupBy(brands.id)
+		.having(sql`count(${products.id}) > 0`)
 		.orderBy(desc(sql`count(${products.id})`), asc(brands.name))
 		.limit(limit);
 

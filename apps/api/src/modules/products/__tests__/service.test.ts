@@ -13,10 +13,11 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db } from "@renovabit/db";
-import { brands, offerProducts, offers, products, users } from "@renovabit/db/schema";
+import { brands, categories, offerProducts, offers, products, users } from "@renovabit/db/schema";
 import { applyOfferToProduct, getEffectiveSalePrice, type Role } from "@renovabit/pricing";
 import { eq, inArray } from "drizzle-orm";
 import { getActiveMarginRules } from "@/utils/margin-rules";
+import { addReviewReason, REVIEW_REASONS } from "@/utils/review-reasons";
 import { ProductService } from "../service";
 
 // ── DB probe (same pattern as the favorites/orders suites) ───────────────
@@ -328,5 +329,202 @@ describeDb("ProductService public catalog (DB)", () => {
 		const plain = rows.find((row) => row.id === fixtures[1]!.id);
 		expect(plain?.effectivePrice).toBeNull();
 		expect(plain?.activeOfferName).toBeNull();
+	});
+});
+
+// ── Advisory review visibility (Sin imagen) ──────────────────────────────
+
+const VIS_SUFFIX = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+/** FTS token without dashes: the spanish tokenizer treats dashes as separators. */
+const VIS_FTS_TOKEN = `pgtstvis${Math.random().toString(36).slice(2, 10)}`;
+
+/**
+ * End-to-end visibility of the review-reason rule: an advisory-only reason
+ * ("Sin imagen") must not hide the product from list, detail or search, while
+ * a blocking reason (alone or mixed with an advisory one) still does.
+ *
+ * The products share a brand/category and a unique FTS token so each surface
+ * can be asserted in isolation. Every assertion fails on the old
+ * `needsReview = false` rule.
+ */
+describeDb("ProductService public visibility with advisory review reasons (DB)", () => {
+	let visibilityBrandId: string;
+	let visibilityBrandSlug: string;
+	let visibilityCategoryId: string;
+	let advisory: { id: string; slug: string };
+	let advisoryPlusBlocking: { id: string; slug: string };
+	let blocking: { id: string; slug: string };
+	let advisoryZeroStock: { id: string; slug: string };
+	let flagWithoutReason: { id: string; slug: string };
+
+	beforeAll(async () => {
+		if (!dbAvailable) return;
+
+		const [brand] = await db
+			.insert(brands)
+			.values({
+				name: `Visibility Test Brand ${VIS_SUFFIX}`,
+				slug: `visibility-test-brand-${VIS_SUFFIX}`,
+			})
+			.returning({ id: brands.id, slug: brands.slug });
+		visibilityBrandId = brand!.id;
+		visibilityBrandSlug = brand!.slug;
+
+		const [category] = await db
+			.insert(categories)
+			.values({
+				name: `Visibility Test Category ${VIS_SUFFIX}`,
+				slug: `visibility-test-category-${VIS_SUFFIX}`,
+			})
+			.returning({ id: categories.id });
+		visibilityCategoryId = category!.id;
+
+		const rows = await db
+			.insert(products)
+			.values([
+				{
+					name: `Advisory ${VIS_FTS_TOKEN} ${VIS_SUFFIX}`,
+					slug: `visibility-advisory-${VIS_SUFFIX}`,
+					sku: `VIS-ADVISORY-${VIS_SUFFIX}`,
+					price: "10.00",
+					supplierPrice: "10.00",
+					brandId: visibilityBrandId,
+					categoryId: visibilityCategoryId,
+					stock: 5,
+					needsReview: true,
+					reviewReason: addReviewReason(null, REVIEW_REASONS.missingImage),
+				},
+				{
+					name: `Advisory Blocking ${VIS_FTS_TOKEN} ${VIS_SUFFIX}`,
+					slug: `visibility-advisory-blocking-${VIS_SUFFIX}`,
+					sku: `VIS-ADVISORY-BLOCKING-${VIS_SUFFIX}`,
+					price: "20.00",
+					supplierPrice: "20.00",
+					brandId: visibilityBrandId,
+					categoryId: visibilityCategoryId,
+					stock: 5,
+					needsReview: true,
+					reviewReason: addReviewReason(REVIEW_REASONS.missingImage, REVIEW_REASONS.missingBrand),
+				},
+				{
+					name: `Blocking ${VIS_FTS_TOKEN} ${VIS_SUFFIX}`,
+					slug: `visibility-blocking-${VIS_SUFFIX}`,
+					sku: `VIS-BLOCKING-${VIS_SUFFIX}`,
+					price: "30.00",
+					supplierPrice: "30.00",
+					brandId: visibilityBrandId,
+					categoryId: visibilityCategoryId,
+					stock: 5,
+					needsReview: true,
+					reviewReason: REVIEW_REASONS.aiUnsure,
+				},
+				{
+					name: `Advisory Zero Stock ${VIS_FTS_TOKEN} ${VIS_SUFFIX}`,
+					slug: `visibility-advisory-zero-${VIS_SUFFIX}`,
+					sku: `VIS-ADVISORY-ZERO-${VIS_SUFFIX}`,
+					price: "40.00",
+					supplierPrice: "40.00",
+					brandId: visibilityBrandId,
+					categoryId: visibilityCategoryId,
+					stock: 0,
+					needsReview: true,
+					reviewReason: addReviewReason(null, REVIEW_REASONS.missingImage),
+				},
+				{
+					// Flag set without a reason: nothing actionable tells the operator
+					// what to fix, so the product stays publicly visible.
+					name: `Flag No Reason ${VIS_FTS_TOKEN} ${VIS_SUFFIX}`,
+					slug: `visibility-flag-no-reason-${VIS_SUFFIX}`,
+					sku: `VIS-FLAG-NO-REASON-${VIS_SUFFIX}`,
+					price: "50.00",
+					supplierPrice: "50.00",
+					brandId: visibilityBrandId,
+					categoryId: visibilityCategoryId,
+					stock: 5,
+					needsReview: true,
+					reviewReason: null,
+				},
+			])
+			.returning({ id: products.id, slug: products.slug });
+
+		advisory = rows[0]!;
+		advisoryPlusBlocking = rows[1]!;
+		blocking = rows[2]!;
+		advisoryZeroStock = rows[3]!;
+		flagWithoutReason = rows[4]!;
+	});
+
+	afterAll(async () => {
+		if (!dbAvailable) return;
+		const ids = [
+			advisory?.id,
+			advisoryPlusBlocking?.id,
+			blocking?.id,
+			advisoryZeroStock?.id,
+			flagWithoutReason?.id,
+		].filter((id): id is string => !!id);
+		if (ids.length > 0) {
+			await db.delete(products).where(inArray(products.id, ids));
+		}
+		if (visibilityCategoryId) {
+			await db.delete(categories).where(eq(categories.id, visibilityCategoryId));
+		}
+		if (visibilityBrandId) {
+			await db.delete(brands).where(eq(brands.id, visibilityBrandId));
+		}
+	});
+
+	it("lists the advisory-only product and hides blocking or out-of-stock ones", async () => {
+		const result = await ProductService.listPublic({
+			brandId: visibilityBrandId,
+			role: ROLE,
+			limit: 50,
+		});
+		const ids = result.data.map((item) => item.id);
+
+		expect(ids).toContain(advisory.id);
+		expect(ids).toContain(flagWithoutReason.id);
+		expect(ids).not.toContain(advisoryPlusBlocking.id);
+		expect(ids).not.toContain(blocking.id);
+		// Listings keep the stock > reserved rule even with an advisory reason.
+		expect(ids).not.toContain(advisoryZeroStock.id);
+		expect(result.total).toBe(2);
+	});
+
+	it("resolves the public detail for advisory reasons and keeps the out-of-stock rule", async () => {
+		expect((await ProductService.getBySlugPublic(advisory.slug, ROLE))?.id).toBe(advisory.id);
+		expect((await ProductService.getBySlugPublic(flagWithoutReason.slug, ROLE))?.id).toBe(
+			flagWithoutReason.id,
+		);
+		// Detail still shows out-of-stock products; only the review rule matters there.
+		expect((await ProductService.getBySlugPublic(advisoryZeroStock.slug, ROLE))?.id).toBe(
+			advisoryZeroStock.id,
+		);
+		expect(await ProductService.getBySlugPublic(advisoryPlusBlocking.slug, ROLE)).toBeNull();
+		expect(await ProductService.getBySlugPublic(blocking.slug, ROLE)).toBeNull();
+	});
+
+	it("search returns the advisory-only product and hides blocking ones", async () => {
+		const result = await ProductService.search(
+			VIS_FTS_TOKEN,
+			50,
+			0,
+			visibilityBrandSlug,
+			undefined,
+			undefined,
+			undefined,
+			ROLE,
+		);
+		const ids = result.data.map((item) => item.id);
+
+		expect(ids).toContain(advisory.id);
+		expect(ids).toContain(flagWithoutReason.id);
+		expect(ids).not.toContain(advisoryPlusBlocking.id);
+		expect(ids).not.toContain(blocking.id);
+		// Search has never filtered by stock: the zero-stock advisory product is
+		// still reachable here (its card shows "Agotado"); the stock rule lives in
+		// the list and count queries.
+		expect(ids).toContain(advisoryZeroStock.id);
+		expect(result.total).toBe(3);
 	});
 });

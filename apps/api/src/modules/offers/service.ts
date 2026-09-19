@@ -11,6 +11,7 @@ import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
 import { resolveSalePrice } from "@/utils/price";
+import { reviewVisibleCondition } from "@/utils/product-visibility";
 import { getReservedStockSubquery } from "@/utils/stock";
 import type { CreateOfferDto, UpdateOfferDto } from "./model";
 
@@ -748,12 +749,12 @@ async function getOffersWithProducts(
 			const prodLimit = options.offerId === offer.id ? (options.productsLimit ?? 20) : 20;
 
 			// Build WHERE conditions for products.
-			// Visibility: only active, non-review products are exposed publicly —
-			// mirrors `PUBLIC_DETAIL_CONDITIONS` in products/service.ts.
+			// Visibility: only active products without a blocking review reason are
+			// exposed publicly — mirrors `PUBLIC_DETAIL_CONDITIONS` in products/service.ts.
 			const prodConditions: ReturnType<typeof and>[] = [
 				eq(offerProducts.offerId, offer.id),
 				eq(products.isActive, true),
-				eq(products.needsReview, false),
+				reviewVisibleCondition,
 			];
 			if (resolvedBrandIds?.length) {
 				prodConditions.push(inArray(products.brandId, resolvedBrandIds));
