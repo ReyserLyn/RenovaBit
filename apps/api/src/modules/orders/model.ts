@@ -80,13 +80,17 @@ const OrderListResponse = t.Object({
 
 // ── Bodies ───────────────────────────────────
 
+const PHONE_PATTERN = "^(?:\\+[\\s.-]*51[\\s.-]*|51[\\s.-]*)?\\d(?:[\\s.-]*\\d){5,14}$";
+
 const CreateOrderBody = t.Object({
 	cartId: t.String({ format: "uuid" }),
 	guestToken: t.Optional(t.String({ minLength: 1 })),
-	customerName: t.Optional(t.Nullable(t.String({ minLength: 1, maxLength: 100 }))),
-	customerPhone: t.Optional(t.Nullable(t.String({ minLength: 1, maxLength: 20 }))),
+	// `pattern` requires at least one non-whitespace character; the service
+	// trims and enforces a minimum length of 2 on the trimmed value.
+	customerName: t.Optional(t.Nullable(t.String({ minLength: 2, maxLength: 100, pattern: "\\S" }))),
+	customerPhone: t.Optional(t.Nullable(t.String({ maxLength: 25, pattern: PHONE_PATTERN }))),
 	notes: t.Optional(t.Nullable(t.String({ maxLength: 2000 }))),
-	paymentMethod: t.Optional(t.Nullable(PaymentMethodSchema)),
+	paymentMethod: PaymentMethodSchema,
 });
 
 const AdminUpdateOrderBody = t.Object({

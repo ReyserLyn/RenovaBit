@@ -23,12 +23,12 @@ const app = new Elysia({
 	.use(SecurityHeadersPlugin)
 	.use(CorsPlugin)
 	.use(rateLimitPlugin)
+	.onError(errorHandler)
 	.get("/favicon.ico", () => Bun.file("public/favicon.ico"))
 	.use(DocsPlugin)
 	.use(bullBoardPlugin)
 	.use(modules)
 	.use(shutdownPlugin)
-	.onError(errorHandler)
 	.listen(Number(process.env.PORT ?? 3001));
 
 setAppInstance(app);

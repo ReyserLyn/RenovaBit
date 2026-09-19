@@ -223,6 +223,7 @@ describeDb("pricing consistency (DB)", () => {
 				guestToken: GUEST_TOKEN,
 				customerName: "Pricing Test",
 				customerPhone: "999888777",
+				paymentMethod: "cash",
 			},
 			null,
 		);

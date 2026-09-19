@@ -51,17 +51,30 @@ export const CorsPlugin = new Elysia({ name: "cors" })
 			maxAge: 86400,
 		}),
 	)
-	// Validación extra de Origin en métodos mutantes (POST/PUT/PATCH/DELETE)
-	.onBeforeHandle(({ request }) => {
+	// Extra Origin validation for mutating methods (POST/PUT/PATCH/DELETE).
+	//
+	// This plugin defines no routes, so a scoped `onBeforeHandle` would never
+	// run; `onRequest` is global by nature and executes before body validation.
+	// The rejection is RETURNED (with status 403) instead of thrown because the
+	// root `.onError(errorHandler)` is registered after the module routes, so
+	// thrown errors would surface as plain-text 500s instead of the project's
+	// error contract. Requests WITHOUT an Origin header are server-to-server
+	// callers (tienda/admin SSR fetches, curl, health checks, cron) and cannot
+	// be CSRF; only browser-originated requests are checked. OPTIONS preflight
+	// is excluded by the method filter (and answered by @elysiajs/cors).
+	.onRequest(({ request, set }) => {
 		if (!MUTATING_METHODS.has(request.method)) return;
 
 		const origin = request.headers.get("origin");
-		if (!isTrustedOrigin(origin)) {
-			throw createApiError({
-				code: BackendErrorCodes.ACCESS_DENIED,
-				message: "Origin no autorizado para esta operación",
-				logLevel: "info",
-				doNotLog: true,
-			});
-		}
+		if (!origin) return;
+		if (isTrustedOrigin(origin)) return;
+
+		const error = createApiError({
+			code: BackendErrorCodes.ACCESS_DENIED,
+			message: "Origin no autorizado para esta operación",
+			logLevel: "info",
+			doNotLog: true,
+		});
+		set.status = error.statusCode;
+		return error.toJSONSafe();
 	});

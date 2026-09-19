@@ -84,7 +84,13 @@ export const auth = betterAuth({
 			domain: isProd ? "renovabit.com" : "localhost",
 		},
 		ipAddress: {
-			ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
+			// Only x-forwarded-for: Better Auth 1.7.x trusts a header solely when
+			// it carries a single IP (no `trustedProxies` configured), and Traefik
+			// discards client-supplied X-Forwarded-For chains from untrusted
+			// peers, so the resolved IP is the real client. `cf-connecting-ip`
+			// is NOT stripped by Traefik, so trusting it would let a direct
+			// client rotate the header and bypass auth rate limits.
+			ipAddressHeaders: ["x-forwarded-for"],
 		},
 	},
 	user: {

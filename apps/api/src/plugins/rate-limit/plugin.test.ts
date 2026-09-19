@@ -163,7 +163,9 @@ interface Handleable {
 
 async function makeRequest(app: Handleable, url: string, method = "GET", ip = "192.168.1.1") {
 	const headers: Record<string, string> = {
-		"cf-connecting-ip": ip,
+		// Single-entry XFF is what the edge proxy (Traefik) appends for a real
+		// client; resolveClientKey reads the rightmost entry.
+		"x-forwarded-for": ip,
 	};
 	if (method === "POST" || method === "PATCH") {
 		headers["Content-Type"] = "application/json";
@@ -255,26 +257,55 @@ describe("rateLimitPlugin integration", () => {
 });
 
 describe("rate limit keys and skip logic", () => {
-	it("resolveClientKey returns cf-connecting-ip when present", async () => {
-		const { resolveClientKey } = await import("./keys");
-		const req = new Request("http://localhost/test", {
-			headers: { "cf-connecting-ip": "1.2.3.4" },
-		});
-		expect(resolveClientKey(req)).toBe("1.2.3.4");
-	});
-
-	it("resolveClientKey falls back to x-forwarded-for", async () => {
+	it("resolveClientKey returns the RIGHTMOST x-forwarded-for entry", async () => {
 		const { resolveClientKey } = await import("./keys");
 		const req = new Request("http://localhost/test", {
 			headers: { "x-forwarded-for": "5.6.7.8, 9.10.11.12" },
 		});
-		expect(resolveClientKey(req)).toBe("5.6.7.8");
+		expect(resolveClientKey(req)).toBe("9.10.11.12");
 	});
 
-	it("resolveClientKey returns anonymous when no headers", async () => {
+	it("resolveClientKey ignores a rotated leftmost (spoofed) x-forwarded-for entry", async () => {
+		const { resolveClientKey } = await import("./keys");
+		const realClient = "203.0.113.7";
+		const first = new Request("http://localhost/test", {
+			headers: { "x-forwarded-for": `1.1.1.1, ${realClient}` },
+		});
+		const second = new Request("http://localhost/test", {
+			headers: { "x-forwarded-for": `2.2.2.2, ${realClient}` },
+		});
+		expect(resolveClientKey(first)).toBe(realClient);
+		expect(resolveClientKey(second)).toBe(realClient);
+	});
+
+	it("resolveClientKey trusts cf-connecting-ip only with TRUST_CF_CONNECTING_IP=true", async () => {
+		const { resolveClientKey } = await import("./keys");
+		const req = new Request("http://localhost/test", {
+			headers: { "cf-connecting-ip": "1.2.3.4" },
+		});
+
+		expect(resolveClientKey(req)).toBe("anonymous");
+
+		process.env.TRUST_CF_CONNECTING_IP = "true";
+		try {
+			expect(resolveClientKey(req)).toBe("1.2.3.4");
+		} finally {
+			delete process.env.TRUST_CF_CONNECTING_IP;
+		}
+	});
+
+	it("resolveClientKey falls back to the socket remote address", async () => {
+		const { resolveClientKey } = await import("./keys");
+		const req = new Request("http://localhost/test");
+		const server = { requestIP: () => ({ address: "10.20.30.40" }) };
+		expect(resolveClientKey(req, server)).toBe("10.20.30.40");
+	});
+
+	it("resolveClientKey returns anonymous when no headers and no socket", async () => {
 		const { resolveClientKey } = await import("./keys");
 		const req = new Request("http://localhost/test");
 		expect(resolveClientKey(req)).toBe("anonymous");
+		expect(resolveClientKey(req, null)).toBe("anonymous");
 	});
 });
 

@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 import { adminBrandsRoute } from "./brands/admin";
 import { adminCategoriesRoute } from "./categories/admin";
 import { changesRoute } from "./changes";
+import { adminComplaintsRoute } from "./complaints/admin";
 import { adminMarginRulesRoute } from "./margin-rules/admin";
 import { notificationsRoute } from "./notifications";
 import { adminOffersRoute } from "./offers/admin";
@@ -26,4 +27,5 @@ export const adminRouter = new Elysia({ prefix: "/admin" })
 	.use(changesRoute)
 	.use(reportsRoute)
 	.use(productImagesRoute)
-	.use(adminOrdersRoute);
+	.use(adminOrdersRoute)
+	.use(adminComplaintsRoute);

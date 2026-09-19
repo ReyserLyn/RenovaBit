@@ -52,6 +52,7 @@ const SCHEMA_GATED_ROUTES = new Set([
 	"POST /api/v1/admin/margin-rules/",
 	"POST /api/v1/admin/offers/",
 	"POST /api/v1/admin/offers/:id/products",
+	"PATCH /api/v1/admin/complaints/:id",
 	"PATCH /api/v1/admin/orders/:id",
 	"PATCH /api/v1/admin/orders/:id/attachments",
 	"POST /api/v1/admin/orders/batch",

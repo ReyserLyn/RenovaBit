@@ -193,6 +193,10 @@ export const PublicProductDetail = t.Object({
 	id: t.String({ format: "uuid" }),
 	name: t.String(),
 	slug: t.String(),
+	// SEO overrides generated in the DB and editable in admin. Detail-only:
+	// the public list DTO stays lean.
+	seoTitle: t.Nullable(t.String()),
+	seoDescription: t.Nullable(t.String()),
 	description: t.Nullable(t.String()),
 	price: t.String(),
 	offerPrice: t.Nullable(t.String()),

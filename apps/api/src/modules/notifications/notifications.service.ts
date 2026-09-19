@@ -1,5 +1,7 @@
 import { db } from "@renovabit/db";
 import type {
+	ComplaintNotificationData,
+	ComplaintType,
 	NotificationData,
 	OrderNotificationData,
 	SyncFailedNotificationData,
@@ -355,6 +357,70 @@ export async function notifyAdminsOfOrder(payload: {
 		orderId: payload.orderId,
 		orderNumber: payload.orderNumber,
 		total: payload.total,
+		timestamp: notification.data.timestamp ?? new Date().toISOString(),
+	});
+}
+
+/**
+ * Factory para notificaciones de un nuevo registro en el Libro de Reclamaciones.
+ * El código y el tipo viajan en `data` para que el admin los vea sin abrir la DB.
+ */
+export function buildComplaintNotification(input: {
+	complaintId: string;
+	code: string;
+	type: ComplaintType;
+	fullName: string;
+}): {
+	type: "complaint:created";
+	title: string;
+	message: string;
+	data: ComplaintNotificationData;
+} {
+	const { complaintId, code, type, fullName } = input;
+	const typeLabel = type === "reclamo" ? "Reclamo" : "Queja";
+	return {
+		type: "complaint:created",
+		title: "Nuevo reclamo registrado",
+		message: `${code} — ${typeLabel} — ${fullName}`,
+		data: {
+			complaintId,
+			complaintCode: code,
+			complaintType: type,
+			timestamp: new Date().toISOString(),
+		},
+	};
+}
+
+/**
+ * Crea notificaciones para todos los admins y las transmite vía WebSocket.
+ * Mismo patrón que `notifyAdminsOfOrder`.
+ */
+export async function notifyAdminsOfComplaint(payload: {
+	complaintId: string;
+	code: string;
+	type: ComplaintType;
+	fullName: string;
+}): Promise<void> {
+	const adminIds = await getAdminIds();
+	if (adminIds.length === 0) return;
+
+	const notification = buildComplaintNotification(payload);
+
+	for (const adminId of adminIds) {
+		try {
+			await createNotification({ userId: adminId, ...notification });
+		} catch (err) {
+			logger
+				.withMetadata({ adminId, err })
+				.error("[Notifications] Failed to notify admin about complaint");
+		}
+	}
+
+	broadcastToAdmins({
+		type: notification.type,
+		complaintId: payload.complaintId,
+		complaintCode: payload.code,
+		complaintType: payload.type,
 		timestamp: notification.data.timestamp ?? new Date().toISOString(),
 	});
 }

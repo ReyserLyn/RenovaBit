@@ -9,9 +9,13 @@ import {
 	type Role,
 } from "@renovabit/pricing";
 import { type Static } from "@sinclair/typebox";
-import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
-import { MAX_ORDER_NUMBER_RETRIES, MAX_PENDING_ORDERS } from "@/constants";
+import {
+	MAX_ORDER_NUMBER_RETRIES,
+	MAX_PENDING_GUEST_ORDERS,
+	MAX_PENDING_ORDERS,
+} from "@/constants";
 import { enqueueOrderAutoCancel } from "@/jobs/orders.queue";
 import { notifyAdminsOfOrder } from "@/modules/notifications/notifications.service";
 import { OfferService } from "@/modules/offers/service";
@@ -32,6 +36,23 @@ const ORDER_SUFFIX = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 10);
 function generateOrderNumber(): string {
 	const year = new Date().getFullYear();
 	return `ORD-${year}-${ORDER_SUFFIX()}`;
+}
+
+/**
+ * Canonical phone for checkout and abuse control: spaces/dashes/dots removed,
+ * leading `+` dropped and the Peru country code (`51` + 9-digit mobile)
+ * collapsed, so `+51 999 888 777`, `51999888777` and `999888777` map to the
+ * same key. Returns null when the value is not a 6–15 digit phone number.
+ */
+function normalizeCustomerPhone(raw: string | null | undefined): string | null {
+	if (typeof raw !== "string") return null;
+
+	const compact = raw.trim().replace(/[\s.-]/g, "");
+	const digits = compact.startsWith("+") ? compact.slice(1) : compact;
+	if (!/^\d{6,15}$/.test(digits)) return null;
+
+	if (digits.length === 11 && digits.startsWith("51")) return digits.slice(2);
+	return digits;
 }
 
 // ═══════════════════════════════════════════════════
@@ -131,8 +152,35 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 		cartItemsList[0]!.createdAt,
 	);
 
-	// Cap pending orders per user (abuse prevention). Checked after the replay
-	// path so retries of a just-created order never hit the cap.
+	// Normalize contact data before the abuse cap so guest orders can be keyed
+	// by canonical phone. Runs after the replay path too.
+	const trimmedName = typeof data.customerName === "string" ? data.customerName.trim() : null;
+	if (trimmedName !== null && trimmedName.length < 2) {
+		throw createApiError({
+			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+			message: "El nombre debe tener al menos 2 caracteres",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+	const normalizedPhone = normalizeCustomerPhone(data.customerPhone);
+	// Defense in depth: HTTP bodies already enforce the phone pattern; direct
+	// service callers must not persist an unparseable phone either.
+	if (
+		typeof data.customerPhone === "string" &&
+		data.customerPhone.trim().length > 0 &&
+		normalizedPhone === null
+	) {
+		throw createApiError({
+			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+			message: "El número de teléfono no es válido",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+
+	// Cap pending orders per identity (abuse prevention). Checked after the
+	// replay path so retries of a just-created order never hit the cap.
 	if (userId) {
 		const [countRow] = await db
 			.select({ pending: sql<number>`count(*)::int` })
@@ -142,6 +190,27 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 			throw createApiError({
 				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
 				message: `Tienes demasiados pedidos pendientes (máximo ${MAX_PENDING_ORDERS}). Espera a que sean procesados.`,
+				logLevel: "info",
+				doNotLog: true,
+			});
+		}
+	} else if (normalizedPhone) {
+		// Guests have no user id: cap by canonical phone number so an
+		// unauthenticated flood cannot pile up pending orders indefinitely.
+		const [countRow] = await db
+			.select({ pending: sql<number>`count(*)::int` })
+			.from(orders)
+			.where(
+				and(
+					isNull(orders.userId),
+					eq(orders.customerPhone, normalizedPhone),
+					eq(orders.status, "pending"),
+				),
+			);
+		if ((countRow?.pending ?? 0) >= MAX_PENDING_GUEST_ORDERS) {
+			throw createApiError({
+				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+				message: `Este número ya tiene demasiados pedidos pendientes (máximo ${MAX_PENDING_GUEST_ORDERS}). Espera a que sean procesados.`,
 				logLevel: "info",
 				doNotLog: true,
 			});
@@ -264,14 +333,12 @@ async function create(data: CreateBody, userId: string | null): Promise<OrderRes
 	}
 
 	const now = new Date();
-	let customerName =
-		typeof data.customerName === "string" ? data.customerName.trim() || null : null;
-	let customerPhone =
-		typeof data.customerPhone === "string" ? data.customerPhone.trim() || null : null;
+	let customerName = trimmedName && trimmedName.length > 0 ? trimmedName : null;
+	let customerPhone = normalizedPhone;
 
 	if (userId && (!customerName || !customerPhone)) {
 		if (!customerName) customerName = profileName;
-		if (!customerPhone) customerPhone = profilePhone;
+		if (!customerPhone) customerPhone = normalizeCustomerPhone(profilePhone);
 	}
 
 	const normalizedNotes = typeof data.notes === "string" ? data.notes.trim() || null : null;

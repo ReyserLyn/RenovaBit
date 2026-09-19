@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { primaryKey } from "./_utils";
 import { users } from "./auth";
+import type { ComplaintType } from "./complaints";
 import { products } from "./products";
 
 /**
@@ -95,7 +96,8 @@ export type ChangeValueObject = Record<string, string | number | boolean | null>
 export type NotificationData =
 	| SyncNotificationData
 	| SyncFailedNotificationData
-	| OrderNotificationData;
+	| OrderNotificationData
+	| ComplaintNotificationData;
 
 /**
  * Summary carried by the admin notification: flat primitives only.
@@ -154,6 +156,14 @@ export type OrderNotificationData = {
 	orderNumber?: string;
 	total?: string;
 	reason?: string;
+	timestamp?: string;
+};
+
+/** Payload for a new Libro de Reclamaciones entry (see schema/complaints.ts). */
+export type ComplaintNotificationData = {
+	complaintId?: string;
+	complaintCode?: string;
+	complaintType?: ComplaintType;
 	timestamp?: string;
 };
 

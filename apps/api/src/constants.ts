@@ -15,6 +15,8 @@ export const MAX_ATTACHMENTS = 10;
 
 // ── Orders ──────────────────────────────────────────
 export const MAX_PENDING_ORDERS = 10;
+/** Pending-order cap for guests, keyed by canonical customer phone. */
+export const MAX_PENDING_GUEST_ORDERS = 5;
 export const MAX_ORDER_NUMBER_RETRIES = 5;
 
 // ── Provider feed sanity ────────────────────────────

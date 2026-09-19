@@ -58,6 +58,20 @@ export function errorHandler(ctx: any) {
 		return error.toJSONSafe();
 	}
 
+	// Elysia throws ParseError (`code === "PARSE"`) when a JSON body cannot be
+	// decoded. It is a client error: map it to the canonical 400 shape instead
+	// of letting it fall through to the generic 500 branch.
+	if (code === "PARSE") {
+		const e = createApiError({
+			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+			message: "Malformed JSON body",
+			causedBy: error,
+		});
+		log.withMetadata({ method, url }).warn("Malformed JSON body");
+		set.status = e.statusCode;
+		return e.toJSONSafe();
+	}
+
 	if (code === "VALIDATION") {
 		const e = createApiError({
 			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,

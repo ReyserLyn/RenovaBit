@@ -48,4 +48,21 @@ describe("platform error contract", () => {
 		expect(res.status).toBe(400);
 		expect(await res.json()).toMatchObject({ code: "INPUT_VALIDATION_ERROR" });
 	});
+
+	it("maps malformed JSON bodies to 400 INPUT_VALIDATION_ERROR", async () => {
+		const res = await app.handle(
+			new Request("http://localhost/api/v1/admin/offers/", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: "{not-json",
+			}),
+		);
+
+		expect(res.status).toBe(400);
+		expect(await res.json()).toMatchObject({
+			code: "INPUT_VALIDATION_ERROR",
+			message: "Malformed JSON body",
+			statusCode: 400,
+		});
+	});
 });

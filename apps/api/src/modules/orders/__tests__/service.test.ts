@@ -24,7 +24,7 @@ import {
 	users,
 } from "@renovabit/db/schema";
 import { eq, inArray, sql } from "drizzle-orm";
-import { CONFIRMED_HOLD_HOURS } from "@/constants";
+import { CONFIRMED_HOLD_HOURS, MAX_PENDING_GUEST_ORDERS } from "@/constants";
 import { removeOrderAutoCancel } from "@/jobs/orders.queue";
 import { REVIEW_REASONS } from "@/utils/review-reasons";
 import { OrderService } from "../service";
@@ -50,7 +50,25 @@ const describeDb = dbAvailable ? describe : describe.skip;
 
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const GUEST_TOKEN = `guest-${suffix}`;
-const ORDER_CONTEXT = { customerName: "Test Buyer", customerPhone: "999888777" };
+const ORDER_CONTEXT = {
+	customerName: "Test Buyer",
+	customerPhone: "999888777",
+	paymentMethod: "cash" as const,
+};
+
+/**
+ * Unique guest phone per call. The guest pending cap counts pending orders by
+ * phone DB-wide, so sharing one test phone would leak state across tests (and
+ * across interrupted runs).
+ */
+let guestPhoneCounter = 0;
+function guestContext() {
+	guestPhoneCounter += 1;
+	return {
+		...ORDER_CONTEXT,
+		customerPhone: `9${String(Date.now() + guestPhoneCounter).slice(-8)}`,
+	};
+}
 
 let userAId: string;
 let productAId: string;
@@ -293,6 +311,31 @@ async function insertPendingOrder(opts: {
 	return orderId;
 }
 
+/** Inserts a pending guest order directly (no checkout side effects). */
+async function insertPendingGuestOrder(phone: string): Promise<string> {
+	orderNumberCounter += 1;
+	const now = new Date();
+	const [order] = await db
+		.insert(orders)
+		.values({
+			userId: null,
+			orderNumber: `TEST-${suffix}-G-${orderNumberCounter}`,
+			status: "pending",
+			source: "web",
+			customerName: "Guest Flood",
+			customerPhone: phone,
+			subtotal: "300.00",
+			discountTotal: "0.00",
+			total: "300.00",
+			createdAt: now,
+			updatedAt: now,
+		})
+		.returning({ id: orders.id });
+	const orderId = order!.id;
+	createdOrderIds.push(orderId);
+	return orderId;
+}
+
 afterAll(async () => {
 	if (!dbAvailable) return;
 
@@ -336,14 +379,17 @@ describeDb("OrderService (DB)", () => {
 
 		// Cart is now empty because the order consumed it — the retry must
 		// return the same order instead of failing.
-		const replay = await OrderService.create({ cartId: cartAId }, userAId);
+		const replay = await OrderService.create({ cartId: cartAId, paymentMethod: "cash" }, userAId);
 		expect(replay.id).toBe(first.id);
 	});
 
 	it("allows a second purchase with the same cart once it is refilled", async () => {
 		await addCartItem(cartAId, productBId, 1);
 
-		const second = await OrderService.create({ cartId: cartAId }, userAId);
+		const second = await OrderService.create(
+			{ cartId: cartAId, paymentMethod: "transfer" },
+			userAId,
+		);
 		createdOrderIds.push(second.id);
 
 		expect(second.id).not.toBe(firstOrderId);
@@ -356,7 +402,7 @@ describeDb("OrderService (DB)", () => {
 
 	it("dedupes concurrent double-submits into a single order", async () => {
 		await addCartItem(guestCartId, productAId, 1);
-		const data = { cartId: guestCartId, guestToken: GUEST_TOKEN, ...ORDER_CONTEXT };
+		const data = { cartId: guestCartId, guestToken: GUEST_TOKEN, ...guestContext() };
 
 		const [first, second] = await Promise.allSettled([
 			OrderService.create(data, null),
@@ -415,7 +461,10 @@ describeDb("OrderService (DB)", () => {
 
 		// The retry must not detach this order (its generation is the cart's
 		// current content) and must not create a duplicate — it replays.
-		const result = await OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null);
+		const result = await OrderService.create(
+			{ cartId, guestToken: token, ...guestContext() },
+			null,
+		);
 		expect(result.id).toBe(orderId);
 
 		const linked = await db.select({ id: orders.id }).from(orders).where(eq(orders.cartId, cartId));
@@ -560,7 +609,7 @@ describeDb("OrderService (DB)", () => {
 
 		// Available = 10 - 3 (active hold) = 7 → an 8-unit checkout is rejected.
 		await expect(
-			OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null),
+			OrderService.create({ cartId, guestToken: token, ...guestContext() }, null),
 		).rejects.toThrow(/Disponible: 7/);
 	});
 
@@ -579,7 +628,7 @@ describeDb("OrderService (DB)", () => {
 
 		// Available = the full 10: the expired confirmation no longer holds, so
 		// the full-stock checkout goes through.
-		const order = await OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null);
+		const order = await OrderService.create({ cartId, guestToken: token, ...guestContext() }, null);
 		createdOrderIds.push(order.id);
 		expect(order.status).toBe("pending");
 	});
@@ -620,7 +669,7 @@ describeDb("OrderService (DB)", () => {
 		const { cartId, token } = await createGuestCart("manual-hold");
 		await addCartItem(cartId, productEId, 3);
 		await expect(
-			OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null),
+			OrderService.create({ cartId, guestToken: token, ...guestContext() }, null),
 		).rejects.toThrow(/Disponible: 2/);
 	});
 
@@ -628,7 +677,7 @@ describeDb("OrderService (DB)", () => {
 		const { cartId, token } = await createGuestCart("advisory-review");
 		await addCartItem(cartId, productFId, 1);
 
-		const order = await OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null);
+		const order = await OrderService.create({ cartId, guestToken: token, ...guestContext() }, null);
 		createdOrderIds.push(order.id);
 
 		expect(order.status).toBe("pending");
@@ -648,7 +697,7 @@ describeDb("OrderService (DB)", () => {
 		const { cartId, token } = await createGuestCart("flag-no-reason");
 		await addCartItem(cartId, productHId, 1);
 
-		const order = await OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null);
+		const order = await OrderService.create({ cartId, guestToken: token, ...guestContext() }, null);
 		createdOrderIds.push(order.id);
 
 		expect(order.items.map((item) => item.productId)).toEqual([productHId]);
@@ -659,7 +708,7 @@ describeDb("OrderService (DB)", () => {
 		await addCartItem(cartId, productGId, 1);
 
 		await expect(
-			OrderService.create({ cartId, guestToken: token, ...ORDER_CONTEXT }, null),
+			OrderService.create({ cartId, guestToken: token, ...guestContext() }, null),
 		).rejects.toThrow(/ya no está disponible/);
 
 		// The rejected checkout persisted no order and left the cart untouched.
@@ -670,5 +719,80 @@ describeDb("OrderService (DB)", () => {
 			.from(cartItems)
 			.where(eq(cartItems.cartId, cartId));
 		expect(items.length).toBe(1);
+	});
+
+	it("normalizes the customer name and phone before persisting", async () => {
+		const { cartId, token } = await createGuestCart("phone-normalize");
+		await addCartItem(cartId, productAId, 1);
+
+		const order = await OrderService.create(
+			{
+				cartId,
+				guestToken: token,
+				customerName: "  Phone Test  ",
+				customerPhone: "+51 999 111 222",
+				paymentMethod: "cash",
+			},
+			null,
+		);
+		createdOrderIds.push(order.id);
+
+		expect(order.customerName).toBe("Phone Test");
+		// Country code collapsed: "+51 999 111 222" → "999111222".
+		expect(order.customerPhone).toBe("999111222");
+	});
+
+	it("rejects an unparseable phone and a too-short name", async () => {
+		const { cartId, token } = await createGuestCart("invalid-contact");
+		await addCartItem(cartId, productAId, 1);
+
+		await expect(
+			OrderService.create(
+				{
+					cartId,
+					guestToken: token,
+					customerName: "Valid Name",
+					customerPhone: "abcdef",
+					paymentMethod: "cash",
+				},
+				null,
+			),
+		).rejects.toThrow(/teléfono no es válido/);
+
+		await expect(
+			OrderService.create(
+				{
+					cartId,
+					guestToken: token,
+					customerName: " A ",
+					customerPhone: "999111333",
+					paymentMethod: "cash",
+				},
+				null,
+			),
+		).rejects.toThrow(/al menos 2 caracteres/);
+	});
+
+	it("caps pending orders per guest phone", async () => {
+		const phone = `9${String(Date.now()).slice(-8)}`;
+		for (let i = 0; i < MAX_PENDING_GUEST_ORDERS; i++) {
+			await insertPendingGuestOrder(phone);
+		}
+
+		const { cartId, token } = await createGuestCart("guest-flood-cap");
+		await addCartItem(cartId, productAId, 1);
+
+		await expect(
+			OrderService.create(
+				{
+					cartId,
+					guestToken: token,
+					customerName: "Guest Flood",
+					customerPhone: `+51 ${phone}`,
+					paymentMethod: "cash",
+				},
+				null,
+			),
+		).rejects.toThrow(/demasiados pedidos pendientes/);
 	});
 });

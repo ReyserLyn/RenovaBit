@@ -2,6 +2,7 @@ export * from "./auth";
 export * from "./brands";
 export * from "./cart";
 export * from "./categories";
+export * from "./complaints";
 export * from "./discount-type";
 export * from "./favorites";
 export * from "./margin-rules";
