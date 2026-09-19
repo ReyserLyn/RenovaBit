@@ -295,21 +295,39 @@ describeDb("OfferService (DB)", () => {
 			).rejects.toThrow();
 		});
 
-		it("rejects productIds: [] (empty array guard)", async () => {
-			const slug = uniqueSlug("update-empty");
+		it("clears every product association when productIds is empty", async () => {
+			const slug = uniqueSlug("update-clear");
 			const offer = await OfferService.create(
 				{
-					name: "Empty Products Guard",
+					name: "Clear Products",
 					slug,
 					discountValue: 10,
 					startsAt: new Date(Date.now() + 86400000).toISOString(),
 					endsAt: new Date(Date.now() + 172800000).toISOString(),
+					productIds: [sampleProductId],
 				},
 				testUserId,
 			);
 			createdOfferIds.push(offer.id);
 
-			await expect(OfferService.update(offer.id, { productIds: [] }, testUserId)).rejects.toThrow();
+			const before = await db
+				.select()
+				.from(offerProducts)
+				.where(eq(offerProducts.offerId, offer.id));
+			expect(before.length).toBe(1);
+
+			await OfferService.update(offer.id, { productIds: [] }, testUserId);
+
+			const after = await db
+				.select()
+				.from(offerProducts)
+				.where(eq(offerProducts.offerId, offer.id));
+			expect(after.length).toBe(0);
+
+			// The list projection stays consistent at zero.
+			const list = await OfferService.list({ search: "Clear Products", limit: 100 });
+			const listed = list.data.find((row) => row.id === offer.id);
+			expect(listed?.productCount).toBe(0);
 		});
 
 		it("updates offer fields", async () => {

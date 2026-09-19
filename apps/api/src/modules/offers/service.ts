@@ -296,17 +296,10 @@ async function update(id: string, data: UpdateOfferDto, userId: string) {
 	}
 
 	// ── FK validation (before junction replacement; returns deduplicated ids) ──
+	// An empty array is a valid UPDATE: it clears every product assignment, which
+	// the admin form's "Limpiar" action relies on. CREATE keeps its own semantics.
 	let nextProductIds: string[] | undefined;
 	if (data.productIds !== undefined) {
-		if (data.productIds.length === 0) {
-			throw createApiError({
-				code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
-				message:
-					"No puedes eliminar todos los productos de una oferta mediante actualización. Usa el endpoint de eliminar oferta si deseas removerla por completo.",
-				logLevel: "info",
-				doNotLog: true,
-			});
-		}
 		nextProductIds = await ensureProductsExist(data.productIds);
 	}
 
