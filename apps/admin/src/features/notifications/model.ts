@@ -141,6 +141,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
 	"order:created": "Pedido",
 	"order:auto-cancelled": "Cancelación",
 	order_created: "Pedido",
+	"complaint:created": "Nueva hoja de reclamación",
 };
 
 export const SORT_OPTIONS = [

@@ -1,4 +1,5 @@
 import {
+	Book02Icon,
 	Chart01Icon,
 	DashboardSquare01Icon,
 	DeliveryBox01Icon,
@@ -13,6 +14,7 @@ export const sidebarNavigation = {
 	main: [
 		{ name: "Resumen", url: "/", icon: DashboardSquare01Icon },
 		{ name: "Pedidos", url: "/pedidos", icon: ShoppingCartCheck02Icon },
+		{ name: "Reclamos", url: "/reclamos", icon: Book02Icon },
 		{ name: "Productos", url: "/productos", icon: DeliveryBox01Icon },
 		{ name: "Usuarios", url: "/usuarios", icon: UserMultiple02Icon },
 		{ name: "Ofertas", url: "/ofertas", icon: DiscountTag02Icon },
@@ -36,6 +38,7 @@ export const sidebarNavigation = {
 			icon: ShoppingCartCheck02Icon,
 			items: [
 				{ title: "Pedidos", url: "/pedidos" },
+				{ title: "Reclamos", url: "/reclamos" },
 				{ title: "Proformas", url: "/proformas" },
 				{ title: "Transacciones", url: "/transacciones" },
 			],
