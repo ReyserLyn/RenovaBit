@@ -45,11 +45,15 @@ export const Route = createFileRoute("/_main/producto/$slug")({
 		const { product } = loaderData;
 		const ogImage = product.images[0]?.url ?? `${getSiteUrl()}/og-default.png`;
 		const productUrl = `${getSiteUrl()}/producto/${product.slug}`;
+		// Admin-curated SEO wins when present; the composed title/description is
+		// the fallback for products without SEO fields.
+		const fallbackTitle = `${product.name} — Comprar online | Renovabit`;
+		const fallbackDescription =
+			product.description?.slice(0, 160) ??
+			`Compra ${product.name} al mejor precio en Renovabit. SKU: ${product.sku}. Envíos a todo Perú.`;
 		const seoTags = seo({
-			title: `${product.name} — Comprar online | Renovabit`,
-			description:
-				product.description?.slice(0, 160) ??
-				`Compra ${product.name} al mejor precio en Renovabit. SKU: ${product.sku}. Envíos a todo Perú.`,
+			title: product.seoTitle?.trim() || fallbackTitle,
+			description: product.seoDescription?.trim() || fallbackDescription,
 			image: ogImage,
 			url: productUrl,
 		});
@@ -90,7 +94,7 @@ export const Route = createFileRoute("/_main/producto/$slug")({
 		});
 		return {
 			meta: [...seoTags.meta],
-			links: [...seoTags.links],
+			links: [{ rel: "canonical", href: productUrl }, ...seoTags.links],
 			scripts: [breadcrumbJsonLd(breadcrumbItems), productJson],
 		};
 	},
@@ -321,7 +325,7 @@ function ProductPage() {
 							className="sm:flex-1 border-[#25D366] bg-[#25D366] text-white hover:bg-[#25D366]/90 hover:text-white"
 							render={
 								<a
-									href={`https://wa.me/51987471074?text=${whatsappMessage}`}
+									href={`https://wa.me/51955315646?text=${whatsappMessage}`}
 									target="_blank"
 									rel="noopener noreferrer"
 								>

@@ -1,9 +1,4 @@
-import {
-	ComputerIcon,
-	Home01Icon,
-	PercentSquareIcon,
-	ShoppingCart01Icon,
-} from "@hugeicons/core-free-icons";
+import { Home01Icon, PercentSquareIcon, ShoppingCart01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
 	SidebarGroup,
@@ -19,7 +14,6 @@ import { memo } from "react";
 const PRIMARY_LINKS = [
 	{ label: "Inicio", to: "/", icon: Home01Icon },
 	{ label: "Ofertas", to: "/ofertas", icon: PercentSquareIcon },
-	{ label: "Arma tu PC", to: "/arma-tu-pc", icon: ComputerIcon },
 	{ label: "Carrito", to: "/carrito", icon: ShoppingCart01Icon },
 ] as const;
 

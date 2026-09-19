@@ -26,21 +26,12 @@ function buildFilters(categorySlug: string, s: CatalogSearch): ProductListFilter
 	};
 }
 
-function buildCanonicalCategoryUrl(categorySlug: string, s: CatalogSearch): string {
-	const params = new URLSearchParams();
-	if (s.marcas) {
-		s.marcas
-			.split(",")
-			.map((value) => value.trim())
-			.filter(Boolean)
-			.forEach((m) => params.append("marcas", m));
-	}
-	if (s.orden && s.orden !== "relevance") params.set("orden", s.orden);
-	if (s.precio_min) params.set("precio_min", s.precio_min);
-	if (s.precio_max) params.set("precio_max", s.precio_max);
-	params.sort();
-	const qs = params.toString();
-	return `${getSiteUrl()}/categoria/${categorySlug}${qs ? `?${qs}` : ""}`;
+/**
+ * Canonical always points to the clean category path: filter/sort/price
+ * variations are facets of the same page and must not create duplicates.
+ */
+function buildCanonicalCategoryUrl(categorySlug: string): string {
+	return `${getSiteUrl()}/categoria/${categorySlug}`;
 }
 
 export const Route = createFileRoute("/_main/categoria/$slug")({
@@ -61,7 +52,7 @@ export const Route = createFileRoute("/_main/categoria/$slug")({
 
 			return {
 				category,
-				canonicalUrl: buildCanonicalCategoryUrl(params.slug, deps),
+				canonicalUrl: buildCanonicalCategoryUrl(params.slug),
 			};
 		} catch (error) {
 			if (isApiClientError(error) && error.code === "NOT_FOUND_ERROR") {
@@ -90,7 +81,11 @@ export const Route = createFileRoute("/_main/categoria/$slug")({
 		] as Array<{ name: string; url?: string }>;
 
 		return {
-			meta: [...seoTags.meta],
+			meta: [
+				...seoTags.meta,
+				{ property: "og:url", content: canonicalUrl },
+				{ property: "og:image", content: `${getSiteUrl()}/og-default.png` },
+			],
 			links: [{ rel: "canonical", href: canonicalUrl }, ...seoTags.links],
 			scripts: [breadcrumbJsonLd(breadcrumbItems)],
 		};

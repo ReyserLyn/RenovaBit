@@ -4,10 +4,10 @@
  */
 
 /** Número en formato internacional sin "+" (para wa.me). */
-export const WHATSAPP_NUMBER = "51987471074";
+export const WHATSAPP_NUMBER = "51955315646";
 
 /** Display format para mostrar al usuario. */
-export const WHATSAPP_DISPLAY = "+51 987 471 074";
+export const WHATSAPP_DISPLAY = "+51 955 315 646";
 
 interface BuildWaOpts {
 	message: string;

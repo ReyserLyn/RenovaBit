@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { ApiClientError, api, unwrapResponse } from "@/shared/lib/api";
 import { resolveErrorMessage } from "@/shared/lib/api/error-utils";
 import { useGuestTokenStore } from "@/shared/lib/stores/guest-token";
+import { summarizeOrderableCartItems } from "../lib/summary";
 import type { CartResponse } from "./queries";
 import { cartKeys } from "./queries";
 
@@ -22,12 +23,24 @@ function toCartScopeKey(guestToken: string | null | undefined): string {
 	return guestToken ?? "__session__";
 }
 
-function updateCartCache(queryClient: ReturnType<typeof useQueryClient>, cart: CartResponse) {
+/**
+ * Mirrors `GET /cart/total` semantics: only orderable lines (available or
+ * price_changed) count toward the badge. The mutation response's own
+ * `subtotal`/`itemsCount` include blocked lines, so writing those raw values
+ * would desync the navbar from the drawer/checkout until the next refetch.
+ * We derive the orderable totals from the response items instead, which also
+ * keeps one synchronous write instead of racing a background refetch.
+ */
+export function updateCartCache(
+	queryClient: ReturnType<typeof useQueryClient>,
+	cart: CartResponse,
+) {
+	const { orderableItemsCount, orderableSubtotal } = summarizeOrderableCartItems(cart.items);
 	const scopeKey = toCartScopeKey(cart.guestToken);
 	queryClient.setQueryData([...cartKeys.detail(), scopeKey], cart);
 	queryClient.setQueryData([...cartKeys.total(), scopeKey], {
-		itemsCount: cart.itemsCount,
-		subtotal: cart.subtotal,
+		itemsCount: orderableItemsCount,
+		subtotal: orderableSubtotal,
 	});
 }
 

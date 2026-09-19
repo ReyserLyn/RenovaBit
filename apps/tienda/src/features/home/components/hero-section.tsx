@@ -8,7 +8,7 @@ const WHATSAPP_URL = buildWhatsAppUrl({
 	message: "Hola, vengo del sitio web y quiero más información sobre sus productos.",
 });
 
-export function HeroSection() {
+export function HeroSection({ showOffersCta }: { showOffersCta: boolean }) {
 	return (
 		<section aria-label="Hero principal" className="px-4 py-4 md:px-6 md:py-6">
 			<div className="relative mx-auto h-[70vh] min-h-[500px] max-h-[800px] w-full max-w-7xl overflow-hidden rounded-2xl md:rounded-3xl">
@@ -39,16 +39,18 @@ export function HeroSection() {
 							Equipos, refacciones y servicio técnico con garantía real. Envíos a todo Perú.
 						</p>
 						<div className="flex flex-col gap-3 pt-2 sm:flex-row">
-							<Button
-								nativeButton={false}
-								render={<a href="/ofertas" />}
-								size="xl"
-								className="shadow-lg"
-							>
-								<HugeiconsIcon icon={Tag01Icon} size={16} />
-								Ver ofertas
-								<HugeiconsIcon icon={ArrowRightIcon} size={16} />
-							</Button>
+							{showOffersCta && (
+								<Button
+									nativeButton={false}
+									render={<a href="/ofertas" />}
+									size="xl"
+									className="shadow-lg"
+								>
+									<HugeiconsIcon icon={Tag01Icon} size={16} />
+									Ver ofertas
+									<HugeiconsIcon icon={ArrowRightIcon} size={16} />
+								</Button>
+							)}
 							<Button
 								nativeButton={false}
 								variant="whatsapp"

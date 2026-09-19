@@ -15,7 +15,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@renovabit/ui/components/ui/dropdown-menu";
-import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { authClient } from "@/shared/lib/auth/auth-client";
@@ -42,7 +42,11 @@ function getUserInitials(
 
 export function UserMenu() {
 	const { data: session } = useSuspenseQuery(authSessionQueryOptions());
-	const { data: freshProfile } = useSuspenseQuery(profileQueryOptions());
+	// Anonymous users have no profile: skip the request instead of triggering a 401 on every page.
+	const { data: freshProfile } = useQuery({
+		...profileQueryOptions(),
+		enabled: !!session?.user,
+	});
 	const router = useRouter();
 	const queryClient = useQueryClient();
 

@@ -1,3 +1,4 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { brandQueries } from "@/features/brands/hooks/queries";
 import { categoryQueries } from "@/features/categories/hooks/queries";
@@ -12,6 +13,7 @@ import { HomeOfferSection } from "@/features/home/components/home-offer-section"
 import { offerQueries } from "@/features/offers/hooks/queries";
 import { productQueries } from "@/features/products/hooks/queries";
 import { isApiClientError } from "@/shared/lib/api";
+import { getSiteUrl } from "@/shared/lib/env";
 import { seo } from "@/shared/lib/seo";
 
 export const Route = createFileRoute("/_main/")({
@@ -29,33 +31,48 @@ export const Route = createFileRoute("/_main/")({
 			if (isApiClientError(error)) throw error;
 		}
 	},
-	head: () => ({
-		meta: [
-			{ charSet: "utf-8" },
-			{ name: "viewport", content: "width=device-width, initial-scale=1" },
-			...seo({
-				title: "RenovaBit · Tienda de tecnología en Arequipa",
-				description:
-					"Componentes, equipos y soporte técnico con garantía real. Envíos a todo Perú desde Arequipa.",
-			}).meta,
-		],
-		links: [
-			// Preload the LCP image so it starts downloading with the HTML.
-			{
-				rel: "preload",
-				as: "image",
-				href: "/images/hero/hero-laptop-components.avif",
-				type: "image/avif",
-			},
-		],
-	}),
+	head: () => {
+		const siteUrl = getSiteUrl();
+		const homeUrl = `${siteUrl}/`;
+		const seoTags = seo({
+			title: "RenovaBit · Tienda de tecnología en Arequipa",
+			description:
+				"Componentes, equipos y soporte técnico con garantía real. Envíos a todo Perú desde Arequipa.",
+			url: homeUrl,
+		});
+		return {
+			meta: [
+				{ charSet: "utf-8" },
+				{ name: "viewport", content: "width=device-width, initial-scale=1" },
+				...seoTags.meta,
+				{ property: "og:url", content: homeUrl },
+				{ property: "og:image", content: `${siteUrl}/og-default.png` },
+			],
+			links: [
+				{ rel: "canonical", href: homeUrl },
+				...seoTags.links,
+				// Preload the LCP image so it starts downloading with the HTML.
+				{
+					rel: "preload",
+					as: "image",
+					href: "/images/hero/hero-laptop-components.avif",
+					type: "image/avif",
+				},
+			],
+		};
+	},
 	component: HomePage,
 });
 
 function HomePage() {
+	// Same cached query the loader already populated for HomeOfferSection —
+	// no extra network request, but guaranteed fresh data for the hero CTA.
+	const { data: featuredOffers } = useSuspenseQuery(offerQueries.featured());
+	const hasActiveOffers = featuredOffers.offers.some((offer) => offer.products.items.length > 0);
+
 	return (
 		<div className="flex flex-1 flex-col">
-			<HeroSection />
+			<HeroSection showOffersCta={hasActiveOffers} />
 			<CategorySection />
 			<HomeOfferSection />
 			<FeaturedProductsSection />

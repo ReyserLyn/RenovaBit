@@ -1,5 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { QueryClient } from "@tanstack/react-query";
 
 const queryClientDefaultOptions = {
 	defaultOptions: {
@@ -7,7 +6,7 @@ const queryClientDefaultOptions = {
 			staleTime: 1000 * 60 * 5,
 			gcTime: 1000 * 60 * 30,
 			retry: 1,
-			refetchOnWindowFocus: import.meta.env.PROD,
+			refetchOnWindowFocus: false,
 			refetchOnReconnect: true,
 		},
 		mutations: {
@@ -20,7 +19,11 @@ function createQueryClient(): QueryClient {
 	return new QueryClient(queryClientDefaultOptions);
 }
 
-/** En cliente: una sola instancia para toda la SPA. En SSR: una por petición (evita filtrar sesión entre usuarios). */
+/**
+ * Client side: one instance for the whole SPA. Server: one per request (avoids leaking session
+ * between users). `setupRouterSsrQueryIntegration` mounts this same instance around the app, so
+ * router loaders and React components share a single client per SSR request.
+ */
 let queryClientSingleton: QueryClient | undefined;
 
 export function getContext(): { queryClient: QueryClient } {
@@ -31,16 +34,4 @@ export function getContext(): { queryClient: QueryClient } {
 		queryClientSingleton = createQueryClient();
 	}
 	return { queryClient: queryClientSingleton };
-}
-
-export default function TanStackQueryProvider({
-	children,
-	queryClient,
-}: {
-	children: ReactNode;
-	queryClient?: QueryClient;
-}) {
-	const client = queryClient ?? getContext().queryClient;
-
-	return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

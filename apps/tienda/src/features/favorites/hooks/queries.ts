@@ -2,6 +2,7 @@ import { infiniteQueryOptions, keepPreviousData, useQuery } from "@tanstack/reac
 import { useMemo } from "react";
 import { api, getApiSsrHeaders, unwrapResponse } from "@/shared/lib/api";
 import { useCartSsr } from "@/shared/lib/stores/cart-ssr-context";
+import { chunkProductIds } from "../lib/status-batches";
 import { getFavoritesServerFn } from "./server";
 
 // ── Types inferred from API ──────────────────────────────────
@@ -59,9 +60,37 @@ export const favoritesKeys = {
 };
 
 /**
- * Hook for product listings. Runs one batched query for the full visible
- * productIds array and returns a `productId → isFavorite` map. Undefined
- * entries mean "not favorite" (anonymous session or not yet loaded).
+ * Fetches the status of every id, chunked to the API cap, and merges the
+ * partial maps into one record. One logical result per hook call.
+ */
+async function fetchFavoriteStatuses(
+	productIds: ReadonlyArray<string>,
+): Promise<FavoriteStatusBatchResponse> {
+	const headers = await getApiSsrHeaders();
+	const batches = chunkProductIds(productIds);
+	const results = await Promise.all(
+		batches.map((batch) =>
+			unwrapResponse(
+				api.api.v1.favorites.status.get({
+					headers,
+					query: { productIds: batch },
+				}),
+			),
+		),
+	);
+
+	const statuses: Record<string, boolean> = {};
+	for (const result of results) {
+		Object.assign(statuses, result.statuses);
+	}
+	return { statuses };
+}
+
+/**
+ * Hook for product listings. Runs one batched (chunked at the API's 200-id
+ * cap) query for the full visible productIds array and returns a
+ * `productId → isFavorite` map. Undefined entries mean "not favorite"
+ * (anonymous session or not yet loaded).
  */
 export function useFavoriteStatusMap(
 	productIds: ReadonlyArray<string>,
@@ -69,15 +98,7 @@ export function useFavoriteStatusMap(
 	const { session } = useCartSsr();
 	const { data } = useQuery({
 		queryKey: favoritesKeys.statuses(productIds),
-		queryFn: async () => {
-			const headers = await getApiSsrHeaders();
-			return unwrapResponse(
-				api.api.v1.favorites.status.get({
-					headers,
-					query: { productIds: [...productIds] },
-				}),
-			);
-		},
+		queryFn: () => fetchFavoriteStatuses(productIds),
 		// Skip the network call entirely for anonymous sessions. The
 		// /status endpoint requires auth and would 401 otherwise.
 		enabled: !!session?.user && productIds.length > 0,

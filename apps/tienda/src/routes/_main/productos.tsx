@@ -28,24 +28,12 @@ function buildFilters(s: CatalogSearch): ProductListFilters {
 	};
 }
 
-function buildCanonicalUrl(s: CatalogSearch): string {
-	const params = new URLSearchParams();
-	const addList = (key: string, value: string | undefined) => {
-		if (!value) return;
-		value
-			.split(",")
-			.map((v) => v.trim())
-			.filter(Boolean)
-			.forEach((v) => params.append(key, v));
-	};
-	addList("marcas", s.marcas);
-	addList("categorias", s.categorias);
-	if (s.orden && s.orden !== "relevance") params.set("orden", s.orden);
-	if (s.precio_min) params.set("precio_min", s.precio_min);
-	if (s.precio_max) params.set("precio_max", s.precio_max);
-	params.sort();
-	const qs = params.toString();
-	return `${getSiteUrl()}/productos${qs ? `?${qs}` : ""}`;
+/**
+ * Canonical always points to the clean listing path: filter/sort/price
+ * variations are facets of the same page and must not create duplicates.
+ */
+function buildCanonicalUrl(): string {
+	return `${getSiteUrl()}/productos`;
 }
 
 export const Route = createFileRoute("/_main/productos")({
@@ -67,7 +55,7 @@ export const Route = createFileRoute("/_main/productos")({
 				queryClient.ensureQueryData(brandQueries.list({ categories: deps.categorias })),
 				queryClient.ensureInfiniteQueryData(productQueries.infiniteList(filters)),
 			]);
-			return { canonicalUrl: buildCanonicalUrl(deps) };
+			return { canonicalUrl: buildCanonicalUrl() };
 		} catch (error) {
 			if (isApiClientError(error)) throw error;
 			throw error;
@@ -83,7 +71,11 @@ export const Route = createFileRoute("/_main/productos")({
 
 		const seoTags = seo({ title, description, url: canonicalUrl });
 		return {
-			meta: [...seoTags.meta],
+			meta: [
+				...seoTags.meta,
+				{ property: "og:url", content: canonicalUrl },
+				{ property: "og:image", content: `${getSiteUrl()}/og-default.png` },
+			],
 			links: [{ rel: "canonical", href: canonicalUrl }, ...seoTags.links],
 		};
 	},

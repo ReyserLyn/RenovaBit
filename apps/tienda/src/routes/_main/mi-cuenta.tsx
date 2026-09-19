@@ -13,6 +13,10 @@ export const Route = createFileRoute("/_main/mi-cuenta")({
 
 		return { user: session.user };
 	},
+	// Applies to the layout and every child route (profile, security, settings).
+	head: () => ({
+		meta: [{ name: "robots", content: "noindex, follow" }],
+	}),
 	component: MiCuentaLayout,
 });
 

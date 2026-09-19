@@ -3,35 +3,36 @@ import {
 	NavigationMenuItem,
 	NavigationMenuTrigger,
 } from "@renovabit/ui/components/ui/navigation-menu";
+import { buildWhatsAppUrl } from "@/shared/lib/contact";
 import { ItemList } from "./item-list";
+
+const CONTACT_URL = buildWhatsAppUrl({
+	message: "Hola, quiero hacer una consulta sobre sus productos.",
+});
 
 const COMPANY_LINKS = [
 	{
-		href: "/sobre-nosotros",
-		title: "Sobre Nosotros",
-	},
-	{
-		href: "/contacto",
+		href: CONTACT_URL,
 		title: "Contacto",
 	},
 ] as const;
 
 const POLICY_LINKS = [
 	{
-		href: "/terminos-condiciones",
+		href: "/terminos-y-condiciones",
 		title: "Términos y Condiciones",
 	},
 	{
-		href: "/politica-privacidad",
+		href: "/politica-de-privacidad",
 		title: "Política de Privacidad",
 	},
 	{
-		href: "/politica-envios",
-		title: "Política de Envíos",
+		href: "/politicas-de-envio-y-devolucion",
+		title: "Políticas de Envío y Devolución",
 	},
 	{
-		href: "/politica-devoluciones",
-		title: "Devoluciones y Garantía",
+		href: "/libro-de-reclamaciones",
+		title: "Libro de Reclamaciones",
 	},
 ] as const;
 

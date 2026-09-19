@@ -25,7 +25,7 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { WhatsAppIcon } from "@/shared/components/icons";
 import { copyText } from "@/shared/lib/clipboard";
-import { buildWhatsAppUrl, orderWhatsAppMessage } from "@/shared/lib/contact";
+import { buildWhatsAppUrl, orderWhatsAppMessage, WHATSAPP_DISPLAY } from "@/shared/lib/contact";
 import { getSiteUrl } from "@/shared/lib/env";
 import { formatPrice } from "@/shared/lib/format";
 
@@ -39,9 +39,11 @@ export interface OrderSuccessInfo {
 interface OrderSuccessPanelProps {
 	order: OrderSuccessInfo;
 	isLoggedIn: boolean;
+	/** Called when the user leaves the success view (e.g. clears the persisted order). */
+	onDismiss?: () => void;
 }
 
-export function OrderSuccessPanel({ order, isLoggedIn }: OrderSuccessPanelProps) {
+export function OrderSuccessPanel({ order, isLoggedIn, onDismiss }: OrderSuccessPanelProps) {
 	const [copied, setCopied] = useState<"order" | "link" | null>(null);
 	const orderLink = isLoggedIn ? `${getSiteUrl()}/mis-pedidos/${order.id}` : null;
 	const waUrl = buildWhatsAppUrl({
@@ -159,8 +161,9 @@ export function OrderSuccessPanel({ order, isLoggedIn }: OrderSuccessPanelProps)
 					<AlertContent>
 						<AlertTitle>Guarda tu número de pedido</AlertTitle>
 						<AlertDescription>
-							Como todavía no inicias sesión, te recomendamos copiar tu número de pedido para
-							consultarlo fácilmente por WhatsApp.{" "}
+							Como todavía no inicias sesión, anota o copia tu número de pedido para consultarlo
+							cuando quieras. Si tienes alguna duda, escríbenos por WhatsApp al {WHATSAPP_DISPLAY}{" "}
+							mencionando tu número de pedido.{" "}
 							<Link
 								to="/iniciar-sesion"
 								className="font-medium underline underline-offset-2 hover:text-foreground"
@@ -202,7 +205,7 @@ export function OrderSuccessPanel({ order, isLoggedIn }: OrderSuccessPanelProps)
 						variant={isLoggedIn ? "outline" : "default"}
 						size="lg"
 						nativeButton={false}
-						render={<Link to="/" />}
+						render={<Link to="/" onClick={onDismiss} />}
 					>
 						<HugeiconsIcon icon={ArrowRight01Icon} size={18} />
 						Seguir comprando

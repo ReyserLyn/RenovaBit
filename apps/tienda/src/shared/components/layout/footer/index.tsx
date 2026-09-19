@@ -2,7 +2,11 @@ import { Clock01Icon, Location01Icon, Mail01Icon, TelephoneIcon } from "@hugeico
 import { HugeiconsIcon } from "@hugeicons/react";
 import { LogoHorizontal } from "@renovabit/ui/components/branding";
 import { Separator } from "@renovabit/ui/components/ui/separator";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useMemo } from "react";
+import { categoryQueries } from "@/features/categories/hooks/queries";
+import { getLeafCategories } from "@/features/categories/leaves";
 import {
 	FacebookIcon,
 	GitHubIcon,
@@ -10,8 +14,11 @@ import {
 	TikTokIcon,
 	WhatsAppIcon,
 } from "@/shared/components/icons";
+import { BUSINESS } from "@/shared/lib/business";
 
 // ── Config ──────────────────────────────────────────────
+
+const FOOTER_CATEGORY_LIMIT = 6;
 
 const contactItems = [
 	{
@@ -29,45 +36,33 @@ const contactItems = [
 	{
 		icon: TelephoneIcon,
 		label: "Teléfono",
-		values: [{ value: "987 471 074", href: "tel:987471074" }],
+		values: [{ value: BUSINESS.phoneDisplay, href: BUSINESS.phoneHref }],
 	},
 	{
 		icon: Location01Icon,
 		label: "Dirección",
-		values: [{ value: "Av. Goyeneche 1602, Miraflores, Arequipa - 04004", href: null }],
+		values: [{ value: BUSINESS.address, href: null }],
 	},
 	{
 		icon: Clock01Icon,
 		label: "Horario",
-		values: [{ value: "Lunes a Viernes, 8:00 AM - 8:00 PM", href: null }],
+		values: [{ value: BUSINESS.schedule, href: null }],
 	},
 ] as const;
 
 const storeLinks = [
 	{ name: "Inicio", to: "/" },
 	{ name: "Ofertas", to: "/ofertas" },
-	{ name: "Arma tu PC", to: "/arma-tu-pc" },
 	{ name: "Carrito", to: "/carrito" },
 ] as const;
 
-const categoryLinks = [
-	{ name: "Procesadores", to: "/categoria/procesadores" },
-	{ name: "Tarjetas gráficas", to: "/categoria/tarjetas-graficas" },
-	{ name: "Placas madre", to: "/categoria/placas-madre" },
-	{ name: "Memorias RAM", to: "/categoria/memorias-ram" },
-	{ name: "Almacenamiento", to: "/categoria/almacenamiento" },
-	{ name: "Fuentes de poder", to: "/categoria/fuentes-de-poder" },
+// Exact route paths under `_main` — must stay in sync with `menu-info.tsx`.
+const infoLinks = [
+	{ name: "Términos y condiciones", to: "/terminos-y-condiciones" },
+	{ name: "Política de privacidad", to: "/politica-de-privacidad" },
+	{ name: "Envíos y devoluciones", to: "/politicas-de-envio-y-devolucion" },
+	{ name: "Libro de Reclamaciones", to: "/libro-de-reclamaciones" },
 ] as const;
-
-// TODO: descomentar cuando se agreguen las páginas legales (mañana).
-// const infoLinks = [
-// 	{ name: "Sobre nosotros", to: "/sobre-nosotros" },
-// 	{ name: "Contacto", to: "/contacto" },
-// 	{ name: "Términos y condiciones", to: "/terminos-condiciones" },
-// 	{ name: "Política de privacidad", to: "/politica-privacidad" },
-// 	{ name: "Política de envíos", to: "/politica-envios" },
-// 	{ name: "Devoluciones y garantía", to: "/politica-devoluciones" },
-// ] as const;
 
 const socialLinks = [
 	{
@@ -85,7 +80,7 @@ const socialLinks = [
 		name: "TikTok",
 		href: "https://www.tiktok.com/@renovabit",
 	},
-	{ icon: WhatsAppIcon, name: "WhatsApp", href: "https://wa.me/51987471074" },
+	{ icon: WhatsAppIcon, name: "WhatsApp", href: "https://wa.me/51955315646" },
 	{
 		icon: GitHubIcon,
 		name: "GitHub",
@@ -129,6 +124,41 @@ function LinkColumn({
 					<li key={link.to}>
 						<Link
 							to={link.to}
+							className="text-muted-foreground hover:text-primary inline-block text-sm transition-colors duration-200"
+						>
+							{link.name}
+						</Link>
+					</li>
+				))}
+			</ul>
+		</div>
+	);
+}
+
+/**
+ * Categories come from the same tree cached by the `_main` layout loader
+ * (single source of truth), so a footer link can never point to a slug that
+ * does not exist. Top leaves by product count keep the column useful.
+ */
+function CategoryColumn() {
+	const { data: tree } = useSuspenseQuery(categoryQueries.tree());
+	const links = useMemo(
+		() =>
+			getLeafCategories(tree)
+				.sort((a, b) => b.productCount - a.productCount)
+				.slice(0, FOOTER_CATEGORY_LIMIT),
+		[tree],
+	);
+
+	return (
+		<div>
+			<h4 className="mb-3 text-sm font-semibold tracking-tight text-foreground">Categorías</h4>
+			<ul className="space-y-2">
+				{links.map((link) => (
+					<li key={link.slug}>
+						<Link
+							to="/categoria/$slug"
+							params={{ slug: link.slug }}
 							className="text-muted-foreground hover:text-primary inline-block text-sm transition-colors duration-200"
 						>
 							{link.name}
@@ -202,14 +232,11 @@ export default function Footer() {
 							<LinkColumn title="Tienda" links={storeLinks} />
 						</div>
 
-						<div>
-							<LinkColumn title="Categorías" links={categoryLinks} />
-						</div>
+						<CategoryColumn />
 
-						{/* TODO: descomentar cuando se agreguen las páginas legales (mañana). */}
-						{/* <div>
+						<div>
 							<LinkColumn title="Información" links={infoLinks} />
-						</div> */}
+						</div>
 					</div>
 				</div>
 
@@ -217,6 +244,18 @@ export default function Footer() {
 				<div className="mt-12 border-t border-border pt-8 text-center">
 					<p className="text-muted-foreground text-xs">
 						&copy; {new Date().getFullYear()} RenovaBit &mdash; Todos los derechos reservados.
+					</p>
+					<p className="text-muted-foreground mt-2 text-xs">
+						<Link
+							to="/libro-de-reclamaciones"
+							className="hover:text-primary underline underline-offset-2 transition-colors duration-200"
+						>
+							Libro de Reclamaciones
+						</Link>{" "}
+						a disposición de los consumidores.
+					</p>
+					<p className="text-muted-foreground mt-2 text-xs">
+						{BUSINESS.tradeName} &middot; {BUSINESS.legalName} &middot; RUC {BUSINESS.ruc}
 					</p>
 				</div>
 			</div>

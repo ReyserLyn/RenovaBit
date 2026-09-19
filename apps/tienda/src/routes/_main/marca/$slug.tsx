@@ -24,14 +24,12 @@ function buildFilters(brandSlug: string, s: CatalogSearch): ProductListFilters {
 	};
 }
 
-function buildCanonicalBrandUrl(brandSlug: string, s: CatalogSearch): string {
-	const params = new URLSearchParams();
-	if (s.orden && s.orden !== "relevance") params.set("orden", s.orden);
-	if (s.precio_min) params.set("precio_min", s.precio_min);
-	if (s.precio_max) params.set("precio_max", s.precio_max);
-	params.sort();
-	const qs = params.toString();
-	return `${getSiteUrl()}/marca/${brandSlug}${qs ? `?${qs}` : ""}`;
+/**
+ * Canonical always points to the clean brand path: filter/sort/price
+ * variations are facets of the same page and must not create duplicates.
+ */
+function buildCanonicalBrandUrl(brandSlug: string): string {
+	return `${getSiteUrl()}/marca/${brandSlug}`;
 }
 
 export const Route = createFileRoute("/_main/marca/$slug")({
@@ -49,7 +47,7 @@ export const Route = createFileRoute("/_main/marca/$slug")({
 			await queryClient.ensureInfiniteQueryData(productQueries.infiniteList(filters));
 			return {
 				brand,
-				canonicalUrl: buildCanonicalBrandUrl(params.slug, deps),
+				canonicalUrl: buildCanonicalBrandUrl(params.slug),
 			};
 		} catch (error) {
 			if (isApiClientError(error) && error.code === "NOT_FOUND_ERROR") {
@@ -71,7 +69,11 @@ export const Route = createFileRoute("/_main/marca/$slug")({
 		const seoTags = seo({ title, description, url: canonicalUrl });
 
 		return {
-			meta: [...seoTags.meta],
+			meta: [
+				...seoTags.meta,
+				{ property: "og:url", content: canonicalUrl },
+				{ property: "og:image", content: `${getSiteUrl()}/og-default.png` },
+			],
 			links: [{ rel: "canonical", href: canonicalUrl }, ...seoTags.links],
 			scripts: [breadcrumbJsonLd([{ name: "Home", url: getSiteUrl() }, { name: brand.name }])],
 		};

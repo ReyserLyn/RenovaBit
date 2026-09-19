@@ -6,7 +6,6 @@ import { ThemeProvider } from "better-themes";
 import { NuqsAdapter } from "nuqs/adapters/tanstack-router";
 import TanStackFormDevtools from "@/shared/integrations/tanstack-form/devtools";
 import TanStackQueryDevtools from "@/shared/integrations/tanstack-query/devtools";
-import TanStackQueryProvider from "@/shared/integrations/tanstack-query/root-provider";
 import TanStackRouterDevtools from "@/shared/integrations/tanstack-router/devtools";
 import { seo } from "@/shared/lib/seo";
 import globalsCss from "@/shared/styles/globals.css?url";
@@ -20,14 +19,13 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 		meta: [
 			{ charSet: "utf-8" },
 			{ name: "viewport", content: "width=device-width, initial-scale=1" },
-			{ name: "robots", content: "noindex, nofollow" },
 			...seo({
 				title: "Renovabit · Tienda oficial de repuestos y accesorios",
 				description:
 					"Encuentra repuestos, accesorios y equipos para tu negocio. Envíos a todo Perú.",
 			}).meta,
-			{ name: "og:site_name", content: "Renovabit" },
-			{ name: "og:locale", content: "es_PE" },
+			{ property: "og:site_name", content: "Renovabit" },
+			{ property: "og:locale", content: "es_PE" },
 		],
 		links: [
 			{
@@ -50,6 +48,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 				href: "/favicon.ico",
 				type: "image/x-icon",
 			},
+			{ rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
 		],
 	}),
 
@@ -58,20 +57,18 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
 	return (
-		<html lang="es" suppressHydrationWarning>
+		<html lang="es-PE" suppressHydrationWarning>
 			<head>
 				<HeadContent />
 			</head>
 			<body>
 				<ThemeProvider attribute="class" disableTransitionOnChange>
-					<TanStackQueryProvider>
-						<Toaster richColors />
-						<NuqsAdapter>{children}</NuqsAdapter>
-						<TanStackDevtools
-							config={{ position: "bottom-right" }}
-							plugins={[TanStackRouterDevtools, TanStackQueryDevtools, TanStackFormDevtools]}
-						/>
-					</TanStackQueryProvider>
+					<Toaster richColors />
+					<NuqsAdapter>{children}</NuqsAdapter>
+					<TanStackDevtools
+						config={{ position: "bottom-right" }}
+						plugins={[TanStackRouterDevtools, TanStackQueryDevtools, TanStackFormDevtools]}
+					/>
 				</ThemeProvider>
 				<Scripts />
 			</body>

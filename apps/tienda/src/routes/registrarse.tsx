@@ -7,6 +7,9 @@ export const Route = createFileRoute("/registrarse")({
 		const session = await context.queryClient.fetchQuery(authSessionQueryOptions());
 		if (session?.user) throw redirect({ to: "/" });
 	},
+	head: () => ({
+		meta: [{ name: "robots", content: "noindex, follow" }],
+	}),
 	component: RegisterPage,
 });
 

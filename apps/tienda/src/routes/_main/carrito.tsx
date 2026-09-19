@@ -20,6 +20,11 @@ import { getCartServerFn } from "@/features/cart/hooks/server";
 import { summarizeOrderableCartItems } from "@/features/cart/lib/summary";
 import { OrderSuccessPanel } from "@/features/orders/components/order-success-panel";
 import { useCreateOrder } from "@/features/orders/hooks/mutations";
+import {
+	clearCompletedOrder,
+	readCompletedOrder,
+	saveCompletedOrder,
+} from "@/features/orders/lib/completed-order-storage";
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from "@/features/orders/lib/payment-methods";
 import { authSessionQueryOptions } from "@/shared/lib/auth/auth-session";
 import { formatPrice } from "@/shared/lib/format";
@@ -34,6 +39,9 @@ export const Route = createFileRoute("/_main/carrito")({
 		}
 		return { preloadedSession: session, preloadedCart: cart };
 	},
+	head: () => ({
+		meta: [{ name: "robots", content: "noindex, follow" }],
+	}),
 	component: CartPage,
 });
 
@@ -68,6 +76,21 @@ function CartPage() {
 
 	useEffect(() => {
 		setMounted(true);
+	}, []);
+
+	// Restore the last completed order so a refresh doesn't lose the order
+	// number (guests have no account to look it up). Runs client-side only to
+	// keep the SSR markup stable.
+	useEffect(() => {
+		const stored = readCompletedOrder();
+		if (stored) {
+			setCompletedOrder({
+				id: stored.id,
+				orderNumber: stored.orderNumber,
+				total: stored.total,
+				customerName: stored.customerName ?? null,
+			});
+		}
 	}, []);
 
 	useEffect(() => {
@@ -108,8 +131,17 @@ function CartPage() {
 		);
 	}
 
-	if (completedOrder) {
-		return <OrderSuccessPanel order={completedOrder} isLoggedIn={isLoggedIn} />;
+	if (completedOrder && (!cart || cart.items.length === 0)) {
+		return (
+			<OrderSuccessPanel
+				order={completedOrder}
+				isLoggedIn={isLoggedIn}
+				onDismiss={() => {
+					clearCompletedOrder();
+					setCompletedOrder(null);
+				}}
+			/>
+		);
 	}
 
 	if (!cart || cart.items.length === 0) {
@@ -129,6 +161,8 @@ function CartPage() {
 	const handleSubmit = (event?: FormEvent) => {
 		event?.preventDefault();
 		if (!isLoggedIn && !customerName.trim()) return;
+		// The API now requires a payment method to create the order.
+		if (!paymentMethod) return;
 
 		createOrder.mutate(
 			{
@@ -137,16 +171,19 @@ function CartPage() {
 				customerName: isLoggedIn ? null : customerName.trim(),
 				customerPhone: isLoggedIn ? null : customerPhone.trim() || null,
 				notes: notes.trim() || null,
-				paymentMethod: paymentMethod ?? null,
+				paymentMethod,
 			},
 			{
-				onSuccess: (order) =>
-					setCompletedOrder({
+				onSuccess: (order) => {
+					const completed = {
 						id: order.id,
 						orderNumber: order.orderNumber,
 						total: order.total,
 						customerName: order.customerName ?? null,
-					}),
+					};
+					saveCompletedOrder(completed);
+					setCompletedOrder(completed);
+				},
 			},
 		);
 	};
@@ -208,7 +245,7 @@ function CartPage() {
 					{/* Payment Method */}
 					<div className="space-y-3">
 						<h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-							Método de pago
+							Método de pago *
 						</h2>
 						<Select
 							items={PAYMENT_METHOD_OPTIONS}
@@ -261,6 +298,7 @@ function CartPage() {
 						className="w-full"
 						disabled={
 							(!isLoggedIn && !customerName.trim()) ||
+							!paymentMethod ||
 							hasBlockedItems ||
 							orderableItems.length === 0 ||
 							createOrder.isPending

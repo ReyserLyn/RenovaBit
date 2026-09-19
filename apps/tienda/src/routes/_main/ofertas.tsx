@@ -18,7 +18,7 @@ import { FilterSidebar } from "@/shared/components/filters/filter-sidebar";
 import { getSiteUrl } from "@/shared/lib/env";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
 import { useOffersFilterState } from "@/shared/lib/hooks/use-filter-state";
-import { breadcrumbJsonLd, offerListJsonLd, seo } from "@/shared/lib/seo";
+import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
 
 function buildLoaderInput(s: CatalogSearch): GetOffersInput {
 	const input: GetOffersInput = {};
@@ -45,7 +45,7 @@ export const Route = createFileRoute("/_main/ofertas")({
 		};
 	},
 
-	head: ({ loaderData }) => {
+	head: () => {
 		const offersUrl = `${getSiteUrl()}/ofertas`;
 		const seoTags = seo({
 			title: "Ofertas · Renovabit",
@@ -53,25 +53,18 @@ export const Route = createFileRoute("/_main/ofertas")({
 				"Encuentra las mejores ofertas en repuestos, accesorios y equipos para tu negocio. Descuentos exclusivos en Renovabit.",
 			url: offersUrl,
 		});
-		const offers = loaderData?.initialData?.offers ?? [];
 		return {
 			meta: [
 				...seoTags.meta,
 				{ property: "og:locale", content: "es_PE" },
 				{ property: "og:url", content: offersUrl },
+				{ property: "og:image", content: `${getSiteUrl()}/og-default.png` },
 			],
 			links: [{ rel: "canonical", href: offersUrl }, ...seoTags.links],
-			scripts: [
-				breadcrumbJsonLd([{ name: "Home", url: getSiteUrl() }, { name: "Ofertas" }]),
-				offerListJsonLd(
-					offers.map((o) => ({
-						name: o.name,
-						url: `${offersUrl}#offer-${o.slug}`,
-						price: o.discountValue,
-						validThrough: o.endsAt instanceof Date ? o.endsAt.toISOString() : String(o.endsAt),
-					})),
-				),
-			],
+			// No Offer JSON-LD: the API exposes campaign percentages, not a real
+			// product price per offer, and publishing a percentage as `price`
+			// produced false structured data. Product pages keep their own JSON-LD.
+			scripts: [breadcrumbJsonLd([{ name: "Home", url: getSiteUrl() }, { name: "Ofertas" }])],
 		};
 	},
 
