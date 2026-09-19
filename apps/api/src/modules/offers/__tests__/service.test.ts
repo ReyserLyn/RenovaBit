@@ -63,42 +63,52 @@ let sampleBrandId: string | undefined;
 let sampleBrandSlug: string | undefined;
 
 /**
- * Load seed data once before all tests.
+ * Create the fixtures once before all tests.
+ *
+ * They are created here instead of harvested from the dev DB: the suite must
+ * run against an empty, freshly-migrated database, which is exactly what CI
+ * provisions. Harvesting the first user/product made the suite depend on
+ * ambient seed data and fail on a clean database.
  *
  * If no DATABASE_URL is configured the DB-backed describes are skipped via
- * `describeDb` above, so the seed lookup is also skipped to avoid an
+ * `describeDb` above, so the fixture setup is also skipped to avoid an
  * unhandled connection error in sandboxes.
  */
 beforeAll(async () => {
 	if (!dbAvailable) return; // DB-backed describes are skipped via describeDb
 
-	// Find a real user
-	const [user] = await db.select({ id: users.id }).from(users).limit(1);
-	if (!user) {
-		throw new Error("No users found in the dev DB. Seed users before running these tests.");
-	}
-	testUserId = user.id;
+	const [user] = await db
+		.insert(users)
+		.values({
+			name: `Offer Test User ${suffix}`,
+			email: `offer-test-${suffix}@example.test`,
+			username: `offer-test-${suffix}`,
+		})
+		.returning({ id: users.id });
+	testUserId = user!.id;
 
-	const allProducts = await db
-		.select({ id: products.id, brandId: products.brandId })
-		.from(products)
-		.limit(1);
-	if (allProducts.length === 0) {
-		throw new Error(
-			"No products found in the dev DB. Seed some products before running these tests.",
-		);
-	}
-	sampleProductId = allProducts[0]!.id;
-	sampleBrandId = allProducts[0]!.brandId ?? undefined;
+	// A dedicated brand: the sample product must carry one so the brandId
+	// filtering paths are exercisable on a clean database.
+	const [sampleBrand] = await db
+		.insert(brands)
+		.values({ name: `Offer Brand ${suffix}`, slug: `offer-brand-${suffix}` })
+		.returning({ id: brands.id, slug: brands.slug });
+	sampleBrandId = sampleBrand!.id;
+	sampleBrandSlug = sampleBrand!.slug;
 
-	if (sampleBrandId) {
-		const [brand] = await db
-			.select({ slug: brands.slug })
-			.from(brands)
-			.where(eq(brands.id, sampleBrandId))
-			.limit(1);
-		sampleBrandSlug = brand?.slug;
-	}
+	const [sampleProduct] = await db
+		.insert(products)
+		.values({
+			name: `Offer Sample ${suffix}`,
+			slug: `offer-sample-${suffix}`,
+			sku: `OFFERSAMPLE-${suffix}`,
+			price: "100.00",
+			supplierPrice: "80.00",
+			stock: 10,
+			brandId: sampleBrandId,
+		})
+		.returning({ id: products.id });
+	sampleProductId = sampleProduct!.id;
 });
 
 // ── Cleanup tracking ─────────────────────────────────────
@@ -723,4 +733,11 @@ describeDb("OfferService (DB)", () => {
 afterAll(async () => {
 	await cleanupOffers();
 	await cleanupProducts();
+	// The sample fixtures outlive individual tests: drop them last, once every
+	// per-test offer that referenced them is gone.
+	await db.delete(products).where(eq(products.id, sampleProductId));
+	if (sampleBrandId) {
+		await db.delete(brands).where(eq(brands.id, sampleBrandId));
+	}
+	await db.delete(users).where(eq(users.id, testUserId));
 });
