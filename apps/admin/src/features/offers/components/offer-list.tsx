@@ -1,5 +1,4 @@
 import {
-	Delete01Icon,
 	Edit01Icon,
 	MoreHorizontalIcon,
 	Package01Icon,
@@ -7,6 +6,7 @@ import {
 	Search01Icon,
 	Settings02Icon,
 	ToggleOffIcon,
+	ToggleOnIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "@renovabit/ui/components/ui/badge";
@@ -139,16 +139,13 @@ function getColumns(props: {
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							{offer.isActive ? (
-								<DropdownMenuItem
-									onClick={() => props.onDelete(offer)}
-									className="text-destructive focus:text-destructive"
-								>
-									<HugeiconsIcon icon={Delete01Icon} className="mr-2 size-4" />
-									Eliminar
+								<DropdownMenuItem onClick={() => props.onDelete(offer)}>
+									<HugeiconsIcon icon={ToggleOffIcon} className="mr-2 size-4" />
+									Desactivar
 								</DropdownMenuItem>
 							) : (
 								<DropdownMenuItem onClick={() => props.onToggleActive(offer)}>
-									<HugeiconsIcon icon={ToggleOffIcon} className="mr-2 size-4" />
+									<HugeiconsIcon icon={ToggleOnIcon} className="mr-2 size-4" />
 									Activar
 								</DropdownMenuItem>
 							)}

@@ -5,7 +5,7 @@ import { Card } from "@renovabit/ui/components/ui/card";
 import { Input } from "@renovabit/ui/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { getCoreRowModel, type PaginationState, useReactTable } from "@tanstack/react-table";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
@@ -25,7 +25,7 @@ const coreRowModel = getCoreRowModel();
 
 const emptyNotificationData: NotificationData = {};
 
-type EnrichedRow = AppNotification & { _parsed: NotificationData };
+type EnrichedRow = AppNotification & { _parsed: NotificationData; _parseError: boolean };
 
 export const NotificationTable = React.memo(function NotificationTable({
 	onRowClick,
@@ -56,22 +56,40 @@ export const NotificationTable = React.memo(function NotificationTable({
 	const rows = useMemo(() => {
 		return notifications.map((n) => {
 			const result = notificationDataSchema.safeParse(n.data);
+			if (!result.success) {
+				console.warn(
+					`[notifications] No se pudo interpretar la notificación ${n.id} (tipo: ${n.type}):`,
+					result.error,
+				);
+			}
 			return {
 				...n,
 				_parsed: result.success ? result.data : emptyNotificationData,
+				_parseError: !result.success,
 			};
 		});
 	}, [notifications]);
 
-	// Resetear a página 1 cuando cambia la búsqueda
+	// Con paginación server-side, cambiar la búsqueda estando en la página N
+	// puede mostrar una grilla vacía: volvemos a la primera página.
+	// El ref evita reiniciar en cada render.
+	const prevSearchRef = useRef(debouncedSearch);
 	useEffect(() => {
+		if (prevSearchRef.current === debouncedSearch) return;
+		prevSearchRef.current = debouncedSearch;
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, []);
+	}, [debouncedSearch]);
 
-	// Resetear a página 1 cuando cambia el pageSize
-	useEffect(() => {
-		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-	}, []);
+	// Cambiar el tamaño de página también vuelve a la primera página.
+	const handlePaginationChange = useCallback(
+		(updater: PaginationState | ((old: PaginationState) => PaginationState)) => {
+			setPagination((prev) => {
+				const next = typeof updater === "function" ? updater(prev) : updater;
+				return next.pageSize !== prev.pageSize ? { ...next, pageIndex: 0 } : next;
+			});
+		},
+		[],
+	);
 
 	// Sincronizar selección visual con selectedId
 	useEffect(() => {
@@ -90,7 +108,7 @@ export const NotificationTable = React.memo(function NotificationTable({
 		data: rows,
 		columns,
 		state: { pagination, rowSelection },
-		onPaginationChange: setPagination,
+		onPaginationChange: handlePaginationChange,
 		onRowSelectionChange: setRowSelection,
 		enableRowSelection: true,
 		manualPagination: true,

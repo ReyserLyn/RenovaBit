@@ -103,14 +103,13 @@ function OfertasPage() {
 					if (!open) setDeleteTarget(null);
 				}}
 				onConfirm={handleConfirmDelete}
-				title={deleteTarget?.isActive ? "Eliminar oferta activa" : "Eliminar oferta"}
+				title={deleteTarget?.isActive ? "Desactivar oferta activa" : "Desactivar oferta"}
 				description={
 					deleteTarget?.isActive
-						? `La oferta "${deleteTarget?.name ?? ""}" está activa. Al eliminarla se quitará de la tienda. Esta acción no se puede deshacer.`
-						: `¿Estás seguro de que deseas eliminar la oferta "${deleteTarget?.name ?? ""}"? Esta acción no se puede deshacer.`
+						? `La oferta "${deleteTarget?.name ?? ""}" está activa. Al desactivarla dejará de mostrarse en la tienda. No se elimina: puedes volver a activarla cuando quieras.`
+						: `La oferta "${deleteTarget?.name ?? ""}" quedará inactiva y dejará de mostrarse en la tienda. No se elimina: puedes volver a activarla cuando quieras.`
 				}
-				confirmText="Eliminar"
-				variant="destructive"
+				confirmText="Desactivar"
 				isLoading={isDeleting}
 			/>
 

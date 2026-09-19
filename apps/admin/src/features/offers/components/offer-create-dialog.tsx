@@ -54,8 +54,10 @@ export function OfferCreateDialog({ open, onOpenChange }: OfferCreateDialogProps
 							slug: "",
 							description: "",
 							discountValue: 0,
-							startsAt: undefined,
-							endsAt: undefined,
+							// La API y la DB exigen ambas fechas: mostramos el periodo
+							// efectivo que la API usaría por defecto (ahora → 30 días).
+							startsAt: new Date(),
+							endsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
 							isActive: true,
 							isFeatured: false,
 							productIds: [],

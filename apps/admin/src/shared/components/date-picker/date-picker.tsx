@@ -118,6 +118,12 @@ function extractTime(date: Date): string {
 interface DateTimePickerProps extends DatePickerBaseProps {
 	value: Date | undefined;
 	onChange: (date: Date | undefined) => void;
+	/**
+	 * Bloquea cualquier forma de limpiar la fecha (botón "Limpiar" y
+	 * deselección en el calendario). Úselo cuando el campo sea obligatorio
+	 * y limpiarlo en la UI fuera engañoso.
+	 */
+	disableClear?: boolean;
 }
 
 /**
@@ -137,13 +143,14 @@ export function DateTimePicker({
 	buttonClassName = "h-10 w-full justify-start gap-1.5 bg-card font-normal data-[empty=true]:text-muted-foreground",
 	align = "start",
 	id,
+	disableClear = false,
 }: DateTimePickerProps) {
 	const [open, setOpen] = useState(false);
 	const timeStr = value ? extractTime(value) : "";
 
 	const handleDateSelect = (date: Date | undefined) => {
 		if (!date) {
-			onChange(undefined);
+			if (!disableClear) onChange(undefined);
 			return;
 		}
 		onChange(combineDateAndTime(date, timeStr || "00:00"));
@@ -199,6 +206,7 @@ export function DateTimePicker({
 					onSelect={handleDateSelect}
 					disabled={disabledRange}
 					locale={locale}
+					required={disableClear}
 				/>
 				<div className="flex items-center gap-3 border-t p-3">
 					<div className="flex flex-col gap-1.5">
@@ -224,7 +232,7 @@ export function DateTimePicker({
 						</Button>
 					)}
 				</div>
-				{value && (
+				{value && !disableClear && (
 					<div className="border-t p-2">
 						<Button
 							variant="ghost"

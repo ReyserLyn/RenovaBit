@@ -1,9 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { parseAsString, useQueryState } from "nuqs";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
-import { NotificationDetail } from "@/features/notifications/components/notification-detail";
+import {
+	NotificationDetail,
+	NotificationParseError,
+} from "@/features/notifications/components/notification-detail";
 import { NotificationTable } from "@/features/notifications/components/notification-table";
 import { useMarkAsRead } from "@/features/notifications/hooks/notification-mutations";
 import { notificationKeys } from "@/features/notifications/hooks/notification-queries";
@@ -65,9 +68,22 @@ function NotificacionesPage() {
 		[selectedId, setSelectedId, markReadMutation],
 	);
 
-	const parsedData = selectedNotification
-		? notificationDataSchema.safeParse(selectedNotification.data).data
-		: null;
+	const parsedResult = useMemo(
+		() =>
+			selectedNotification ? notificationDataSchema.safeParse(selectedNotification.data) : null,
+		[selectedNotification],
+	);
+
+	// El fallo de parseo no debe ser silencioso: queda registro en consola y
+	// el panel muestra un estado explícito en lugar de un área vacía.
+	useEffect(() => {
+		if (selectedNotification && parsedResult && !parsedResult.success) {
+			console.warn(
+				`[notifications] No se pudo interpretar la notificación ${selectedNotification.id} (tipo: ${selectedNotification.type}):`,
+				parsedResult.error,
+			);
+		}
+	}, [selectedNotification, parsedResult]);
 
 	return (
 		<div className="flex flex-col gap-6 min-h-0">
@@ -79,9 +95,18 @@ function NotificacionesPage() {
 			<div className={`grid flex-1 min-h-0 gap-4 ${selectedNotification ? "lg:grid-cols-2" : ""}`}>
 				<NotificationTable onRowClick={handleRowClick} selectedId={selectedId} />
 
-				{selectedNotification && parsedData && (
+				{selectedNotification && parsedResult?.success && (
 					<div className="lg:self-start">
-						<NotificationDetail notification={selectedNotification} parsedData={parsedData} />
+						<NotificationDetail
+							notification={selectedNotification}
+							parsedData={parsedResult.data}
+						/>
+					</div>
+				)}
+
+				{selectedNotification && parsedResult && !parsedResult.success && (
+					<div className="lg:self-start">
+						<NotificationParseError notification={selectedNotification} />
 					</div>
 				)}
 			</div>

@@ -47,6 +47,41 @@ function TimelineStep({ label, time, isLast }: { label: string; time: string; is
 	);
 }
 
+// ── NotificationParseError ─────────────────────────
+
+/**
+ * Estado explícito para notificaciones cuyo `data` no cumple el esquema.
+ * Antes el panel simplemente no renderizaba nada (área en blanco).
+ */
+export function NotificationParseError({ notification }: { notification: AppNotification }) {
+	const user = notification.user;
+
+	return (
+		<Card>
+			<CardHeader className="border-b">
+				<div className="flex items-center gap-3 min-w-0">
+					<Avatar size="sm">
+						<AvatarFallback>{getUserInitials(user)}</AvatarFallback>
+					</Avatar>
+					<div className="min-w-0">
+						<CardTitle className="truncate">{notification.title}</CardTitle>
+						<CardDescription>{getUserDisplayName(user)}</CardDescription>
+					</div>
+				</div>
+			</CardHeader>
+			<CardContent className="pt-4">
+				<div className="rounded-md border border-warning/20 bg-warning/5 px-3 py-2">
+					<p className="text-sm font-medium">No se pudo interpretar la notificación</p>
+					<p className="text-muted-foreground text-xs">
+						Los datos guardados no coinciden con el formato esperado. La notificación permanece en
+						la tabla, pero este panel no puede mostrar su detalle.
+					</p>
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
 // ── NotificationDetail ─────────────────────────────
 
 export function NotificationDetail({

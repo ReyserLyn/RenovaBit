@@ -8,7 +8,7 @@ import { NOTIFICATION_TYPE_LABELS } from "../model";
 import { TriggerBadge } from "./trigger-badge";
 
 export function getNotificationColumns(): ColumnDef<
-	AppNotification & { _parsed: NotificationData }
+	AppNotification & { _parsed: NotificationData; _parseError: boolean }
 >[] {
 	return [
 		{
@@ -61,6 +61,17 @@ export function getNotificationColumns(): ColumnDef<
 			},
 			header: ({ column }) => <DataGridColumnHeader column={column} title="Tipo" />,
 			cell: ({ row }) => {
+				if (row.original._parseError) {
+					return (
+						<Badge
+							variant="outline"
+							size="sm"
+							title="No se pudo interpretar la notificación: los datos guardados no coinciden con el formato esperado"
+						>
+							Sin datos
+						</Badge>
+					);
+				}
 				const trigger = row.original._parsed.trigger;
 				if (trigger) return <TriggerBadge trigger={trigger} />;
 				const label = NOTIFICATION_TYPE_LABELS[row.original.type] ?? row.original.type;

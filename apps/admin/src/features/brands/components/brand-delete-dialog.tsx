@@ -31,7 +31,7 @@ export function BrandDeleteDialog({ brand, open, onOpenChange }: BrandDeleteDial
 			title="Eliminar marca"
 			description={
 				brand
-					? `¿Estás seguro de que deseas eliminar "${brand.name}"? Esta acción no se puede deshacer. Los productos asociados perderán esta marca.`
+					? `¿Estás seguro de que deseas eliminar "${brand.name}"? Solo es posible si la marca no tiene productos asociados: reasígnalos a otra marca antes de eliminarla. Esta acción no se puede deshacer.`
 					: ""
 			}
 			confirmText="Eliminar"

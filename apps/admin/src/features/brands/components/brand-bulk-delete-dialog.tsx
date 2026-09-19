@@ -43,7 +43,7 @@ export function BrandBulkDeleteDialog({ selectedBrands }: BrandBulkDeleteDialogP
 				onClose={() => setIsOpen(false)}
 				onConfirm={handleBulkDelete}
 				title={`Eliminar ${selectedCount} ${selectedCount === 1 ? "marca" : "marcas"}`}
-				description={`¿Estás seguro de que deseas eliminar las ${selectedCount} marcas seleccionadas? Esta acción no se puede deshacer.`}
+				description={`¿Estás seguro de que deseas eliminar las ${selectedCount} marcas seleccionadas? La operación se rechaza por completo si alguna tiene productos asociados: reasígnalos a otra marca antes de eliminarlas. Esta acción no se puede deshacer.`}
 				confirmText="Eliminar"
 				isLoading={bulkDeleteBrands.isPending}
 				variant="destructive"

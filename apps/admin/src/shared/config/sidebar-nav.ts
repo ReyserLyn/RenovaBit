@@ -16,7 +16,7 @@ export const sidebarNavigation = {
 		{ name: "Productos", url: "/productos", icon: DeliveryBox01Icon },
 		{ name: "Usuarios", url: "/usuarios", icon: UserMultiple02Icon },
 		{ name: "Ofertas", url: "/ofertas", icon: DiscountTag02Icon },
-		{ name: "Ventas e informes", url: "/ventas", icon: Chart01Icon },
+		{ name: "Ventas", url: "/ventas", icon: Chart01Icon },
 	],
 	sections: [
 		{

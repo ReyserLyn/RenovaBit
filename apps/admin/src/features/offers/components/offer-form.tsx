@@ -371,7 +371,12 @@ export function OfferForm(props: OfferFormProps) {
 			<FieldGroup>
 				<header className="flex flex-col">
 					<h3 className="font-medium text-foreground text-sm">Programación</h3>
-					<FieldDescription>Fechas opcionales de inicio y fin de la oferta.</FieldDescription>
+					<FieldDescription>
+						El periodo de la oferta es obligatorio.{" "}
+						{isEdit
+							? "Puedes cambiar el inicio y el fin, pero no dejarlos vacíos."
+							: "Por defecto empieza ahora y termina en 30 días; ajusta ambas fechas si lo necesitas."}
+					</FieldDescription>
 				</header>
 
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -385,6 +390,7 @@ export function OfferForm(props: OfferFormProps) {
 									onChange={field.handleChange}
 									placeholder="Selecciona fecha y hora"
 									disabled={isSubmitting}
+									disableClear
 								/>
 							</Field>
 						)}
@@ -400,6 +406,7 @@ export function OfferForm(props: OfferFormProps) {
 									onChange={field.handleChange}
 									placeholder="Selecciona fecha y hora"
 									disabled={isSubmitting}
+									disableClear
 								/>
 							</Field>
 						)}
