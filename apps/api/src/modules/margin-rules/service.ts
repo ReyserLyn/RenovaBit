@@ -2,8 +2,21 @@ import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { marginRules } from "@renovabit/db/schema";
 import { MAX_MARGIN_PERCENT } from "@renovabit/pricing";
-import { asc, desc, eq, ne } from "drizzle-orm";
+import { asc, desc, eq, ne, sql } from "drizzle-orm";
 import { handleUniqueViolation } from "@/utils/db-helpers";
+import { logger } from "@/utils/logger";
+import { recalculateStoredPrices } from "./recalculate";
+
+/**
+ * Prices are refreshed off the request path: the admin response should not wait
+ * for ~1,000 updates, and the storefront computes its own prices live anyway.
+ * The stored value is the cache used by price sorting and the admin table.
+ */
+function refreshPricesAfterRuleChange(): void {
+	void recalculateStoredPrices().catch((error) =>
+		logger.withError(error).error("[pricing] no se pudo recalcular la caché de precios"),
+	);
+}
 
 // ── Types ───────────────────────────────────────────
 
@@ -41,19 +54,29 @@ function assertValidRange(minPrice: number, maxPrice: number | null): void {
 async function create(data: CreateMarginRuleInput) {
 	ensureValidPercent(data.customerPct, "customerPct");
 	assertValidRange(data.minPrice, data.maxPrice ?? null);
-	await assertNoOverlap(null, data.minPrice, data.maxPrice ?? null);
 
-	const [row] = await db
-		.insert(marginRules)
-		.values({
-			name: data.name.trim(),
-			minPrice: String(data.minPrice),
-			maxPrice: data.maxPrice != null ? String(data.maxPrice) : null,
-			customerPct: String(data.customerPct),
-			sortOrder: data.sortOrder ?? 0,
-		})
-		.returning()
-		.catch((err) => handleUniqueViolation(err, "Ya existe una regla de margen con este nombre"));
+	// The overlap check reads every rule and decides in memory: without
+	// serialization two concurrent writes both pass it and leave overlapping
+	// ranges, and `lookupMarginRule` would then pick a rule by sort order — a
+	// non-deterministic sale price. The advisory lock serializes writers.
+	const row = await db.transaction(async (tx) => {
+		await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('margin_rules'))`);
+		await assertNoOverlap(null, data.minPrice, data.maxPrice ?? null, tx);
+
+		const [created] = await tx
+			.insert(marginRules)
+			.values({
+				name: data.name.trim(),
+				minPrice: String(data.minPrice),
+				maxPrice: data.maxPrice != null ? String(data.maxPrice) : null,
+				customerPct: String(data.customerPct),
+				sortOrder: data.sortOrder ?? 0,
+			})
+			.returning()
+			.catch((err) => handleUniqueViolation(err, "Ya existe una regla de margen con este nombre"));
+
+		return created;
+	});
 
 	if (!row) {
 		throw createApiError({
@@ -61,6 +84,9 @@ async function create(data: CreateMarginRuleInput) {
 			message: "Error al crear la regla de margen",
 		});
 	}
+
+	// The stored prices are a cache of this rule set: refresh them.
+	refreshPricesAfterRuleChange();
 
 	return row;
 }
@@ -93,33 +119,42 @@ async function update(id: string, data: UpdateMarginRuleInput) {
 		return current;
 	}
 
-	// Overlap re-checked only when the range changes.
-	if (data.minPrice !== undefined || data.maxPrice !== undefined) {
-		const [current] = await db.select().from(marginRules).where(eq(marginRules.id, id)).limit(1);
-		if (!current) {
-			throw notFound();
-		}
-		const effectiveMin = data.minPrice !== undefined ? data.minPrice : Number(current.minPrice);
-		const effectiveMax =
-			data.maxPrice !== undefined
-				? (data.maxPrice ?? null)
-				: current.maxPrice === null
-					? null
-					: Number(current.maxPrice);
-		assertValidRange(effectiveMin, effectiveMax);
-		await assertNoOverlap(id, effectiveMin, effectiveMax);
-	}
+	// The range re-check and the write must be one atomic decision: see create().
+	const row = await db.transaction(async (tx) => {
+		await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('margin_rules'))`);
 
-	const [row] = await db
-		.update(marginRules)
-		.set(updateData)
-		.where(eq(marginRules.id, id))
-		.returning()
-		.catch((err) => handleUniqueViolation(err, "Ya existe una regla de margen con este nombre"));
+		if (data.minPrice !== undefined || data.maxPrice !== undefined) {
+			const [current] = await tx.select().from(marginRules).where(eq(marginRules.id, id)).limit(1);
+			if (!current) {
+				return undefined;
+			}
+			const effectiveMin = data.minPrice !== undefined ? data.minPrice : Number(current.minPrice);
+			const effectiveMax =
+				data.maxPrice !== undefined
+					? (data.maxPrice ?? null)
+					: current.maxPrice === null
+						? null
+						: Number(current.maxPrice);
+			assertValidRange(effectiveMin, effectiveMax);
+			await assertNoOverlap(id, effectiveMin, effectiveMax, tx);
+		}
+
+		const [updated] = await tx
+			.update(marginRules)
+			.set(updateData)
+			.where(eq(marginRules.id, id))
+			.returning()
+			.catch((err) => handleUniqueViolation(err, "Ya existe una regla de margen con este nombre"));
+
+		return updated;
+	});
 
 	if (!row) {
 		throw notFound();
 	}
+
+	// The stored prices are a cache of this rule set: refresh them.
+	refreshPricesAfterRuleChange();
 
 	return row;
 }
@@ -129,6 +164,12 @@ async function remove(id: string): Promise<boolean> {
 		.delete(marginRules)
 		.where(eq(marginRules.id, id))
 		.returning({ id: marginRules.id });
+
+	if (deleted) {
+		// Removing a rule changes the price of every range it covered.
+		refreshPricesAfterRuleChange();
+	}
+
 	return !!deleted;
 }
 
@@ -201,8 +242,9 @@ async function assertNoOverlap(
 	excludeId: string | null,
 	minPrice: number,
 	maxPrice: number | null,
+	runner: Pick<typeof db, "select"> = db,
 ) {
-	const baseQuery = db
+	const baseQuery = runner
 		.select({
 			id: marginRules.id,
 			minPrice: marginRules.minPrice,
