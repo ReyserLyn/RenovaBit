@@ -72,14 +72,31 @@ export function useProductTableFilters(
 		[filters.setStatus],
 	);
 
+	const handleReviewChange = useCallback(
+		(value: string | null) => {
+			const next = (value ?? "all") as "all" | "pending";
+			startTransition(() => {
+				void filters.setReview(next);
+			});
+		},
+		[filters.setReview],
+	);
+
 	const handleClearFilters = useCallback(() => {
 		startTransition(() => {
 			void filters.setBrandSlug(null);
 			void filters.setCategorySlug(null);
 			void filters.setStatus("all");
+			void filters.setReview("all");
 			void filters.setSearch("");
 		});
-	}, [filters.setBrandSlug, filters.setCategorySlug, filters.setStatus, filters.setSearch]);
+	}, [
+		filters.setBrandSlug,
+		filters.setCategorySlug,
+		filters.setStatus,
+		filters.setReview,
+		filters.setSearch,
+	]);
 
 	const handleRemoveBrandFilter = useCallback(
 		() => startTransition(() => void filters.setBrandSlug(null)),
@@ -92,6 +109,10 @@ export function useProductTableFilters(
 	const handleRemoveStatusFilter = useCallback(
 		() => startTransition(() => void filters.setStatus("all")),
 		[filters.setStatus],
+	);
+	const handleRemoveReviewFilter = useCallback(
+		() => startTransition(() => void filters.setReview("all")),
+		[filters.setReview],
 	);
 
 	// ── Column filters sync (nuqs → TanStack) ────────
@@ -114,9 +135,21 @@ export function useProductTableFilters(
 		} else if (filters.status === "inactive") {
 			next.push({ id: "isActive", value: false });
 		}
+		// "Requiere revisión": la columna `needsReview` ya existe, el filtro
+		// reutiliza el mecanismo client-side de TanStack (igual que isActive).
+		if (filters.review === "pending") {
+			next.push({ id: "needsReview", value: true });
+		}
 
 		setColumnFilters(next);
-	}, [filters.brandSlug, filters.categorySlug, filters.status, brandsBySlug, categoriesBySlug]);
+	}, [
+		filters.brandSlug,
+		filters.categorySlug,
+		filters.status,
+		filters.review,
+		brandsBySlug,
+		categoriesBySlug,
+	]);
 
 	// ── Derived labels ───────────────────────────────
 
@@ -127,9 +160,14 @@ export function useProductTableFilters(
 	const categoryLabel = selectedCategory?.name ?? "Todas las categorías";
 	const statusLabel =
 		filters.status === "active" ? "Activos" : filters.status === "inactive" ? "Inactivos" : "Todos";
+	const reviewLabel = filters.review === "pending" ? "Requiere revisión" : "Todos";
 
 	const hasActiveFilters =
-		!!filters.brandSlug || !!filters.categorySlug || filters.status !== "all" || !!filters.search;
+		!!filters.brandSlug ||
+		!!filters.categorySlug ||
+		filters.status !== "all" ||
+		filters.review !== "all" ||
+		!!filters.search;
 
 	return {
 		filters,
@@ -138,15 +176,18 @@ export function useProductTableFilters(
 		handleBrandChange,
 		handleCategoryChange,
 		handleStatusChange,
+		handleReviewChange,
 		handleClearFilters,
 		handleRemoveBrandFilter,
 		handleRemoveCategoryFilter,
 		handleRemoveStatusFilter,
+		handleRemoveReviewFilter,
 		columnFilters,
 		setColumnFilters,
 		brandLabel,
 		categoryLabel,
 		statusLabel,
+		reviewLabel,
 		hasActiveFilters,
 	} as const;
 }

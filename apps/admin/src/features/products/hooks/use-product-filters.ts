@@ -1,6 +1,7 @@
 import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 
 export const statusOptions = ["all", "active", "inactive"] as const;
+export const reviewOptions = ["all", "pending"] as const;
 
 export function useProductFilters() {
 	const [brandSlug, setBrandSlug] = useQueryState("marca", parseAsString);
@@ -8,6 +9,10 @@ export function useProductFilters() {
 	const [status, setStatus] = useQueryState(
 		"estado",
 		parseAsStringLiteral(statusOptions).withDefault("all"),
+	);
+	const [review, setReview] = useQueryState(
+		"revision",
+		parseAsStringLiteral(reviewOptions).withDefault("all"),
 	);
 	const [search, setSearch] = useQueryState("busqueda", parseAsString.withDefault(""));
 
@@ -18,6 +23,8 @@ export function useProductFilters() {
 		setCategorySlug,
 		status,
 		setStatus,
+		review,
+		setReview,
 		search,
 		setSearch,
 	} as const;

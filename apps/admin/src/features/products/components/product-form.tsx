@@ -274,6 +274,8 @@ interface ProductFormEditProps {
 		specifications: ProductSpecification[];
 		isActive: boolean;
 		isFeatured: boolean;
+		needsReview: boolean;
+		reviewReason: string | null;
 		seoTitle: string | null;
 		seoDescription: string | null;
 		seoKeywords: string | null;
@@ -287,6 +289,55 @@ interface ProductFormEditProps {
 
 export type ProductFormProps = ProductFormCreateProps | ProductFormEditProps;
 
+// ── Review notice ────────────────────────────────────────
+
+/**
+ * Motivo almacenado → cómo lo resuelve el operador. Los literales deben
+ * coincidir con `REVIEW_REASONS` en apps/api/src/utils/review-reasons.ts.
+ *
+ * "Precio inválido o fuera de rango" viene del feed del proveedor y la API lo
+ * conserva aunque se guarde el producto: solo una nueva sincronización con un
+ * precio válido lo elimina. El copy lo dice para no prometer algo falso.
+ */
+const REVIEW_REASON_HINTS: Record<string, string> = {
+	"Sin imagen": "Agrega al menos una imagen al producto.",
+	"Sin marca": "Asigna una marca al producto.",
+	"Sin categoria": "Asigna una categoría al producto.",
+	"IA no confia en datos": "Al guardar confirmas que los datos importados son correctos.",
+	"Posible duplicado": "Al guardar confirmas que este producto no es un duplicado.",
+	"Precio inválido o fuera de rango":
+		"El proveedor envió un precio inválido. Guardar aquí no lo resuelve: se corregirá cuando una nueva sincronización importe un precio válido.",
+};
+
+function ProductReviewNotice({ reviewReason }: { reviewReason: string | null }) {
+	const reasons = (reviewReason ?? "")
+		.split(";")
+		.map((reason) => reason.trim())
+		.filter(Boolean);
+
+	if (reasons.length === 0) return null;
+
+	return (
+		<div className="rounded-lg border border-warning/20 bg-warning/5 p-3" role="alert">
+			<p className="font-medium text-sm text-warning-foreground">
+				Producto pendiente de revisión (oculto en la tienda)
+			</p>
+			<ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-foreground">
+				{reasons.map((reason) => (
+					<li key={reason}>
+						<span className="font-medium">{reason}:</span>{" "}
+						{REVIEW_REASON_HINTS[reason] ?? "Revisa los datos del producto."}
+					</li>
+				))}
+			</ul>
+			<p className="mt-2 text-muted-foreground text-sm">
+				Al guardar, la API vuelve a evaluar los motivos que dependen de este formulario y el
+				producto se muestra de nuevo en la tienda cuando no queda ninguno pendiente.
+			</p>
+		</div>
+	);
+}
+
 // ── Component ────────────────────────────────────────────
 
 export function ProductForm(props: ProductFormProps) {
@@ -294,6 +345,8 @@ export function ProductForm(props: ProductFormProps) {
 	const isEdit = props.mode === "edit";
 	const onControlChange = props.mode === "edit" ? props.onControlChange : undefined;
 	const providerIds = props.mode === "edit" ? props.product.providerIds : undefined;
+	// Producto en edición: de aquí sale el aviso de revisión pendiente.
+	const reviewProduct = props.mode === "edit" ? props.product : null;
 	const queryClient = useQueryClient();
 
 	const defaultValues: ProductFormValues = getDefaultFormValues(props);
@@ -799,6 +852,10 @@ export function ProductForm(props: ProductFormProps) {
 			}}
 			noValidate
 		>
+			{reviewProduct?.needsReview ? (
+				<ProductReviewNotice reviewReason={reviewProduct.reviewReason} />
+			) : null}
+
 			{/* ═════════════════════════════════════════════
 					INFORMACIÓN BÁSICA
 				═════════════════════════════════════════════ */}

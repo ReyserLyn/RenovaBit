@@ -56,6 +56,8 @@ export function ProductEditDialog({ product, open, onOpenChange }: ProductEditDi
 								specifications: product.specifications ?? [],
 								isActive: product.isActive,
 								isFeatured: product.isFeatured,
+								needsReview: product.needsReview,
+								reviewReason: product.reviewReason,
 								seoTitle: product.seoTitle,
 								seoDescription: product.seoDescription,
 								seoKeywords: product.seoKeywords,

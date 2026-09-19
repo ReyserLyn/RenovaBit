@@ -94,15 +94,18 @@ export const ProductTable = function ProductTable({
 		handleBrandChange,
 		handleCategoryChange,
 		handleStatusChange,
+		handleReviewChange,
 		handleClearFilters,
 		handleRemoveBrandFilter,
 		handleRemoveCategoryFilter,
 		handleRemoveStatusFilter,
+		handleRemoveReviewFilter,
 		columnFilters,
 		setColumnFilters,
 		brandLabel,
 		categoryLabel,
 		statusLabel,
+		reviewLabel,
 		hasActiveFilters,
 	} = useProductTableFilters(brandsBySlug, categoriesBySlug);
 
@@ -370,6 +373,19 @@ export const ProductTable = function ProductTable({
 					</Select>
 				</div>
 
+				<div className="flex flex-col gap-1.5">
+					<label className="text-muted-foreground text-xs font-medium">Revisión</label>
+					<Select value={filters.review} onValueChange={handleReviewChange}>
+						<SelectTrigger className="h-8 w-[180px]">
+							<span className="flex flex-1 text-left">{reviewLabel}</span>
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">Todos</SelectItem>
+							<SelectItem value="pending">Requiere revisión</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+
 				{hasActiveFilters && (
 					<Button
 						type="button"
@@ -384,7 +400,10 @@ export const ProductTable = function ProductTable({
 			</div>
 
 			{/* Active filter pills */}
-			{filters.brandSlug || filters.categorySlug || filters.status !== "all" ? (
+			{filters.brandSlug ||
+			filters.categorySlug ||
+			filters.status !== "all" ||
+			filters.review !== "all" ? (
 				<div className="flex flex-wrap items-center gap-1.5">
 					{filters.brandSlug && (
 						<Badge
@@ -413,6 +432,16 @@ export const ProductTable = function ProductTable({
 							onClick={handleRemoveStatusFilter}
 						>
 							Estado: {statusLabel}
+							<HugeiconsIcon icon={Cancel01Icon} className="ml-1 size-3" />
+						</Badge>
+					)}
+					{filters.review !== "all" && (
+						<Badge
+							variant="secondary"
+							className="cursor-pointer gap-1 text-xs"
+							onClick={handleRemoveReviewFilter}
+						>
+							Revisión: {reviewLabel}
 							<HugeiconsIcon icon={Cancel01Icon} className="ml-1 size-3" />
 						</Badge>
 					)}
