@@ -1,4 +1,5 @@
 import { Elysia, t } from "elysia";
+import { MAX_PAGE_SIZE } from "@/constants";
 import { AuthMacros } from "@/modules/auth";
 import { ErrorResponse } from "@/modules/orders/model";
 import { NotificationModel } from "./notifications.model";
@@ -13,8 +14,13 @@ export const notificationsRoute = new Elysia({ prefix: "/notifications" })
 		"/",
 		async ({ query, user }) => {
 			const userId = user.id;
-			const page = Number.parseInt(query.page ?? "1", 10) || 1;
-			const limit = Number.parseInt(query.limit ?? "20", 10) || 20;
+			// Unbounded values used to reach Postgres as a negative OFFSET (500) or
+			// as a full-table page.
+			const page = Math.max(1, Number.parseInt(query.page ?? "1", 10) || 1);
+			const limit = Math.min(
+				MAX_PAGE_SIZE,
+				Math.max(1, Number.parseInt(query.limit ?? "20", 10) || 20),
+			);
 			const unreadOnly = query.unreadOnly === "true";
 			const search = query.search || undefined;
 
