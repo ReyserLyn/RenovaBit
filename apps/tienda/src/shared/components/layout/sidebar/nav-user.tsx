@@ -23,7 +23,7 @@ export function NavUser() {
 				<AnimatedThemeToggler
 					variant="circle"
 					layout="custom"
-					onThemeChange={(dark) => {
+					onThemeToggle={(dark) => {
 						setIsDark(dark);
 						setTheme(dark ? "dark" : "light");
 					}}

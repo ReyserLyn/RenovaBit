@@ -19,7 +19,7 @@ interface AnimatedThemeTogglerProps extends React.ComponentPropsWithoutRef<"butt
 	fromCenter?: boolean;
 	/** "default": icono + children envueltos en span. "custom": renderiza solo children (sin icono ni span) */
 	layout?: "default" | "custom";
-	onThemeChange?: (isDark: boolean) => void;
+	onThemeToggle?: (isDark: boolean) => void;
 }
 
 function polygonCollapsed(cx: number, cy: number, vertexCount: number): string {
@@ -122,7 +122,7 @@ export const AnimatedThemeToggler = ({
 	variant,
 	fromCenter = false,
 	layout = "default",
-	onThemeChange,
+	onThemeToggle,
 	...props
 }: AnimatedThemeTogglerProps) => {
 	const shape = variant ?? "circle";
@@ -131,9 +131,7 @@ export const AnimatedThemeToggler = ({
 
 	useEffect(() => {
 		const updateTheme = () => {
-			const next = document.documentElement.classList.contains("dark");
-			setIsDark(next);
-			onThemeChange?.(next);
+			setIsDark(document.documentElement.classList.contains("dark"));
 		};
 
 		updateTheme();
@@ -145,7 +143,7 @@ export const AnimatedThemeToggler = ({
 		});
 
 		return () => observer.disconnect();
-	}, [onThemeChange]);
+	}, []);
 
 	const toggleTheme = useCallback(() => {
 		const button = buttonRef.current;
@@ -170,12 +168,9 @@ export const AnimatedThemeToggler = ({
 		const applyTheme = () => {
 			const newTheme = !isDark;
 			setIsDark(newTheme);
-			document.documentElement.classList.toggle("dark");
-			try {
-				localStorage.setItem("theme", newTheme ? "dark" : "light");
-			} catch {
-				// localStorage bloqueado o no disponible
-			}
+			// The provider applies the class and persists; doing it here too was
+			// the source of the cross-tab ping-pong.
+			onThemeToggle?.(newTheme);
 		};
 
 		if (typeof document.startViewTransition !== "function") {
@@ -230,7 +225,7 @@ export const AnimatedThemeToggler = ({
 				);
 			});
 		}
-	}, [shape, fromCenter, duration, isDark]);
+	}, [shape, fromCenter, duration, isDark, onThemeToggle]);
 
 	return (
 		<button

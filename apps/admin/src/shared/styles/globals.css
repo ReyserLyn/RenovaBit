@@ -1,5 +1,7 @@
 @import "@renovabit/ui/styles/globals.css";
 
+@source "../../**/*.{ts,tsx}";
+
 @font-face {
 	font-family: "Outfit";
 	font-style: normal;
