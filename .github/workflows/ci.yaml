@@ -16,16 +16,18 @@ permissions:
 jobs:
   quality:
     name: Quality gate
-    runs-on: [self-hosted, Linux, ARM64]
+    # GitHub-hosted: CI no longer queues on (or competes for the 2 vCPUs of)
+    # the self-hosted VPS runner, which is reserved for deploys. They now run
+    # in parallel on push.
+    runs-on: ubuntu-latest
 
     env:
       VITE_API_URL: https://api.renovabit.com
       VITE_SITE_URL: https://tienda.renovabit.com
       # Import-time only: lets @renovabit/db load without a live database during
       # lint, type check and build. The DB-backed tests get their own throwaway
-      # Postgres (see the step below); port 1 refuses instantly because 5432 on
-      # this runner is answered by Traefik's TCP entrypoint, which accepts the
-      # connection and hangs the handshake (5s test timeout).
+      # Postgres (see the step below); port 1 refuses instantly instead of
+      # hanging the connection handshake (5s test timeout).
       DATABASE_URL: postgres://ci:ci@127.0.0.1:1/ci
 
     steps:
@@ -51,8 +53,7 @@ jobs:
       # DB-backed tests skip silently when Postgres is unreachable, which left
       # the rollback and pricing regressions unenforced in CI. A throwaway
       # Postgres on a dynamic host port gives them a real database; the host
-      # port is random so concurrent runs (main + a PR) cannot collide, and it
-      # avoids 5432, which belongs to Traefik on this runner.
+      # port is random so concurrent runs (main + a PR) cannot collide.
       - name: Levantar Postgres para los tests
         id: postgres
         shell: bash
@@ -134,8 +135,8 @@ jobs:
 
           echo "[+] API respondió con HTTP $CODE (proceso vivo)"
 
-      # Runs even when an earlier step failed so the self-hosted runner never
-      # accumulates stopped-but-present containers.
+      # Runs even when an earlier step failed so a failed run never leaves a
+      # stopped-but-present Postgres container behind.
       - name: Limpiar Postgres
         if: always()
         shell: bash

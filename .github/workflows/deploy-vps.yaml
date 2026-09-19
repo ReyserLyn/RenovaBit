@@ -6,8 +6,10 @@ on:
       - main
 
 concurrency:
+  # Never cancel a deploy mid-flight: a half-recreated stack is worse than a
+  # queued run. Rapid pushes queue instead of cancelling each other.
   group: deploy-renovabit
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -55,7 +57,10 @@ jobs:
         run: |
           set -euo pipefail
           cd "$DEPLOY_PATH"
-          COMPOSE_PARALLEL_LIMIT=1 docker compose build --pull
+          # Two builds in parallel on the 2-vCPU box. `--pull` was dropped: it
+          # re-checked base images on every deploy. Refresh them manually with
+          # `docker compose build --pull` when a base image changes.
+          COMPOSE_PARALLEL_LIMIT=2 docker compose build
 
       - name: Asegurar servicios base (postgres, redis)
         shell: bash
@@ -134,6 +139,9 @@ jobs:
         shell: bash
         run: |
           docker image prune -f --filter "until=24h"
+          # Keeps the disk from filling up with old build cache while leaving
+          # the recent (hot) cache and cache mounts intact.
+          docker builder prune -f --filter "until=336h" >/dev/null 2>&1 || true
 
       - name: Notificar éxito
         if: success()
