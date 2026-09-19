@@ -27,7 +27,7 @@
 	"devDependencies": {
 		"@renovabit/biome-config": "*",
 		"@renovabit/ts-config": "*",
-		"@types/node": "^25.9.2",
+		"@types/node": "^26.6.2",
 		"typescript": "catalog:"
 	}
 }
