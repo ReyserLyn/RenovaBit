@@ -14,6 +14,7 @@ import { productQueries } from "@/features/products/hooks/queries";
 import { Breadcrumbs } from "@/shared/components/breadcrumbs";
 import { FavoriteButton } from "@/shared/components/favorites/favorite-button";
 import { WhatsAppIcon } from "@/shared/components/icons";
+import { ProductImageFallback } from "@/shared/components/product-image-fallback";
 import {
 	NumberField,
 	NumberFieldDecrement,
@@ -162,7 +163,12 @@ function ProductPage() {
 			<div className="flex flex-col gap-8 lg:flex-row lg:gap-12">
 				{/* ── Imagen ─────────────────────────── */}
 				<div className="animate-fade-in-up animate-duration-normal lg:w-1/2">
-					<div className="sticky top-6 aspect-square overflow-hidden rounded-2xl bg-[#f1f1f7]">
+					<div
+						className={cn(
+							"sticky top-6 aspect-square overflow-hidden rounded-2xl",
+							product.images.length > 0 ? "bg-[#f1f1f7]" : "bg-[#f1f1f7] dark:bg-[#0b0a12]",
+						)}
+					>
 						{product.images.length > 0 ? (
 							<img
 								src={product.images[0]?.url}
@@ -173,9 +179,11 @@ function ProductPage() {
 								className="select-none h-full w-full object-contain p-6"
 							/>
 						) : (
-							<div className="flex h-full w-full items-center justify-center text-muted-foreground/40">
-								Sin imagen
-							</div>
+							<ProductImageFallback
+								alt={`Imagen referencial de ${product.name}`}
+								className="h-full w-full object-contain p-6"
+								loading="eager"
+							/>
 						)}
 
 						{/* Favorito */}

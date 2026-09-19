@@ -1,4 +1,4 @@
-import { AlertCircleIcon, Delete01Icon, ImageNotFound01Icon } from "@hugeicons/core-free-icons";
+import { AlertCircleIcon, Delete01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Button } from "@renovabit/ui/components/ui/button";
@@ -7,6 +7,7 @@ import { Link } from "@tanstack/react-router";
 import { useRemoveCartItem, useUpdateCartItem } from "@/features/cart/hooks/mutations";
 import type { CartResponse } from "@/features/cart/hooks/queries";
 import { getEffectiveLinePrice } from "@/features/cart/lib/pricing";
+import { ProductImageFallback } from "@/shared/components/product-image-fallback";
 import { formatPrice } from "@/shared/lib/format";
 
 type CartItemData = NonNullable<CartResponse>["items"][number];
@@ -39,7 +40,10 @@ export function CartItem({ item }: CartItemProps) {
 			<Link
 				to="/producto/$slug"
 				params={{ slug: item.productSlug }}
-				className="size-16 shrink-0 overflow-hidden rounded-lg bg-[#f1f1f7]"
+				className={cn(
+					"size-16 shrink-0 overflow-hidden rounded-lg",
+					item.primaryImage?.url ? "bg-[#f1f1f7]" : "bg-[#f1f1f7] dark:bg-[#0b0a12]",
+				)}
 			>
 				{item.primaryImage?.url ? (
 					<img
@@ -48,9 +52,10 @@ export function CartItem({ item }: CartItemProps) {
 						className="size-full object-contain p-1"
 					/>
 				) : (
-					<div className="flex size-full items-center justify-center text-muted-foreground/40">
-						<HugeiconsIcon icon={ImageNotFound01Icon} size={24} strokeWidth={1} />
-					</div>
+					<ProductImageFallback
+						alt={`Imagen referencial de ${item.productName}`}
+						className="size-full object-contain p-1"
+					/>
 				)}
 			</Link>
 

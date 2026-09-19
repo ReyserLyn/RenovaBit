@@ -1,4 +1,4 @@
-import { ImageNotFound01Icon, ShoppingCartIcon, ViewIcon } from "@hugeicons/core-free-icons";
+import { ShoppingCartIcon, ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "@renovabit/ui/components/ui/badge";
 import { Button } from "@renovabit/ui/components/ui/button";
@@ -8,6 +8,7 @@ import { useAddToCart } from "@/features/cart/hooks/mutations";
 import { PriceDisplay } from "@/features/products/components/price-display";
 import { HighlightedText } from "@/features/search/components/highlighted-text";
 import { FavoriteButton } from "@/shared/components/favorites/favorite-button";
+import { ProductImageFallback } from "@/shared/components/product-image-fallback";
 import type { ProductListItem } from "../types";
 
 interface ProductCardProps {
@@ -27,7 +28,10 @@ export function ProductCard({ product, isFavorite }: ProductCardProps) {
 				to="/producto/$slug"
 				params={{ slug: product.slug }}
 				onDragStart={(e) => e.preventDefault()}
-				className="relative block aspect-square overflow-hidden bg-[#f1f1f7] p-3"
+				className={cn(
+					"relative block aspect-square overflow-hidden p-3",
+					product.primaryImage?.url ? "bg-[#f1f1f7]" : "bg-[#f1f1f7] dark:bg-[#0b0a12]",
+				)}
 			>
 				{product.primaryImage?.url ? (
 					<img
@@ -39,9 +43,10 @@ export function ProductCard({ product, isFavorite }: ProductCardProps) {
 						className="select-none h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
 					/>
 				) : (
-					<div className="flex h-full w-full items-center justify-center text-muted-foreground/40">
-						<HugeiconsIcon icon={ImageNotFound01Icon} size={48} strokeWidth={1} />
-					</div>
+					<ProductImageFallback
+						alt={`Imagen referencial de ${product.name}`}
+						className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+					/>
 				)}
 
 				{/* Badge agotado */}

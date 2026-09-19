@@ -9,6 +9,7 @@ import hotkeys from "hotkeys-js";
 import { useEffect, useId, useRef, useState } from "react";
 import { HighlightedText } from "@/features/search/components/highlighted-text";
 import { searchQueries } from "@/features/search/hooks/queries";
+import { ProductImageFallback } from "@/shared/components/product-image-fallback";
 import {
 	Autocomplete,
 	AutocompleteContent,
@@ -233,7 +234,10 @@ export default function SearchAutocomplete({
 												className="size-10 shrink-0 rounded object-cover"
 											/>
 										) : (
-											<div className="size-10 shrink-0 rounded bg-muted" />
+											<ProductImageFallback
+												alt=""
+												className="size-10 shrink-0 rounded object-cover"
+											/>
 										)}
 										<div className="min-w-0">
 											<div className="truncate text-sm font-medium leading-tight">
