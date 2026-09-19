@@ -107,53 +107,19 @@ export const scrapingWorker = new Worker<ScrapingJobData>(
 
 		logger.withMetadata({ jobId: job.id, limit, trigger }).info("Iniciando scraping job");
 
+		// La sincronización corre sola dentro del try: el registro del éxito
+		// (broadcast, notificaciones, breaker) va después, para que un fallo al
+		// registrarlo no convierta una corrida completada en un job fallido.
+		let syncResult: Awaited<ReturnType<typeof runSync>>;
 		try {
 			const items = await scrapingService.fetchProductList(limit);
-			const { reportId, stats, startedAt } = await runSync(items, trigger, job.id, (progress) => {
+			syncResult = await runSync(items, trigger, job.id, (progress) => {
 				broadcastToAdmins({
 					type: "sync:progress",
 					jobId: job.id,
 					...progress,
 				});
 			});
-
-			const completedAt = new Date().toISOString();
-
-			logger.withMetadata({ jobId: job.id, reportId, ...stats }).info("Job de scraping completado");
-
-			broadcastToAdmins({
-				type: "sync:completed",
-				jobId: job.id,
-				reportId,
-				stats,
-				trigger,
-			});
-
-			// Crear notificación en DB
-			const targetUsers = job.data.userId ? [job.data.userId] : await getAdminIds();
-
-			for (const userId of targetUsers) {
-				const payload = buildSyncNotification({
-					reportId,
-					jobId: job.id,
-					trigger: trigger === "manual" ? "manual" : "automatic",
-					stats,
-					startedAt,
-					completedAt,
-				});
-				await createNotification({ userId, ...payload });
-			}
-
-			if (trigger === "automatic") {
-				await redis.del(NETWORK_FAIL_COUNT_KEY, NETWORK_BREAKER_KEY).catch((err) => {
-					logger
-						.withMetadata({ jobId: job.id })
-						.withError(err as Error)
-						.warn("No se pudo resetear estado de red en Redis");
-				});
-			}
-
-			return { reportId, stats };
 		} catch (err) {
 			if (trigger === "automatic" && isRetryableNetworkError(err)) {
 				const failures = await redis.incr(NETWORK_FAIL_COUNT_KEY).catch(() => 0);
@@ -207,6 +173,52 @@ export const scrapingWorker = new Worker<ScrapingJobData>(
 					.warn("No se pudo establecer cooldown en Redis");
 			});
 		}
+
+		const { reportId, stats, startedAt } = syncResult;
+		const completedAt = new Date().toISOString();
+
+		logger.withMetadata({ jobId: job.id, reportId, ...stats }).info("Job de scraping completado");
+
+		try {
+			broadcastToAdmins({
+				type: "sync:completed",
+				jobId: job.id,
+				reportId,
+				stats,
+				trigger,
+			});
+
+			// Crear notificación en DB
+			const targetUsers = job.data.userId ? [job.data.userId] : await getAdminIds();
+
+			for (const userId of targetUsers) {
+				const payload = buildSyncNotification({
+					reportId,
+					jobId: job.id,
+					trigger: trigger === "manual" ? "manual" : "automatic",
+					stats,
+					startedAt,
+					completedAt,
+				});
+				await createNotification({ userId, ...payload });
+			}
+
+			if (trigger === "automatic") {
+				await redis.del(NETWORK_FAIL_COUNT_KEY, NETWORK_BREAKER_KEY).catch((err) => {
+					logger
+						.withMetadata({ jobId: job.id })
+						.withError(err as Error)
+						.warn("No se pudo resetear estado de red en Redis");
+				});
+			}
+		} catch (err) {
+			logger
+				.withMetadata({ jobId: job.id })
+				.withError(err as Error)
+				.error("No se pudo registrar el sync completado (notificación o broadcast)");
+		}
+
+		return { reportId, stats };
 	},
 	{
 		connection,
