@@ -1,0 +1,16 @@
+[
+	{
+		"name": "placeholder-light",
+		"prompt": "Minimalist e-commerce product placeholder artwork for a modern tech brand. Clean light studio backdrop in warm off-white (#f9f8ff) with a very subtle soft radial gradient and a faint diffused floor shadow. Centered: one simple abstract 3D package mark, a small matte off-white cube with generously rounded corners, thin isometric edges accented with a soft muted violet (#654fcc) line, one face slightly shaded, resting at a slight angle. Flat even diffused studio lighting, calm and premium, generous negative space around the mark, clean 1:1 square composition. Strictly no text, no letters, no numbers, no words, no logos, no watermarks, no brand names, no photorealistic product, no retail packaging label. The cube must remain a plain blank abstract glyph with no markings on it.",
+		"aspectRatio": "1:1",
+		"model": "lite",
+		"imageSize": "1K"
+	},
+	{
+		"name": "placeholder-dark",
+		"prompt": "Minimalist e-commerce product placeholder artwork for dark-mode UI. Deep neutral charcoal backdrop in near-black (#070311) with a very subtle soft violet radial glow and a faint vignette. Centered: one simple abstract 3D package mark, a small matte charcoal-gray cube with generously rounded corners, thin isometric edges accented with a soft light violet (#a48fff) line, one face slightly lit, resting at a slight angle, subtle rim highlight. Flat even diffused studio lighting, calm and premium, generous negative space around the mark, clean 1:1 square composition. Strictly no text, no letters, no numbers, no words, no logos, no watermarks, no brand names, no photorealistic product, no retail packaging label. The cube must remain a plain blank abstract glyph with no markings on it.",
+		"aspectRatio": "1:1",
+		"model": "lite",
+		"imageSize": "1K"
+	}
+]
