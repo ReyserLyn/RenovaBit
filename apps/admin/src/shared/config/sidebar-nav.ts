@@ -52,6 +52,7 @@ export const sidebarNavigation = {
 			icon: Chart01Icon,
 			items: [
 				{ title: "Historial de cambios", url: "/historial" },
+				{ title: "Sincronizaciones", url: "/sincronizaciones" },
 				{ title: "Notificaciones", url: "/notificaciones" },
 			],
 		},

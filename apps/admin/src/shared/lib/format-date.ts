@@ -57,11 +57,17 @@ export function formatShortDateTime(value: Date | string): string {
 	return shortDateTime.format(d);
 }
 
-/** Duración entre dos timestamps ISO (ej: "2m 30s", "1h 15m") */
-export function formatDuration(start: string, end: string): string {
-	const ms = new Date(end).getTime() - new Date(start).getTime();
-	const seconds = Math.round(ms / 1000);
+/** Duración a partir de milisegundos (ej: "45s", "2m 30s", "1h 15m") */
+export function formatDurationMs(ms: number): string {
+	const safeMs = Number.isFinite(ms) && ms > 0 ? ms : 0;
+	const seconds = Math.round(safeMs / 1000);
 	if (seconds < 60) return `${seconds}s`;
 	if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 	return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+}
+
+/** Duración entre dos timestamps ISO (ej: "2m 30s", "1h 15m") */
+export function formatDuration(start: string, end: string): string {
+	const ms = new Date(end).getTime() - new Date(start).getTime();
+	return formatDurationMs(ms);
 }

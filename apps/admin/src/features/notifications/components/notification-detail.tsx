@@ -19,67 +19,16 @@ import { Skeleton } from "@renovabit/ui/components/ui/skeleton";
 import { useMemo, useState } from "react";
 import { useReportChanges } from "@/features/reports/hooks/reports-queries";
 import type { ReportChange } from "@/features/reports/model";
+import {
+	RichSyncStats,
+	SyncCountersGrid,
+} from "@/features/sync-reports/components/rich-sync-stats";
 import { formatDateTimeSeconds, formatDuration } from "@/shared/lib/format-date";
 import { getUserDisplayName, getUserInitials } from "../lib/user-helpers";
-import type { AppNotification, NotificationData, SortOption, SyncStats } from "../model";
+import type { AppNotification, NotificationData, SortOption } from "../model";
 import { isSortOption, SORT_OPTIONS } from "../model";
 import { ChangeRow } from "./change-row";
 import { TriggerBadge } from "./trigger-badge";
-
-// ── StatCell ───────────────────────────────────────
-
-function StatCell({
-	value,
-	label,
-	variant,
-}: {
-	value: number;
-	label: string;
-	variant?: "success" | "warning" | "destructive";
-}) {
-	const textColor =
-		variant === "success"
-			? "text-success"
-			: variant === "warning"
-				? "text-warning"
-				: variant === "destructive"
-					? "text-destructive"
-					: "text-foreground";
-
-	return (
-		<div className="flex flex-col items-center rounded-md bg-muted/40 py-3">
-			<span className={`text-2xl font-bold tabular-nums leading-none ${textColor}`}>{value}</span>
-			<span className="text-muted-foreground text-xs mt-1">{label}</span>
-		</div>
-	);
-}
-
-// ── StatsGrid ──────────────────────────────────────
-
-function StatsGrid({ stats }: { stats: SyncStats }) {
-	return (
-		<div className="grid grid-cols-3 gap-2">
-			<StatCell value={stats.processed} label="Procesados" />
-			<StatCell
-				value={stats.created}
-				label="Nuevos"
-				variant={stats.created > 0 ? "success" : undefined}
-			/>
-			<StatCell
-				value={stats.updated}
-				label="Actualizados"
-				variant={stats.updated > 0 ? "warning" : undefined}
-			/>
-			<StatCell value={stats.unchanged} label="Sin cambios" />
-			<StatCell
-				value={stats.errors}
-				label="Errores"
-				variant={stats.errors > 0 ? "destructive" : undefined}
-			/>
-			<StatCell value={stats.outOfStock} label="Sin stock" />
-		</div>
-	);
-}
 
 // ── TimelineStep ───────────────────────────────────
 
@@ -219,6 +168,13 @@ export function NotificationDetail({
 					</div>
 				)}
 
+				{parsedData.errorMessage && (
+					<div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2">
+						<p className="text-xs font-medium text-destructive">La sincronización falló</p>
+						<p className="text-xs break-words text-muted-foreground">{parsedData.errorMessage}</p>
+					</div>
+				)}
+
 				<Separator />
 
 				{parsedData.startedAt && (
@@ -245,7 +201,12 @@ export function NotificationDetail({
 				{hasStats && (
 					<>
 						<Separator />
-						<StatsGrid stats={parsedData.stats!} />
+						<SyncCountersGrid stats={parsedData.stats!} />
+						<RichSyncStats
+							stats={parsedData.stats!}
+							startedAt={parsedData.startedAt}
+							completedAt={parsedData.completedAt}
+						/>
 					</>
 				)}
 

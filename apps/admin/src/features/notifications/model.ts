@@ -3,6 +3,31 @@ import { CHANGE_LABELS } from "@/features/reports/model";
 
 // ── Schemas ────────────────────────────────────────
 
+const syncFailedItemSchema = z.object({
+	providerId: z.string(),
+	reason: z.string(),
+});
+
+const syncAiStatsSchema = z.object({
+	calls: z.number(),
+	failed: z.number(),
+	inputTokens: z.number(),
+	outputTokens: z.number(),
+	costUsd: z.number(),
+});
+
+const syncImageStatsSchema = z.object({
+	checked: z.number(),
+	processed: z.number(),
+	missing: z.number(),
+});
+
+/**
+ * Sync stats arrive in two shapes and both must survive parsing:
+ *  - full `SyncStats` (WebSocket progress/completed events, report detail)
+ *  - flat notification payload (DB notifications; arrays are pre-joined)
+ * Everything beyond the 6 base counters is optional so either shape parses.
+ */
 export const syncStatsSchema = z.object({
 	processed: z.number(),
 	created: z.number(),
@@ -10,6 +35,23 @@ export const syncStatsSchema = z.object({
 	unchanged: z.number(),
 	errors: z.number(),
 	outOfStock: z.number(),
+	// Full SyncStats shape.
+	failedItems: z.array(syncFailedItemSchema).optional(),
+	ai: syncAiStatsSchema.optional(),
+	images: syncImageStatsSchema.optional(),
+	unavailableMarked: z.number().optional(),
+	zeroingSkipped: z.boolean().optional(),
+	blacklistedRemoved: z.number().optional(),
+	durationMs: z.number().optional(),
+	// Flat notification payload shape.
+	failedCount: z.number().optional(),
+	failedSample: z.string().optional(),
+	aiCalls: z.number().optional(),
+	aiFailed: z.number().optional(),
+	aiCostUsd: z.number().optional(),
+	imagesChecked: z.number().optional(),
+	imagesProcessed: z.number().optional(),
+	imagesMissing: z.number().optional(),
 });
 
 // postgres-js convierte strings ISO 8601 dentro de jsonb a objetos Date.
@@ -25,6 +67,7 @@ export const notificationDataSchema = z.object({
 	startedAt: isoTimestamp.optional(),
 	completedAt: isoTimestamp.optional(),
 	stats: syncStatsSchema.optional(),
+	errorMessage: z.string().optional(),
 	orderId: z.string().optional(),
 	orderNumber: z.string().optional(),
 	total: z.string().optional(),
@@ -65,6 +108,14 @@ export type SyncCompletedEvent = {
 	trigger: string;
 };
 
+export type SyncFailedEvent = {
+	reportId?: string;
+	jobId?: string;
+	trigger?: string;
+	errorMessage?: string;
+	completedAt?: string;
+};
+
 export type OrderCreatedEvent = {
 	orderId: string;
 	orderNumber: string;
@@ -86,6 +137,7 @@ export { CHANGE_LABELS };
 
 export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
 	sync_completed: "Sync",
+	sync_failed: "Sync fallida",
 	"order:created": "Pedido",
 	"order:auto-cancelled": "Cancelación",
 	order_created: "Pedido",

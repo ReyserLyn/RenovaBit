@@ -18,6 +18,7 @@ import type {
 	OrderAutoCancelledEvent,
 	OrderCreatedEvent,
 	SyncCompletedEvent,
+	SyncFailedEvent,
 	SyncProgress,
 } from "../model";
 
@@ -67,6 +68,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 				queryClient.invalidateQueries({ queryKey: notificationKeys.lists() });
 			},
 			[queryClient, syncStore],
+		),
+		onSyncFailed: useCallback(
+			(e: SyncFailedEvent) => {
+				const detail = e.errorMessage?.slice(0, 140);
+				toast.error(`Sync fallido${detail ? `: ${detail}` : ""}`);
+				queryClient.invalidateQueries({ queryKey: notificationKeys.lists() });
+			},
+			[queryClient],
 		),
 		onOrderCreated: useCallback(
 			(e: OrderCreatedEvent) => {

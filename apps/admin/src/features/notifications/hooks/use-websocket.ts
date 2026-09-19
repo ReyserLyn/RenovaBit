@@ -4,6 +4,7 @@ import type {
 	OrderAutoCancelledEvent,
 	OrderCreatedEvent,
 	SyncCompletedEvent,
+	SyncFailedEvent,
 	SyncProgress,
 	SyncStats,
 } from "../model";
@@ -16,12 +17,14 @@ type WsMessage =
 			stats: SyncStats;
 			trigger: string;
 	  }
+	| ({ type: "sync:failed" } & SyncFailedEvent)
 	| ({ type: "order:created" } & OrderCreatedEvent)
 	| ({ type: "order:auto-cancelled" } & OrderAutoCancelledEvent);
 
 type WsCallbacks = {
 	onProgress?: (data: SyncProgress) => void;
 	onCompleted?: (data: SyncCompletedEvent) => void;
+	onSyncFailed?: (data: SyncFailedEvent) => void;
 	onOrderCreated?: (data: OrderCreatedEvent) => void;
 	onOrderAutoCancelled?: (data: OrderAutoCancelledEvent) => void;
 };
@@ -71,13 +74,15 @@ export function useWebSocket(callbacks: WsCallbacks) {
 
 			try {
 				const data: WsMessage = JSON.parse(event.data);
-				const { onProgress, onCompleted, onOrderCreated, onOrderAutoCancelled } =
+				const { onProgress, onCompleted, onSyncFailed, onOrderCreated, onOrderAutoCancelled } =
 					callbacksRef.current;
 
 				if (data.type === "sync:progress" && onProgress) {
 					onProgress(data);
 				} else if (data.type === "sync:completed" && onCompleted) {
 					onCompleted(data);
+				} else if (data.type === "sync:failed" && onSyncFailed) {
+					onSyncFailed(data);
 				} else if (data.type === "order:created" && onOrderCreated) {
 					onOrderCreated(data);
 				} else if (data.type === "order:auto-cancelled" && onOrderAutoCancelled) {
