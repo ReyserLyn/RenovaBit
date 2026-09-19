@@ -73,14 +73,14 @@ function CategoryLink({ category }: { category: FeaturedCategory }) {
 			href={`/categoria/${slug}`}
 			className="group block rounded-md focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none"
 		>
-			<div className="bg-muted/30 rounded-full relative aspect-square w-full overflow-hidden">
+			<div className="bg-muted/30 ring-border/50 relative aspect-square w-full overflow-hidden rounded-2xl ring-1">
 				{imageUrl ? (
 					<img
 						src={imageUrl}
 						alt={name}
 						loading="lazy"
 						decoding="async"
-						className="absolute inset-0 h-full w-full object-contain p-6 transition-transform duration-300 group-hover:scale-105"
+						className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
 					/>
 				) : (
 					<div className="absolute inset-0 flex items-center justify-center">

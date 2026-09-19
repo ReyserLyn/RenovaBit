@@ -1,0 +1,44 @@
+[
+	{
+		"name": "category-laptops",
+		"prompt": "Clean e-commerce category card: a modern gaming laptop open at a slight angle with a softly glowing keyboard, floating on a plain very light lavender background (#f9f8ff), centered composition, soft diffuse shadow, premium product photography, sharp focus, no text, no logos, no people",
+		"aspectRatio": "1:1",
+		"imageSize": "1K",
+		"model": "nb2"
+	},
+	{
+		"name": "category-tarjetas-de-video",
+		"prompt": "Clean e-commerce category card: a high-end graphics card with triple fans standing upright at a slight three-quarter angle, subtle violet accent lighting, floating on a plain very light lavender background (#f9f8ff), centered composition, soft diffuse shadow, premium product photography, no text, no logos",
+		"aspectRatio": "1:1",
+		"imageSize": "1K",
+		"model": "nb2"
+	},
+	{
+		"name": "category-monitores",
+		"prompt": "Clean e-commerce category card: a sleek flat gaming monitor on a stand, the screen showing a smooth abstract violet gradient with no readable content, floating on a plain very light lavender background (#f9f8ff), centered composition, soft diffuse shadow, premium product photography, no text, no logos",
+		"aspectRatio": "1:1",
+		"imageSize": "1K",
+		"model": "nb2"
+	},
+	{
+		"name": "category-procesadores",
+		"prompt": "Clean e-commerce category card: a modern CPU processor chip standing upright showing its metallic heat spreader and gold contacts, floating on a plain very light lavender background (#f9f8ff), centered composition, soft diffuse shadow, macro premium product photography, no text, no logos",
+		"aspectRatio": "1:1",
+		"imageSize": "1K",
+		"model": "nb2"
+	},
+	{
+		"name": "category-cases",
+		"prompt": "Clean e-commerce category card: a gaming PC tower case with a tempered glass side panel and subtle violet RGB fans glow, standing at a slight angle, floating on a plain very light lavender background (#f9f8ff), centered composition, soft diffuse shadow, premium product photography, no text, no logos",
+		"aspectRatio": "1:1",
+		"imageSize": "1K",
+		"model": "nb2"
+	},
+	{
+		"name": "category-audifonos",
+		"prompt": "Clean e-commerce category card: a premium over-ear gaming headset with a headband and subtle violet accent lighting on the ear cups, resting on a small stand, floating on a plain very light lavender background (#f9f8ff), centered composition, soft diffuse shadow, premium product photography, no text, no logos",
+		"aspectRatio": "1:1",
+		"imageSize": "1K",
+		"model": "nb2"
+	}
+]
