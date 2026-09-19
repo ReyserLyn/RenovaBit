@@ -21,7 +21,7 @@ import { getSiteUrl } from "@/shared/lib/env";
 import { mapSortToApi } from "@/shared/lib/filters/parsers";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
 import { useFavoritesFilterState } from "@/shared/lib/hooks/use-filter-state";
-import { seo } from "@/shared/lib/seo";
+import { seo, serializeJsonLd } from "@/shared/lib/seo";
 
 type FavoritosSearch = CatalogSearch;
 
@@ -215,7 +215,7 @@ function FavoritesContent({ search }: { search: FavoritosSearch }) {
 				<script
 					type="application/ld+json"
 					dangerouslySetInnerHTML={{
-						__html: JSON.stringify({
+						__html: serializeJsonLd({
 							"@context": "https://schema.org",
 							"@type": "ItemList",
 							numberOfItems: totalProducts,
@@ -243,7 +243,7 @@ function FavoritesContent({ search }: { search: FavoritosSearch }) {
 									},
 								},
 							})),
-						}).replace(/<\//g, "<\\/"),
+						}),
 					}}
 				/>
 			)}

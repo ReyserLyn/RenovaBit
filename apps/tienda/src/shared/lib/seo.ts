@@ -54,10 +54,18 @@ export function seo({
 	return { meta, links };
 }
 
+/**
+ * Serializes a JSON-LD payload for inline <script> injection.
+ * Escapes `<` so a value can never close the script tag (stored XSS).
+ */
+export function serializeJsonLd(value: unknown): string {
+	return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 export function breadcrumbJsonLd(items: Array<{ name: string; url?: string }>) {
 	return {
 		type: "application/ld+json",
-		children: JSON.stringify({
+		children: serializeJsonLd({
 			"@context": "https://schema.org",
 			"@type": "BreadcrumbList",
 			itemListElement: items.map((item, i) => ({
@@ -129,7 +137,7 @@ export function productJsonLd(product: ProductJsonLdInput) {
 
 	return {
 		type: "application/ld+json",
-		children: JSON.stringify(jsonLd),
+		children: serializeJsonLd(jsonLd),
 	};
 }
 
@@ -144,7 +152,7 @@ interface OfferListItem {
 export function offerListJsonLd(offers: OfferListItem[]) {
 	return {
 		type: "application/ld+json",
-		children: JSON.stringify({
+		children: serializeJsonLd({
 			"@context": "https://schema.org",
 			"@type": "ItemList",
 			itemListElement: offers.map((offer, i) => ({

@@ -13,7 +13,7 @@ import { getSiteUrl } from "@/shared/lib/env";
 import { mapSortToApi } from "@/shared/lib/filters/parsers";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
 import { useBrandFilterState } from "@/shared/lib/hooks/use-filter-state";
-import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
+import { breadcrumbJsonLd, seo, serializeJsonLd } from "@/shared/lib/seo";
 
 function buildFilters(brandSlug: string, s: CatalogSearch): ProductListFilters {
 	return {
@@ -161,7 +161,7 @@ function BrandPage() {
 			<script
 				type="application/ld+json"
 				dangerouslySetInnerHTML={{
-					__html: JSON.stringify({
+					__html: serializeJsonLd({
 						"@context": "https://schema.org",
 						"@type": "Brand",
 						name: brand.name,

@@ -13,7 +13,7 @@ import { getSiteUrl } from "@/shared/lib/env";
 import { mapSortToApi } from "@/shared/lib/filters/parsers";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
 import { useSearchFilterState } from "@/shared/lib/hooks/use-filter-state";
-import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
+import { breadcrumbJsonLd, seo, serializeJsonLd } from "@/shared/lib/seo";
 
 type BuscarSearch = CatalogSearch & {
 	q: string;
@@ -296,7 +296,7 @@ function SearchResults({ q, search }: { q: string; search: BuscarSearch }) {
 			<script
 				type="application/ld+json"
 				dangerouslySetInnerHTML={{
-					__html: JSON.stringify(jsonLd).replace(/<\//g, "<\\/"),
+					__html: serializeJsonLd(jsonLd),
 				}}
 			/>
 		</div>

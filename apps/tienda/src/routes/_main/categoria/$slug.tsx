@@ -14,7 +14,7 @@ import { getSiteUrl } from "@/shared/lib/env";
 import { mapSortToApi } from "@/shared/lib/filters/parsers";
 import { type CatalogSearch, normalizeCatalogSearch } from "@/shared/lib/filters/search";
 import { useCategoryFilterState } from "@/shared/lib/hooks/use-filter-state";
-import { breadcrumbJsonLd, seo } from "@/shared/lib/seo";
+import { breadcrumbJsonLd, seo, serializeJsonLd } from "@/shared/lib/seo";
 
 function buildFilters(categorySlug: string, s: CatalogSearch): ProductListFilters {
 	return {
@@ -182,7 +182,7 @@ function CategoryPage() {
 			<script
 				type="application/ld+json"
 				dangerouslySetInnerHTML={{
-					__html: JSON.stringify({
+					__html: serializeJsonLd({
 						"@context": "https://schema.org",
 						"@type": "BreadcrumbList",
 						itemListElement: category.breadcrumb.map((item, i) => ({
