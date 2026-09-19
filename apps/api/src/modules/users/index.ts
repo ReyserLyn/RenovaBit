@@ -3,26 +3,14 @@ import { AuthMacros } from "@/modules/auth";
 import { ErrorResponse, UserModel } from "./model";
 import { type UpdateProfileInput, UserService } from "./service";
 
-// ── Routes ─────────────────────────────────────────
+// ── Routes (public, user-scoped) ───────────────────
+//
+// Only the `/me` routes live here. Admin-only routes (the user list) live in
+// ./admin.ts and are mounted exclusively inside the admin router, so no
+// isAuth-only handler is ever reachable under `/api/v1/admin`.
 
 export const usersRoute = new Elysia({ prefix: "/users" })
 	.use(AuthMacros)
-	// ── List (admin) ────────────────────────────────
-	.get(
-		"/",
-		async () => {
-			return UserService.list();
-		},
-		{
-			isAdmin: true,
-			response: {
-				200: UserModel.userListResponse,
-				401: ErrorResponse,
-				403: ErrorResponse,
-			},
-			detail: { summary: "Listar usuarios (admin)", tags: ["Users"] },
-		},
-	)
 	// ── Get own profile ─────────────────────────────
 	.get(
 		"/me",

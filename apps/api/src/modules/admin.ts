@@ -11,7 +11,7 @@ import { adminProductsRoute } from "./products/admin";
 import { reportsRoute } from "./reports";
 import { scrapingController } from "./scrapping";
 import { storageRoute } from "./storage";
-import { usersRoute } from "./users";
+import { adminUsersRoute } from "./users/admin";
 
 export const adminRouter = new Elysia({ prefix: "/admin" })
 	.use(adminOffersRoute)
@@ -19,7 +19,7 @@ export const adminRouter = new Elysia({ prefix: "/admin" })
 	.use(adminProductsRoute)
 	.use(adminCategoriesRoute)
 	.use(adminBrandsRoute)
-	.use(usersRoute)
+	.use(adminUsersRoute)
 	.use(storageRoute)
 	.use(scrapingController)
 	.use(notificationsRoute)

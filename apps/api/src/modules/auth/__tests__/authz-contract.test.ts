@@ -91,6 +91,26 @@ describe("authorization contract — admin surface", () => {
 		expect(authCatchAlls).toEqual(["ALL /api/v1/auth*"]);
 	});
 
+	it("admin users mount exposes only the admin list route (no isAuth-only /me leak)", () => {
+		const userRoutes = app.routes
+			.filter((route) => route.path.startsWith("/api/v1/admin/users"))
+			.map((route) => `${route.method} ${route.path}`);
+
+		expect(userRoutes).toEqual(["GET /api/v1/admin/users/"]);
+	});
+
+	it("does not expose the user-scoped /me handlers under /api/v1/admin", async () => {
+		const res = await app.handle(new Request("http://localhost/api/v1/admin/users/me"));
+
+		expect(res.status).toBe(404);
+	});
+
+	it("keeps /api/v1/users/me mounted for the storefront", async () => {
+		const res = await app.handle(new Request("http://localhost/api/v1/users/me"));
+
+		expect(res.status).toBe(401);
+	});
+
 	it("schema-gated allowlist stays in sync with the route table", () => {
 		const routeKeys = new Set(adminRoutes.map((route) => `${route.method} ${route.path}`));
 		const stale = [...SCHEMA_GATED_ROUTES].filter((key) => !routeKeys.has(key));
