@@ -21,6 +21,9 @@ COPY --from=deps /app /app
 ARG VITE_API_URL
 ENV VITE_API_URL=${VITE_API_URL}
 
+ARG VITE_SITE_URL
+ENV VITE_SITE_URL=${VITE_SITE_URL}
+
 WORKDIR /app/apps/admin
 RUN bun run build
 
@@ -36,6 +39,6 @@ ENV PORT=3002
 EXPOSE 3002
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD bun run -e "const r = await fetch('http://localhost:3002/'); process.exit(r.ok ? 0 : 1)"
+    CMD bun -e "const r = await fetch('http://localhost:3002/'); process.exit(r.ok ? 0 : 1)"
 
 CMD ["bun", "run", "./.output/server/index.mjs"]

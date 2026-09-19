@@ -75,7 +75,6 @@ services:
         [
           "CMD",
           "bun",
-          "run",
           "-e",
           "const r = await fetch('http://localhost:3001/health'); process.exit(r.status < 500 ? 0 : 1)",
         ]
@@ -105,9 +104,12 @@ services:
       dockerfile: apps/admin/Dockerfile
       args:
         - VITE_API_URL=https://api.renovabit.com
+        - VITE_SITE_URL=https://tienda.renovabit.com
     restart: always
     environment:
       - VITE_API_URL=http://renovabit-api:3001
+      # Storefront URL consumed by SSR and product links (getSiteUrl in shared/lib/env.ts).
+      - VITE_SITE_URL=https://tienda.renovabit.com
     depends_on:
       - renovabit-api
     healthcheck:
@@ -115,7 +117,6 @@ services:
         [
           "CMD",
           "bun",
-          "run",
           "-e",
           "const r = await fetch('http://localhost:3002/'); process.exit(r.ok ? 0 : 1)",
         ]
@@ -144,9 +145,12 @@ services:
       dockerfile: apps/tienda/Dockerfile
       args:
         - VITE_API_URL=https://api.renovabit.com
+        - VITE_SITE_URL=https://tienda.renovabit.com
     restart: always
     environment:
       - VITE_API_URL=http://renovabit-api:3001
+      # Public storefront URL consumed by SSR (canonical/OG metadata).
+      - VITE_SITE_URL=https://tienda.renovabit.com
     depends_on:
       - renovabit-api
     healthcheck:
@@ -154,9 +158,8 @@ services:
         [
           "CMD",
           "bun",
-          "run",
           "-e",
-          "const r = await fetch('http://localhost:3003/'); process.exit(r.ok ? 0 : 1)",
+          "const r = await fetch('http://localhost:3003/robots.txt'); process.exit(r.ok ? 0 : 1)",
         ]
       interval: 30s
       timeout: 10s
