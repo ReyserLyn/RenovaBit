@@ -9,7 +9,12 @@ import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
 import { getReservedStockSubquery } from "@/utils/stock";
-import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
+import {
+	deleteEntityFolder,
+	deleteEntityImage,
+	isPendingUrl,
+	resolveEntityImage,
+} from "@/utils/storage/helpers";
 import type {
 	BrandModel,
 	PublicBrandDetail,
@@ -336,16 +341,30 @@ async function update(id: string, data: UpdateBody, userId: string) {
 	}
 
 	// 1. Resolver nueva imagen pendiente → permanente (con o sin normalización)
+	let replacedWithPermanent = false;
 	if (item.imageUrl) {
 		const permanentUrl = await resolveBrandImage(item.imageUrl, item.id, normalize);
-		if (permanentUrl && permanentUrl !== item.imageUrl) {
+		if (permanentUrl && !isPendingUrl(permanentUrl)) {
 			await db.update(brands).set({ imageUrl: permanentUrl }).where(eq(brands.id, item.id));
 			item.imageUrl = permanentUrl;
+			replacedWithPermanent = true;
+		} else {
+			// The move to permanent storage failed: restore the previous image instead
+			// of leaving a pending URL that the cleanup job will delete.
+			await db.update(brands).set({ imageUrl: existingRow.imageUrl }).where(eq(brands.id, item.id));
+			item.imageUrl = existingRow.imageUrl;
+			logger
+				.withMetadata({ brandId: item.id })
+				.warn("[brands] la imagen nueva no se pudo materializar; se conserva la anterior");
 		}
 	}
 
-	// 2. Eliminar la imagen anterior SOLO si la nueva se resolvió correctamente
-	if (data.imageUrl !== undefined && data.imageUrl !== existingRow.imageUrl) {
+	// 2. La anterior se elimina SOLO cuando la nueva quedó en almacenamiento permanente
+	if (
+		replacedWithPermanent &&
+		data.imageUrl !== undefined &&
+		data.imageUrl !== existingRow.imageUrl
+	) {
 		await deleteEntityImage(existingRow.imageUrl);
 	}
 
@@ -365,8 +384,23 @@ async function deleteBrand(id: string) {
 		});
 	}
 
-	await db.delete(brands).where(eq(brands.id, id));
+	// products.brandId is ON DELETE SET NULL: deleting the brand would silently
+	// unlink its products, so the delete is blocked instead.
+	const [linked] = await db
+		.select({ id: products.id })
+		.from(products)
+		.where(eq(products.brandId, id))
+		.limit(1);
+	if (linked) {
+		throw createApiError({
+			code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+			message: "No se puede eliminar una marca con productos. Reasígnalos primero.",
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
 
+	await db.delete(brands).where(eq(brands.id, id));
 	// Limpiar carpeta R2 (no bloqueante, no revierte el delete)
 	deleteEntityFolder("brands", id).catch((err) =>
 		logger.withMetadata({ err }).error(`[R2 cleanup] Failed to delete folder for brand ${id}`),
@@ -406,6 +440,23 @@ async function deleteMany(ids: string[]) {
 
 			if (existingIds.length === 0) {
 				return { deletedIds: [], notFoundIds, deletedCount: 0 };
+			}
+
+			// Same reason as the single delete: unlinking products silently is not
+			// an option, the whole batch is rejected instead.
+			const linked = await tx
+				.select({ id: products.id })
+				.from(products)
+				.where(inArray(products.brandId, existingIds))
+				.limit(1);
+			if (linked.length > 0) {
+				throw createApiError({
+					code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+					message:
+						"Una de las marcas seleccionadas tiene productos. Reasígnalos antes de eliminarla.",
+					logLevel: "info",
+					doNotLog: true,
+				});
 			}
 
 			await tx.delete(brands).where(inArray(brands.id, existingIds));
