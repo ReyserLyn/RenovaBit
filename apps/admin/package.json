@@ -9,7 +9,8 @@
 		"preview": "vite preview",
 		"generate": "tsr generate",
 		"check": "biome check . --write",
-		"check-types": "bun run generate && tsc --noEmit"
+		"check-types": "bun run generate && tsc --noEmit",
+		"test": "bun test src"
 	},
 	"dependencies": {
 		"@base-ui/react": "catalog:",
