@@ -27,6 +27,27 @@ export function useUpdateOrderStatus() {
 	});
 }
 
+/**
+ * Guarda solo las notas del admin (mismo endpoint PATCH /orders/:id, sin
+ * cambio de estado). Se separa para no mentir con "Estado actualizado".
+ */
+export function useUpdateOrderNotes() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: ({ id, data }: { id: string; data: UpdateOrderStatusValues }) =>
+			ordersService.updateStatus(id, data),
+		onSuccess: (_data, { id }) => {
+			queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+			queryClient.invalidateQueries({ queryKey: orderKeys.detail(id) });
+			toast.success("Notas del pedido guardadas correctamente");
+		},
+		onError: (error) => {
+			toast.error(resolveErrorMessage(error));
+		},
+	});
+}
+
 export function useUpdateOrderAttachments() {
 	const queryClient = useQueryClient();
 
@@ -66,8 +87,24 @@ export function useBatchOrderStatus() {
 				);
 			}
 			if (result.failed.length > 0) {
+				// La API devuelve { id, reason }: los motivos se agrupan para que el
+				// operador sepa POR QUÉ fallaron, no solo cuántos fallaron.
+				const reasonCounts = new Map<string, number>();
+				for (const failed of result.failed) {
+					const reason = failed.reason || "Error desconocido";
+					reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+				}
+				const entries = [...reasonCounts.entries()].slice(0, 3);
+				const lines = entries.map(([reason, count]) =>
+					count > 1 ? `${count}× ${reason}` : reason,
+				);
+				const remainingReasons = reasonCounts.size - entries.length;
+				if (remainingReasons > 0) {
+					lines.push(`…y ${remainingReasons} motivo${remainingReasons === 1 ? "" : "s"} más`);
+				}
 				toast.warning(
 					`${result.failed.length} ${result.failed.length === 1 ? "pedido no se pudo procesar" : "pedidos no se pudieron procesar"}`,
+					{ description: lines.join("\n"), duration: 10_000 },
 				);
 			}
 		},

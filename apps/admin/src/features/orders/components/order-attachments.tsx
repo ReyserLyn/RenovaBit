@@ -114,11 +114,18 @@ function OrderAttachmentsContent({
 	async function handleRemove(url: string) {
 		if (isBusy) return;
 		const next = localAttachments.filter((item) => item !== url);
+		const previous = localAttachments;
 		setLocalAttachments(next);
-		await updateAttachments.mutateAsync({
-			id: orderId,
-			data: { attachments: next },
-		});
+		try {
+			await updateAttachments.mutateAsync({
+				id: orderId,
+				data: { attachments: next },
+			});
+		} catch {
+			// Mismo patrón que la subida: el onError del hook ya muestra el toast,
+			// aquí restauramos el estado local para no mostrar un cambio falso.
+			setLocalAttachments(previous);
+		}
 	}
 
 	return (

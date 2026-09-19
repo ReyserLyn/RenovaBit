@@ -20,7 +20,7 @@ import {
 	type SortingState,
 	useReactTable,
 } from "@tanstack/react-table";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
@@ -87,10 +87,26 @@ export function HistoryTable({ changes, isPending }: HistoryTableProps) {
 		}
 	};
 
-	// Reset pagination on filter change
+	// Al cambiar la búsqueda o el filtro de tipo, volver a la primera página
+	// para no quedar mostrando una página vacía. La clave reúne ambos filtros;
+	// el ref evita reiniciar en cada render.
+	const filtersKey = `${globalFilter}\u0000${JSON.stringify(columnFilters)}`;
+	const prevFiltersKeyRef = useRef(filtersKey);
 	useEffect(() => {
+		if (prevFiltersKeyRef.current === filtersKey) return;
+		prevFiltersKeyRef.current = filtersKey;
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, []);
+	}, [filtersKey]);
+
+	// Cambiar el tamaño de página también vuelve a la primera página.
+	const handlePaginationChange = (
+		updater: PaginationState | ((old: PaginationState) => PaginationState),
+	) => {
+		setPagination((prev) => {
+			const next = typeof updater === "function" ? updater(prev) : updater;
+			return next.pageSize !== prev.pageSize ? { ...next, pageIndex: 0 } : next;
+		});
+	};
 
 	const table = useReactTable({
 		data: changes,
@@ -101,7 +117,7 @@ export function HistoryTable({ changes, isPending }: HistoryTableProps) {
 			globalFilter,
 			columnFilters,
 		},
-		onPaginationChange: setPagination,
+		onPaginationChange: handlePaginationChange,
 		onSortingChange: setSorting,
 		onGlobalFilterChange: setGlobalFilter,
 		onColumnFiltersChange: setColumnFilters,

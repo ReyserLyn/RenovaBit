@@ -181,13 +181,34 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 		action: BatchActionStatus;
 	} | null>(null);
 
+	// Con paginación server-side, cambiar un filtro estando en la página N
+	// puede mostrar una grilla vacía: volvemos siempre a la primera página.
+	// La clave reúne todos los filtros; el ref evita reiniciar en cada render.
+	const filtersKey = [
+		filters.status,
+		filters.source,
+		filters.paymentMethod,
+		filters.from,
+		filters.to,
+		filters.search,
+	].join("\u0000");
+	const prevFiltersKeyRef = useRef(filtersKey);
 	useEffect(() => {
+		if (prevFiltersKeyRef.current === filtersKey) return;
+		prevFiltersKeyRef.current = filtersKey;
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, []);
+	}, [filtersKey]);
 
-	useEffect(() => {
-		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-	}, []);
+	// Cambiar el tamaño de página también vuelve a la primera página.
+	const handlePaginationChange = useCallback(
+		(updater: PaginationState | ((old: PaginationState) => PaginationState)) => {
+			setPagination((prev) => {
+				const next = typeof updater === "function" ? updater(prev) : updater;
+				return next.pageSize !== prev.pageSize ? { ...next, pageIndex: 0 } : next;
+			});
+		},
+		[],
+	);
 
 	const handleRefresh = useCallback(() => {
 		void queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
@@ -295,7 +316,7 @@ export const OrderTable = React.memo(function OrderTable({ onViewDetail }: Order
 			columnVisibility,
 			rowSelection,
 		},
-		onPaginationChange: setPagination,
+		onPaginationChange: handlePaginationChange,
 		onSortingChange: handleSortingChange,
 		onColumnVisibilityChange: setColumnVisibility,
 		onRowSelectionChange: setRowSelection,

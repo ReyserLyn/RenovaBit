@@ -59,6 +59,7 @@ import { Textarea } from "@renovabit/ui/components/ui/textarea";
 import { useForm, useSelector } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useBrands } from "@/features/brands/hooks";
 import { useCategories } from "@/features/categories/hooks";
 import { useMarginRules } from "@/features/margin-rules/hooks/use-margin-rules";
@@ -467,8 +468,15 @@ export function ProductForm(props: ProductFormProps) {
 					try {
 						const url = await uploadImage(item.file);
 						newImageMapping.push({ localId: item.id, url });
-					} catch {
-						setImageError(`Error al subir la imagen "${item.file.name}"`);
+					} catch (err) {
+						// El producto YA se guardó: el fallo debe ser visible y el
+						// diálogo no puede quedar como si nada hubiera pasado.
+						const reason = err instanceof Error ? err.message : "error desconocido";
+						toast.error(
+							`El producto se guardó, pero no se pudo subir la imagen "${item.file.name}": ${reason}`,
+						);
+						queryClient.invalidateQueries({ queryKey: productKeys.lists() });
+						onSuccess();
 						return;
 					}
 				}
@@ -507,7 +515,19 @@ export function ProductForm(props: ProductFormProps) {
 					}
 				});
 
-				await Promise.all(imageOps);
+				try {
+					await Promise.all(imageOps);
+				} catch (err) {
+					// El producto YA se guardó; el fallo de las imágenes se informa
+					// explícitamente en vez de perderse como rechazo sin manejar.
+					const reason = err instanceof Error ? err.message : "error desconocido";
+					toast.error(
+						`El producto se guardó, pero no se pudieron guardar los cambios de imágenes: ${reason}`,
+					);
+					queryClient.invalidateQueries({ queryKey: productKeys.lists() });
+					onSuccess();
+					return;
+				}
 				// Invalidar queries para que la tabla se actualice con el nuevo orden
 				queryClient.invalidateQueries({ queryKey: productKeys.lists() });
 
@@ -523,6 +543,13 @@ export function ProductForm(props: ProductFormProps) {
 	const managedBy = useSelector(form.store, (state) => state.values.managedBy);
 	const isManual = managedBy === "manual";
 	const hasProviderLink = (providerIds?.length ?? 0) > 0;
+
+	// La API rechaza devolver el control al proveedor si el costo no es > 0.
+	// Lo detectamos ANTES de enviar para explicarlo en vez de dejar que falle.
+	const supplierPriceValue = useSelector(form.store, (state) => state.values.supplierPrice);
+	const supplierPriceNumber = Number.parseFloat(supplierPriceValue ?? "");
+	const hasUsableSupplierCost = Number.isFinite(supplierPriceNumber) && supplierPriceNumber > 0;
+	const canReturnToProvider = !isManual || hasUsableSupplierCost;
 
 	async function handleControlChange(next: "provider" | "manual"): Promise<boolean> {
 		if (!onControlChange) return false;
@@ -1075,7 +1102,7 @@ export function ProductForm(props: ProductFormProps) {
 						type="button"
 						variant="outline"
 						size="sm"
-						disabled={isControlPending || isSubmitting}
+						disabled={isControlPending || isSubmitting || !canReturnToProvider}
 						onClick={() => {
 							if (isManual) {
 								setIsReturnConfirmOpen(true);
@@ -1090,6 +1117,13 @@ export function ProductForm(props: ProductFormProps) {
 								? "Devolver al proveedor"
 								: "Tomar control manual"}
 					</Button>
+				)}
+
+				{isManual && hasProviderLink && !hasUsableSupplierCost && (
+					<p className="text-muted-foreground w-full text-xs">
+						Para devolverlo al proveedor, el producto necesita un costo mayor a 0. Este producto no
+						lo tiene: el feed debe enviarlo en una próxima sincronización.
+					</p>
 				)}
 			</div>
 
@@ -1889,7 +1923,7 @@ export function ProductForm(props: ProductFormProps) {
 					await handleControlChange("provider");
 				}}
 				title="Devolver al proveedor"
-				description="El feed del proveedor volverá a gestionar el stock y el precio. Los cambios manuales de stock y precio pueden sobrescribirse en la próxima actualización."
+				description="El feed del proveedor volverá a gestionar el stock y el precio. Requisito: el producto debe tener un costo de proveedor mayor a 0; de lo contrario la API rechazará el cambio. Los cambios manuales de stock y precio pueden sobrescribirse en la próxima actualización."
 				confirmText="Devolver al proveedor"
 				isLoading={isControlPending}
 			/>

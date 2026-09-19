@@ -1,6 +1,7 @@
 export {
 	useBatchOrderStatus,
 	useUpdateOrderAttachments,
+	useUpdateOrderNotes,
 	useUpdateOrderStatus,
 } from "./order-mutations";
 export {

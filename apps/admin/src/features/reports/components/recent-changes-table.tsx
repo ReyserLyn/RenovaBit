@@ -18,7 +18,7 @@ import {
 	type SortingState,
 	useReactTable,
 } from "@tanstack/react-table";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DataGrid, DataGridContainer } from "@/shared/components/data-grid/data-grid";
 import { DataGridPagination } from "@/shared/components/data-grid/data-grid-pagination";
 import { DataGridScrollArea } from "@/shared/components/data-grid/data-grid-scroll-area";
@@ -62,15 +62,27 @@ export const RecentChangesTable = React.memo(function RecentChangesTable({
 	const changes = data?.changes ?? [];
 	const totalCount = data?.total ?? 0;
 
-	// Resetear a página 1 cuando cambian filtros
+	// Con paginación server-side, cambiar filtros o búsqueda estando en la
+	// página N puede mostrar una grilla vacía: volvemos a la primera página.
+	// La clave reúne filtro y búsqueda; el ref evita reiniciar en cada render.
+	const filtersKey = `${typeFilter}\u0000${debouncedSearch}`;
+	const prevFiltersKeyRef = useRef(filtersKey);
 	useEffect(() => {
+		if (prevFiltersKeyRef.current === filtersKey) return;
+		prevFiltersKeyRef.current = filtersKey;
 		setPagination((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
-	}, []);
+	}, [filtersKey]);
 
-	// Resetear a página 1 cuando cambia el pageSize
-	useEffect(() => {
-		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-	}, []);
+	// Cambiar el tamaño de página también vuelve a la primera página.
+	const handlePaginationChange = useCallback(
+		(updater: PaginationState | ((old: PaginationState) => PaginationState)) => {
+			setPagination((prev) => {
+				const next = typeof updater === "function" ? updater(prev) : updater;
+				return next.pageSize !== prev.pageSize ? { ...next, pageIndex: 0 } : next;
+			});
+		},
+		[],
+	);
 
 	const columns = useMemo(() => getRecentChangesColumns(), []);
 
@@ -78,7 +90,7 @@ export const RecentChangesTable = React.memo(function RecentChangesTable({
 		data: changes,
 		columns,
 		state: { pagination, sorting },
-		onPaginationChange: setPagination,
+		onPaginationChange: handlePaginationChange,
 		onSortingChange: setSorting,
 		manualPagination: true,
 		rowCount: totalCount,

@@ -29,7 +29,7 @@ import { ConfirmDialog } from "@/shared/components/dialog/confirm-dialog";
 import { resolveErrorMessage } from "@/shared/lib/api/error-utils";
 import { getSiteUrl } from "@/shared/lib/env";
 import { getFieldErrorId, normalizeFieldErrors } from "@/shared/lib/form/form-utils";
-import { useOrder, useUpdateOrderStatus } from "../hooks";
+import { useOrder, useUpdateOrderNotes, useUpdateOrderStatus } from "../hooks";
 import { formatCurrency, formatFullDate } from "../lib/format";
 import {
 	ORDER_STATUS_CONFIG,
@@ -40,7 +40,6 @@ import {
 	updateOrderStatusSchema,
 	VALID_STATUS_TRANSITIONS,
 } from "../model";
-import type { UpdateOrderStatusValues } from "../service/orders.service";
 import { OrderAttachments } from "./order-attachments";
 
 // ── Constants ────────────────────────────────────────────
@@ -297,12 +296,7 @@ export function OrderDetailDialog({ orderId, open, onOpenChange }: OrderDetailDi
 								</div>
 
 								{/* ── Admin Notes ── */}
-								<AdminNotesForm
-									key={orderId}
-									orderId={orderId}
-									order={order}
-									updateStatus={updateStatus}
-								/>
+								<AdminNotesForm key={orderId} orderId={orderId} order={order} />
 
 								{/* ── Attachments ── */}
 								<OrderAttachments orderId={orderId} attachments={order.attachments} />
@@ -406,22 +400,18 @@ const ADMIN_NOTES_FORM_ID = "admin-notes-form";
 function AdminNotesForm({
 	orderId,
 	order,
-	updateStatus,
 }: {
 	orderId: string | null;
 	order: { adminNotes?: string | null; status: string };
-	updateStatus: {
-		isPending: boolean;
-		mutateAsync: (data: { id: string; data: UpdateOrderStatusValues }) => Promise<unknown>;
-	};
 }) {
+	const updateNotes = useUpdateOrderNotes();
 	const form = useForm({
 		defaultValues: { adminNotes: order?.adminNotes ?? "" },
 		onSubmit: async ({ value }) => {
 			if (!orderId || !order) return;
 			const parsed = updateOrderStatusSchema.shape.status.safeParse(order.status);
 			if (!parsed.success) return;
-			await updateStatus.mutateAsync({
+			await updateNotes.mutateAsync({
 				id: orderId,
 				data: { status: parsed.data, adminNotes: value.adminNotes },
 			});
@@ -459,7 +449,7 @@ function AdminNotesForm({
 										onBlur={field.handleBlur}
 										placeholder="Notas internas sobre este pedido…"
 										rows={3}
-										disabled={updateStatus.isPending}
+										disabled={updateNotes.isPending}
 										aria-invalid={isInvalid}
 										aria-describedby={isInvalid ? errorMessageId : undefined}
 										maxLength={2000}
@@ -476,8 +466,8 @@ function AdminNotesForm({
 					</form.Field>
 				</FieldGroup>
 				<div className="flex justify-end">
-					<Button type="submit" variant="outline" size="sm" disabled={updateStatus.isPending}>
-						{updateStatus.isPending ? "Guardando…" : "Guardar notas"}
+					<Button type="submit" variant="outline" size="sm" disabled={updateNotes.isPending}>
+						{updateNotes.isPending ? "Guardando…" : "Guardar notas"}
 					</Button>
 				</div>
 			</form>

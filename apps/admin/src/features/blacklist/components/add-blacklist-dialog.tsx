@@ -109,6 +109,9 @@ export function AddBlacklistDialog({ open, onOpenChange }: AddBlacklistDialogPro
 			}
 
 			setIsSubmitting(true);
+			// Solo invalidamos productos si de verdad se bloqueó al menos un ID:
+			// antes se hacía en `finally` incluso con 0 creados.
+			let addedCount = 0;
 			try {
 				if (hasProduct) {
 					for (const provider of selectedProduct!.providerIds) {
@@ -118,12 +121,14 @@ export function AddBlacklistDialog({ open, onOpenChange }: AddBlacklistDialogPro
 							productName: selectedProduct!.name,
 							reason: value.reason || undefined,
 						});
+						addedCount++;
 					}
 				} else {
 					await addToBlacklist.mutateAsync({
 						externalId: value.externalId,
 						reason: value.reason || undefined,
 					});
+					addedCount++;
 				}
 				form.reset();
 				setSelectedProduct(null);
@@ -133,7 +138,9 @@ export function AddBlacklistDialog({ open, onOpenChange }: AddBlacklistDialogPro
 				// El onError del hook ya muestra el toast
 			} finally {
 				setIsSubmitting(false);
-				queryClient.invalidateQueries({ queryKey: ["products"] });
+				if (addedCount > 0) {
+					queryClient.invalidateQueries({ queryKey: ["products"] });
+				}
 			}
 		},
 	});
