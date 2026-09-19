@@ -740,6 +740,24 @@ async function deleteMany(ids: string[]): Promise<BulkDeleteResult> {
 				});
 			}
 
+			// Same reason as the single delete: products.categoryId is ON DELETE
+			// SET NULL, so without this check a bulk delete would silently unlink
+			// every product from the deleted categories.
+			const [linked] = await tx
+				.select({ id: products.id })
+				.from(products)
+				.where(inArray(products.categoryId, existingIds))
+				.limit(1);
+			if (linked) {
+				throw createApiError({
+					code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+					message:
+						"No se pueden eliminar categorías con productos. Muévelos a otra categoría primero.",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+
 			const deleted = await tx
 				.delete(categories)
 				.where(inArray(categories.id, existingIds))
