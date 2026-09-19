@@ -12,6 +12,14 @@ import { getRedis } from "@/utils/redis";
 
 const isProd = process.env.NODE_ENV === "production";
 
+/**
+ * @better-auth/redis-storage still pins its ioredis peer to ^5, so its client
+ * type conflicts with ioredis 6 even though the runtime surface we use is
+ * identical. Cast through the type the storage actually expects; remove this
+ * once the storage package widens its peer range.
+ */
+type AuthRedisClient = Parameters<typeof redisStorage>[0]["client"];
+
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
@@ -49,7 +57,7 @@ export const auth = betterAuth({
 		camelCase: false,
 	}),
 	secondaryStorage: redisStorage({
-		client: getRedis(),
+		client: getRedis() as unknown as AuthRedisClient,
 		keyPrefix: "better-auth:",
 	}),
 	emailAndPassword: {
