@@ -140,11 +140,35 @@ export function buildSyncNotification(input: {
 	data: SyncNotificationData;
 } {
 	const { stats, trigger, reportId, jobId, startedAt, completedAt } = input;
+	// The notification payload is flat: the per-item failure list and the nested
+	// usage objects stay in the sync report, only their summary travels.
 	return {
 		type: "sync_completed",
 		title: "Sincronización completada",
 		message: `${stats.processed} procesados | ${stats.created} creados | ${stats.updated} actualizados | ${stats.errors} errores`,
-		data: { reportId, jobId, trigger, stats, startedAt, completedAt },
+		data: {
+			reportId,
+			jobId,
+			trigger,
+			stats: {
+				processed: stats.processed,
+				created: stats.created,
+				updated: stats.updated,
+				unchanged: stats.unchanged,
+				errors: stats.errors,
+				outOfStock: stats.outOfStock,
+				failedCount: stats.failedItems?.length ?? 0,
+				aiCalls: stats.ai?.calls ?? 0,
+				aiFailed: stats.ai?.failed ?? 0,
+				aiCostUsd: stats.ai?.costUsd ?? 0,
+				imagesChecked: stats.images?.checked ?? 0,
+				imagesProcessed: stats.images?.processed ?? 0,
+				imagesMissing: stats.images?.missing ?? 0,
+				durationMs: stats.durationMs ?? 0,
+			},
+			startedAt,
+			completedAt,
+		},
 	};
 }
 

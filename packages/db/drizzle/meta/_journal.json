@@ -43,6 +43,13 @@
 			"when": 1789689000000,
 			"tag": "0005_out_of_range_price_means_out_of_stock",
 			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1789784663608,
+			"tag": "0006_dazzling_virginia_dare",
+			"breakpoints": true
 		}
 	]
 }

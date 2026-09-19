@@ -1,3 +1,4 @@
+import type { SyncStats } from "@renovabit/db/schema";
 import { t, type UnwrapSchema } from "elysia";
 
 export const SyncResultSchema = t.Object({
@@ -10,6 +11,20 @@ export const SyncResultSchema = t.Object({
 		unchanged: t.Integer(),
 		errors: t.Integer(),
 		outOfStock: t.Integer(),
+		failedItems: t.Optional(t.Array(t.Object({ providerId: t.String(), reason: t.String() }))),
+		ai: t.Optional(
+			t.Object({
+				calls: t.Integer(),
+				failed: t.Integer(),
+				inputTokens: t.Integer(),
+				outputTokens: t.Integer(),
+				costUsd: t.Number(),
+			}),
+		),
+		images: t.Optional(
+			t.Object({ checked: t.Integer(), processed: t.Integer(), missing: t.Integer() }),
+		),
+		durationMs: t.Optional(t.Number()),
 	}),
 });
 
@@ -21,11 +36,5 @@ export type SyncModel = {
 	[k in keyof typeof SyncModel]: UnwrapSchema<(typeof SyncModel)[k]>;
 };
 
-export type SyncStats = {
-	processed: number;
-	created: number;
-	updated: number;
-	unchanged: number;
-	errors: number;
-	outOfStock: number;
-};
+/** Single source of truth for the run stats shape (defined next to the DB column). */
+export type { SyncStats };

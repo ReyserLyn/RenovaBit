@@ -1,12 +1,13 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { productImages, products } from "@renovabit/db/schema";
+import { productImages, productProviders, products } from "@renovabit/db/schema";
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { LOGO_PATH, runPipeline } from "@/modules/product-processing/image-pipeline";
 import { BROWSER_HEADERS, IMAGE_ACCEPT } from "@/modules/scrapping/service";
 import { logger } from "@/utils/logger";
+import { hasReviewReason, REVIEW_REASONS, removeReviewReason } from "@/utils/review-reasons";
 import { R2_BUCKET_NAME, r2Client } from "@/utils/storage/client";
 import { getPublicUrl } from "@/utils/storage/helpers";
 
@@ -146,17 +147,17 @@ export async function removeImageReviewReason(productId: string): Promise<void> 
 		.limit(1);
 
 	if (!product?.needsReview || !product.reviewReason) return;
+	if (!hasReviewReason(product.reviewReason, REVIEW_REASONS.missingImage)) return;
 
-	const reasons = product.reviewReason.split(";").map((r) => r.trim());
-	const remaining = reasons.filter((r) => r !== "Sin imagen");
+	const reviewReason = removeReviewReason(product.reviewReason, REVIEW_REASONS.missingImage);
+	const needsReview = reviewReason !== null;
 
-	if (remaining.length === reasons.length) return;
-
-	await db
-		.update(products)
-		.set({
-			needsReview: remaining.length > 0,
-			reviewReason: remaining.length > 0 ? remaining.join("; ") : null,
-		})
-		.where(eq(products.id, productId));
+	// The provider link mirrors the product's review state so the two never drift.
+	await db.transaction(async (tx) => {
+		await tx.update(products).set({ needsReview, reviewReason }).where(eq(products.id, productId));
+		await tx
+			.update(productProviders)
+			.set({ needsReview, reviewReason })
+			.where(eq(productProviders.productId, productId));
+	});
 }

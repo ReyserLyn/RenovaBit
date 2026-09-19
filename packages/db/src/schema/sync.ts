@@ -54,6 +54,26 @@ export type SyncStats = {
 	unchanged: number;
 	errors: number;
 	outOfStock: number;
+	/** First failures of the run: enough to diagnose, capped to keep the row small. */
+	failedItems?: Array<{ providerId: string; reason: string }>;
+	/** Model usage and cost, so a quality or cost regression is visible in the report. */
+	ai?: {
+		calls: number;
+		failed: number;
+		inputTokens: number;
+		outputTokens: number;
+		costUsd: number;
+	};
+	/** Image verification work actually done this run. */
+	images?: { checked: number; processed: number; missing: number };
+	/** Products set out of stock because the supplier marks them unavailable. */
+	unavailableMarked?: number;
+	/** True when the out-of-stock sweep was skipped because the feed looked truncated. */
+	zeroingSkipped?: boolean;
+	/** Products removed at the end of the run because their provider got blacklisted. */
+	blacklistedRemoved?: number;
+	/** Wall time of the run. */
+	durationMs?: number;
 };
 
 /**
@@ -74,13 +94,37 @@ export type ChangeValueObject = Record<string, string | number | boolean | null>
  */
 export type NotificationData = SyncNotificationData | OrderNotificationData;
 
+/**
+ * Summary carried by the admin notification: flat primitives only.
+ *
+ * The notification payload is validated as a record with a single level of
+ * nesting, so the nested `ai` / `images` objects from SyncStats are flattened
+ * here (and the per-item failure list stays in the database report).
+ */
+export type SyncNotificationStats = {
+	processed: number;
+	created: number;
+	updated: number;
+	unchanged: number;
+	errors: number;
+	outOfStock: number;
+	failedCount: number;
+	aiCalls: number;
+	aiFailed: number;
+	aiCostUsd: number;
+	imagesChecked: number;
+	imagesProcessed: number;
+	imagesMissing: number;
+	durationMs: number;
+};
+
 export type SyncNotificationData = {
 	reportId?: string;
 	jobId?: string;
 	trigger?: "manual" | "automatic" | string;
 	startedAt?: string;
 	completedAt?: string;
-	stats?: SyncStats;
+	stats?: SyncNotificationStats;
 };
 
 export type OrderNotificationData = {

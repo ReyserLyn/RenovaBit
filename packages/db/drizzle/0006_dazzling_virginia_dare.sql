@@ -1,0 +1,1 @@
+ALTER TABLE "product_providers" ADD COLUMN "image_checked_at" timestamp;

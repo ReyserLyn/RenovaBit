@@ -11,7 +11,7 @@ import {
 	syncReports,
 } from "@renovabit/db/schema";
 import { getEffectiveSalePrice } from "@renovabit/pricing";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import pLimit from "p-limit";
 import slugify from "slugify";
 import type { ScrapedItem } from "@/modules/scrapping/model";
@@ -19,11 +19,117 @@ import { scrapingService } from "@/modules/scrapping/service";
 import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
 import { buildProductSeo } from "@/utils/product-seo";
+import { addReviewReason, hasReviewReason, REVIEW_REASONS } from "@/utils/review-reasons";
+import { deleteEntityFolder } from "@/utils/storage/helpers";
 import { extractFromRawName } from "../ai/ai.service";
-import { buildCategoryContext } from "../ai/prompts";
+import { estimateCostUsd } from "../ai/pricing";
+import { buildCategoryContext, type CategoryContext } from "../ai/prompts";
 import { processProductImage, removeImageReviewReason } from "../image-pipeline/process";
 import { isInvalidFeedPrice, parseFeedPrice } from "./feed-price";
+import { shouldCheckProviderImage } from "./image-policy";
+import { suffixProductName } from "./product-name";
 import type { SyncStats } from "./sync.model";
+
+type MarginRules = Awaited<ReturnType<typeof getActiveMarginRules>>;
+
+/**
+ * Data loaded once per run instead of once per item. The old code re-read every
+ * brand and category for each new product and the margin rules for each item,
+ * which is an N+1 across the whole feed.
+ */
+interface SyncContext {
+	marginRules: MarginRules;
+	brands: string[];
+	categories: CategoryContext[];
+}
+
+/** The report carries the first failures only: enough to diagnose, small row. */
+const MAX_FAILED_ITEMS = 25;
+
+/**
+ * Guard against a truncated feed zeroing the whole catalog: if the scraper only
+ * parsed a fraction of the rows (HTML change, partial response), marking what was
+ * not seen as out of stock would empty the storefront. Below this ratio the
+ * sweep is skipped and reported instead.
+ */
+const MIN_SEEN_RATIO = 0.5;
+
+async function countActiveProviders(): Promise<number> {
+	const [row] = await db
+		.select({ count: sql<number>`count(*)::int` })
+		.from(productProviders)
+		.where(
+			and(eq(productProviders.source, PROVIDER_SOURCE), eq(productProviders.isUnavailable, false)),
+		);
+	return row?.count ?? 0;
+}
+
+/**
+ * A provider id blocked while the run was in flight must not survive it: the
+ * blacklist is read once at the start, so a product created after that read
+ * would stay alive (and visible) until the next run.
+ */
+async function reconcileBlacklisted(reportId: string): Promise<number> {
+	const blocked = await db
+		.select({ externalId: scrapingBlacklist.externalId })
+		.from(scrapingBlacklist)
+		.where(eq(scrapingBlacklist.source, PROVIDER_SOURCE));
+	if (blocked.length === 0) return 0;
+
+	const doomed = await db
+		.select({ productId: productProviders.productId })
+		.from(productProviders)
+		.where(
+			and(
+				eq(productProviders.source, PROVIDER_SOURCE),
+				inArray(
+					productProviders.externalId,
+					blocked.map((row) => row.externalId),
+				),
+			),
+		);
+	if (doomed.length === 0) return 0;
+
+	const deleted = await db
+		.delete(products)
+		.where(
+			inArray(
+				products.id,
+				doomed.map((row) => row.productId),
+			),
+		)
+		.returning({ id: products.id });
+
+	for (const row of deleted) {
+		deleteEntityFolder("products", row.id).catch((error) =>
+			logger.withMetadata({ productId: row.id }).withError(error).warn("[R2 cleanup] falló"),
+		);
+	}
+
+	logger
+		.withMetadata({ reportId, deleted: deleted.length })
+		.warn("Sync: productos de proveedores bloqueados eliminados al cerrar la corrida");
+
+	return deleted.length;
+}
+
+function ensureAiStats(stats: SyncStats): NonNullable<SyncStats["ai"]> {
+	stats.ai ??= { calls: 0, failed: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 };
+	return stats.ai;
+}
+
+function ensureImageStats(stats: SyncStats): NonNullable<SyncStats["images"]> {
+	stats.images ??= { checked: 0, processed: 0, missing: 0 };
+	return stats.images;
+}
+
+function recordFailure(stats: SyncStats, providerId: string, error: unknown): void {
+	const reason = (error instanceof Error ? error.message : String(error)).slice(0, 200);
+	stats.failedItems ??= [];
+	if (stats.failedItems.length < MAX_FAILED_ITEMS) {
+		stats.failedItems.push({ providerId, reason });
+	}
+}
 
 const PROVIDER_SOURCE = "rematazo";
 const AI_CONCURRENCY = 5;
@@ -49,11 +155,10 @@ function makeSku(providerId: string): string {
  */
 async function computePricingFromRules(
 	rawPrice: string,
+	rules: MarginRules,
 ): Promise<{ supplierPrice: string; salePrice: string } | null> {
 	// Rejects unparseable, zero/negative and out-of-range (feed anomaly) prices.
 	if (parseFeedPrice(rawPrice) === null) return null;
-
-	const rules = await getActiveMarginRules();
 
 	const { salePrice } = getEffectiveSalePrice(
 		{ supplierPrice: rawPrice, roleCustomMargins: null },
@@ -63,8 +168,6 @@ async function computePricingFromRules(
 
 	return { supplierPrice: rawPrice, salePrice: salePrice.toFixed(2) };
 }
-
-const PRODUCT_NAME_MAX = 255;
 
 async function ensureUniqueSlug(baseSlug: string, providerId: string): Promise<string> {
 	const [existing] = await db
@@ -95,9 +198,7 @@ async function ensureUniqueProductName(
 
 	if (!existing) return { name: baseName, collided: false };
 
-	const suffix = ` (${providerId})`;
-	const trimmed = baseName.slice(0, PRODUCT_NAME_MAX - suffix.length);
-	return { name: `${trimmed}${suffix}`, collided: true };
+	return { name: suffixProductName(baseName, providerId), collided: true };
 }
 
 /**
@@ -105,7 +206,7 @@ async function ensureUniqueProductName(
  * SELECT and then both INSERT, and the loser used to lose the whole product.
  * ON CONFLICT DO NOTHING + re-select keeps the concurrent item alive.
  */
-async function findOrCreateBrand(name: string): Promise<string | null> {
+async function findOrCreateBrand(name: string, context: SyncContext): Promise<string | null> {
 	const cleanName = name?.trim();
 	if (!cleanName) return null;
 
@@ -124,7 +225,11 @@ async function findOrCreateBrand(name: string): Promise<string | null> {
 		.values({ name: cleanName, slug: brandSlug, isActive: true })
 		.onConflictDoNothing({ target: brands.slug })
 		.returning({ id: brands.id });
-	if (created) return created.id;
+	if (created) {
+		// Keep the run context fresh so later items see the new option.
+		context.brands.push(cleanName);
+		return created.id;
+	}
 
 	const [raced] = await db
 		.select({ id: brands.id })
@@ -134,7 +239,7 @@ async function findOrCreateBrand(name: string): Promise<string | null> {
 	return raced?.id ?? null;
 }
 
-async function findOrCreateCategory(name: string): Promise<string | null> {
+async function findOrCreateCategory(name: string, context: SyncContext): Promise<string | null> {
 	const cleanName = name?.trim();
 	if (!cleanName) return null;
 
@@ -146,14 +251,29 @@ async function findOrCreateCategory(name: string): Promise<string | null> {
 		.from(categories)
 		.where(eq(categories.slug, categorySlug))
 		.limit(1);
-	if (existing) return existing.id;
+	if (existing) {
+		// A product never lands on a parent. The prompt only offers leaves, but if
+		// the model returns an umbrella anyway the product goes to review instead
+		// of silently sitting on a category the store cannot browse.
+		const [child] = await db
+			.select({ id: categories.id })
+			.from(categories)
+			.where(eq(categories.parentId, existing.id))
+			.limit(1);
+		if (child) return null;
+		return existing.id;
+	}
 
 	const [created] = await db
 		.insert(categories)
 		.values({ name: cleanName, slug: categorySlug, isActive: true })
 		.onConflictDoNothing({ target: categories.slug })
 		.returning({ id: categories.id });
-	if (created) return created.id;
+	if (created) {
+		// New leaf: later items in this run can use it right away.
+		context.categories.push({ name: cleanName, parent: null, leaf: true });
+		return created.id;
+	}
 
 	const [raced] = await db
 		.select({ id: categories.id })
@@ -178,14 +298,21 @@ async function markMissingImage(productId: string): Promise<void> {
 		.limit(1);
 
 	if (existingImage) return;
+	if (hasReviewReason(product.reviewReason, REVIEW_REASONS.missingImage)) return;
 
-	const reasons = product.reviewReason?.split(";").map((r) => r.trim()) ?? [];
-	if (reasons.includes("Sin imagen")) return;
-	reasons.push("Sin imagen");
-	await db
-		.update(products)
-		.set({ needsReview: true, reviewReason: reasons.join("; ") })
-		.where(eq(products.id, productId));
+	const reviewReason = addReviewReason(product.reviewReason, REVIEW_REASONS.missingImage);
+
+	// The provider link mirrors the product's review state so the two never drift.
+	await db.transaction(async (tx) => {
+		await tx
+			.update(products)
+			.set({ needsReview: true, reviewReason })
+			.where(eq(products.id, productId));
+		await tx
+			.update(productProviders)
+			.set({ needsReview: true, reviewReason })
+			.where(eq(productProviders.productId, productId));
+	});
 }
 
 // ── Orphan cleanup ─────────────────────────────────
@@ -249,55 +376,54 @@ export async function runSync(
 				.info(`Sync: ${skippedCount} items omitidos por lista negra`);
 		}
 
-		// ── Invalid feed price = the supplier's "no stock" marker; stock 0 items
-		// are also skipped. Neither is processed: they are marked as seen so they
-		// don't count as out-of-stock disappearances, and existing products with
-		// a bogus price are explicitly set out of stock below.
+		// Items the supplier marks as not sellable: an out-of-range price or a
+		// stock of 0 (oversold items arrive negative and the scraper clamps them).
+		// Existing provider-managed products go out of stock keeping their price,
+		// so they return to normal once the feed recovers; unseen items are not
+		// created. Manual products are never touched by the feed.
 		const skipIds: string[] = [];
-		const invalidPriceIds: string[] = [];
+		const unavailableIds: string[] = [];
 		const activeItems = filtered.filter((item) => {
-			if (isInvalidFeedPrice(item.rawPrice)) {
+			if (isInvalidFeedPrice(item.rawPrice) || item.rawStock <= 0) {
 				skipIds.push(item.providerId);
-				invalidPriceIds.push(item.providerId);
-				return false;
-			}
-			if (item.rawStock === 0) {
-				skipIds.push(item.providerId);
+				unavailableIds.push(item.providerId);
 				return false;
 			}
 			return true;
 		});
 
-		// A bogus feed price means no stock at the supplier. Products that already
-		// exist go out of stock keeping their price (so they return to normal once
-		// the feed publishes a sane price); unseen products are not created.
-		if (invalidPriceIds.length > 0) {
+		if (unavailableIds.length > 0) {
 			const outOfStock = await db
 				.update(products)
 				.set({ stock: 0 })
 				.where(
-					inArray(
-						products.id,
-						db
-							.select({ id: productProviders.productId })
-							.from(productProviders)
-							.where(
-								and(
-									eq(productProviders.source, PROVIDER_SOURCE),
-									inArray(productProviders.externalId, invalidPriceIds),
+					and(
+						eq(products.managedBy, "provider"),
+						inArray(
+							products.id,
+							db
+								.select({ id: productProviders.productId })
+								.from(productProviders)
+								.where(
+									and(
+										eq(productProviders.source, PROVIDER_SOURCE),
+										inArray(productProviders.externalId, unavailableIds),
+									),
 								),
-							),
+						),
 					),
 				)
 				.returning({ id: products.id });
+
+			stats.unavailableMarked = outOfStock.length;
 
 			logger
 				.withMetadata({
 					reportId,
 					productsOutOfStock: outOfStock.length,
-					invalidPriceItems: invalidPriceIds.length,
+					unavailableItems: unavailableIds.length,
 				})
-				.info("Sync: precio inválido del proveedor → productos marcados sin stock");
+				.info("Sync: items no vendibles del proveedor → productos sin stock");
 		}
 
 		if (skipIds.length > 0) {
@@ -311,14 +437,32 @@ export async function runSync(
 		const progressStep = Math.max(1, Math.floor(activeItems.length * 0.05));
 		let lastProgress = 0;
 
+		// ── Catalog vocabulary and margin rules, once per run ──────────────
+		const [marginRules, brandRows, categoryRows] = await Promise.all([
+			getActiveMarginRules(),
+			db.select({ name: brands.name }).from(brands).where(eq(brands.isActive, true)),
+			db
+				.select({ id: categories.id, name: categories.name, parentId: categories.parentId })
+				.from(categories)
+				.where(eq(categories.isActive, true)),
+		]);
+		const context: SyncContext = {
+			marginRules,
+			brands: brandRows.map((brand) => brand.name),
+			categories: buildCategoryContext(categoryRows),
+		};
+
 		// Procesar items concurrentemente con p-limit para controlar carga de IA
 		const limit = pLimit(AI_CONCURRENCY);
 		const results = await Promise.allSettled(
 			activeItems.map((item) =>
 				limit(async () => {
 					try {
-						await processItem(item, reportId, stats);
+						await processItem(item, reportId, stats, context);
 					} catch (error) {
+						// Keep the failure in the report: the counters alone made a
+						// broken run indistinguishable from an empty feed.
+						recordFailure(stats, item.providerId, error);
 						const msg = error instanceof Error ? error.message : String(error);
 						logger
 							.withMetadata({ reportId, providerId: item.providerId, error: msg })
@@ -342,10 +486,24 @@ export async function runSync(
 			}
 		}
 
-		// Solo marcar out-of-stock en automatico (full scan)
+		// Solo marcar out-of-stock en automatico (full scan), y solo si el feed
+		// llegó completo: un parseo parcial vaciaría el catálogo en silencio.
 		if (trigger === "automatic" && scrapedIds.size > 0) {
-			stats.outOfStock = await markOutOfStock(scrapedIds, reportId);
+			const activeProviders = await countActiveProviders();
+			const seenRatio = activeProviders === 0 ? 1 : scrapedIds.size / activeProviders;
+
+			if (seenRatio < MIN_SEEN_RATIO) {
+				stats.zeroingSkipped = true;
+				logger
+					.withMetadata({ reportId, seen: scrapedIds.size, activeProviders, seenRatio })
+					.error("Sync: el feed llegó incompleto → NO se marca out-of-stock");
+			} else {
+				stats.outOfStock = await markOutOfStock(scrapedIds, reportId);
+			}
 		}
+
+		stats.blacklistedRemoved = await reconcileBlacklisted(reportId);
+		stats.durationMs = Date.now() - new Date(startedAt).getTime();
 
 		await db
 			.update(syncReports)
@@ -371,7 +529,12 @@ export async function runSync(
 }
 
 // ── Process item ───────────────────────────────────
-async function processItem(item: ScrapedItem, reportId: string, stats: SyncStats): Promise<void> {
+async function processItem(
+	item: ScrapedItem,
+	reportId: string,
+	stats: SyncStats,
+	context: SyncContext,
+): Promise<void> {
 	const { providerId } = item;
 	stats.processed++;
 
@@ -384,6 +547,7 @@ async function processItem(item: ScrapedItem, reportId: string, stats: SyncStats
 			rawStock: productProviders.rawStock,
 			rawImageUrl: productProviders.rawImageUrl,
 			rawImageHash: productProviders.rawImageHash,
+			imageCheckedAt: productProviders.imageCheckedAt,
 		})
 		.from(productProviders)
 		.where(
@@ -395,10 +559,17 @@ async function processItem(item: ScrapedItem, reportId: string, stats: SyncStats
 		.limit(1);
 
 	if (existing) {
-		const changed = await updateExistingProduct(existing.productId, existing, item, reportId);
+		const changed = await updateExistingProduct(
+			existing.productId,
+			existing,
+			item,
+			reportId,
+			stats,
+			context,
+		);
 		changed ? stats.updated++ : stats.unchanged++;
 	} else {
-		await createNewProduct(item, reportId);
+		await createNewProduct(item, reportId, stats, context);
 		stats.created++;
 	}
 }
@@ -413,9 +584,12 @@ async function updateExistingProduct(
 		rawStock: number | null;
 		rawImageUrl: string | null;
 		rawImageHash: string | null;
+		imageCheckedAt: Date | null;
 	},
 	item: ScrapedItem,
 	reportId: string,
+	stats: SyncStats,
+	context: SyncContext,
 ): Promise<boolean> {
 	// Leer valores actuales del PRODUCTO (no del provider, que siempre está bien)
 	const [product] = await db
@@ -436,7 +610,7 @@ async function updateExistingProduct(
 	// Owner-managed products: the feed never overwrites stock or price.
 	const isManual = product?.managedBy === "manual";
 
-	const pricing = await computePricingFromRules(item.rawPrice);
+	const pricing = await computePricingFromRules(item.rawPrice, context.marginRules);
 	// Defense in depth: the feed can report negative availability.
 	const newStock = Math.max(0, item.rawStock);
 
@@ -494,41 +668,69 @@ async function updateExistingProduct(
 	}
 
 	// ── Imagen ──────────────────────────────────────
+	// Re-checked on a schedule, not on every run: the feed URL is deterministic,
+	// so a plain re-fetch can only detect a *removed* image, and doing it for
+	// every product every ten minutes hammered the supplier for nothing.
 	let imageChanged = false;
-	const newImageUrl = await imageLimit(() => scrapingService.fetchProductImage(item.providerId));
 
-	if (newImageUrl) {
-		if (newImageUrl !== existing.rawImageUrl || !existing.rawImageHash) {
-			imageChanged = true;
+	if (
+		shouldCheckProviderImage({
+			rawImageUrl: existing.rawImageUrl,
+			rawImageHash: existing.rawImageHash,
+			imageCheckedAt: existing.imageCheckedAt,
+		})
+	) {
+		const images = ensureImageStats(stats);
+		images.checked++;
 
-			const result = await processProductImage({
-				productId,
-				imageUrl: newImageUrl,
-			});
+		const newImageUrl = await imageLimit(() => scrapingService.fetchProductImage(item.providerId));
+		const checkedAt = new Date();
 
+		if (newImageUrl) {
+			if (newImageUrl !== existing.rawImageUrl || !existing.rawImageHash) {
+				imageChanged = true;
+				const result = await processProductImage({ productId, imageUrl: newImageUrl });
+
+				await db
+					.update(productProviders)
+					.set({ rawImageUrl: newImageUrl, rawImageHash: result.hash, imageCheckedAt: checkedAt })
+					.where(eq(productProviders.id, existing.id));
+
+				await removeImageReviewReason(productId);
+				images.processed++;
+
+				await db.insert(productChanges).values({
+					productId,
+					syncReportId: reportId,
+					source: "sync",
+					changeType: "image_changed",
+					field: "imagen",
+					oldValue: existing.rawImageHash ? { hash: existing.rawImageHash } : { detectada: false },
+					newValue: { hash: result.hash },
+					reason: "Imagen del proveedor detectada o actualizada",
+				});
+			} else {
+				await db
+					.update(productProviders)
+					.set({ imageCheckedAt: checkedAt })
+					.where(eq(productProviders.id, existing.id));
+			}
+		} else {
+			// The supplier removed the image: record the check so it is not
+			// hammered again until the next window.
 			await db
 				.update(productProviders)
-				.set({ rawImageUrl: newImageUrl, rawImageHash: result.hash })
+				.set({ imageCheckedAt: checkedAt })
 				.where(eq(productProviders.id, existing.id));
 
-			await removeImageReviewReason(productId);
-
-			await db.insert(productChanges).values({
-				productId,
-				syncReportId: reportId,
-				source: "sync",
-				changeType: "image_changed",
-				field: "imagen",
-				oldValue: existing.rawImageHash ? { hash: existing.rawImageHash } : { detectada: false },
-				newValue: { hash: result.hash },
-				reason: "Imagen del proveedor detectada o actualizada",
-			});
+			if (existing.rawImageUrl) {
+				await markMissingImage(productId);
+				images.missing++;
+			}
 		}
-	} else if (existing.rawImageUrl) {
-		await markMissingImage(productId);
 	}
 
-	if (!priceChanged && !stockChanged && !imageChanged) return false;
+	if (!priceChanged && !stockChanged && !imageChanged && !supplierChanged) return false;
 
 	if (priceChanged) {
 		await db.insert(productChanges).values({
@@ -539,6 +741,20 @@ async function updateExistingProduct(
 			field: "raw_price",
 			oldValue: { price: currentPrice },
 			newValue: { price: nextSalePrice },
+		});
+	}
+
+	if (supplierChanged) {
+		// The cost moved without moving the sale price: still a change worth
+		// auditing, otherwise the run reports "unchanged" while the row changed.
+		await db.insert(productChanges).values({
+			productId,
+			syncReportId: reportId,
+			source: "sync",
+			changeType: "supplier_price_changed",
+			field: "supplier_price",
+			oldValue: { supplierPrice: currentSupplierPrice },
+			newValue: { supplierPrice: nextSupplierPrice },
 		});
 	}
 
@@ -558,21 +774,35 @@ async function updateExistingProduct(
 }
 
 // ── Create new ─────────────────────────────────────
-async function createNewProduct(item: ScrapedItem, reportId: string): Promise<void> {
+async function createNewProduct(
+	item: ScrapedItem,
+	reportId: string,
+	stats: SyncStats,
+	context: SyncContext,
+): Promise<void> {
 	const { providerId, rawName, rawPrice, rawStock } = item;
 
-	const [existingBrands, existingCategories] = await Promise.all([
-		db.select({ name: brands.name }).from(brands).where(eq(brands.isActive, true)),
-		db
-			.select({ id: categories.id, name: categories.name, parentId: categories.parentId })
-			.from(categories)
-			.where(eq(categories.isActive, true)),
-	]);
+	// Catalog vocabulary and margin rules come from the run context: reading
+	// every brand and category per product was the sync's N+1.
+	const ai = ensureAiStats(stats);
+	ai.calls++;
 
-	const aiResult = await extractFromRawName(rawName, {
-		brands: existingBrands.map((b) => b.name),
-		categories: buildCategoryContext(existingCategories),
-	});
+	let extraction: Awaited<ReturnType<typeof extractFromRawName>>;
+	try {
+		extraction = await extractFromRawName(rawName, {
+			brands: context.brands,
+			categories: context.categories,
+		});
+	} catch (error) {
+		ai.failed++;
+		throw error;
+	}
+
+	ai.inputTokens += extraction.usage.inputTokens;
+	ai.outputTokens += extraction.usage.outputTokens;
+	ai.costUsd = estimateCostUsd({ inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+
+	const aiResult = extraction.output;
 
 	const { name: productName, collided: nameCollided } = await ensureUniqueProductName(
 		aiResult.name,
@@ -580,11 +810,15 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 	);
 	const baseSlug = makeSlug(productName);
 	const slug = await ensureUniqueSlug(baseSlug, providerId);
-	const brandId = await findOrCreateBrand(aiResult.brand);
-	const categoryId = await findOrCreateCategory(aiResult.category);
-	const pricing = await computePricingFromRules(rawPrice);
+	const brandId = await findOrCreateBrand(aiResult.brand, context);
+	const categoryId = await findOrCreateCategory(aiResult.category, context);
+	const pricing = await computePricingFromRules(rawPrice, context.marginRules);
 	const sku = makeSku(providerId);
+
+	const images = ensureImageStats(stats);
+	images.checked++;
 	const imageUrl = await imageLimit(() => scrapingService.fetchProductImage(providerId));
+	if (!imageUrl) images.missing++;
 
 	const reviewReasons: string[] = [];
 	if (!brandId) reviewReasons.push("Sin marca");
@@ -646,10 +880,11 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 			rawStock,
 			rawImageUrl: imageUrl,
 			rawImageHash: null,
+			imageCheckedAt: imageUrl ? new Date() : null,
 			lastSyncAt: new Date(),
 			lastSeenAt: new Date(),
-			needsReview: aiResult.needsReview,
-			reviewReason: aiResult.needsReview ? "Producto nuevo - revisar datos extraidos por IA" : null,
+			needsReview: reviewReasons.length > 0,
+			reviewReason: reviewReasons.length > 0 ? reviewReasons.join("; ") : null,
 		});
 
 		await tx.insert(productChanges).values({
@@ -671,6 +906,7 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 				.update(productProviders)
 				.set({ rawImageHash: result.hash })
 				.where(eq(productProviders.productId, product.id));
+			images.processed++;
 		} catch (error) {
 			logger
 				.withError(error)

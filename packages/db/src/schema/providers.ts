@@ -45,6 +45,8 @@ export const productProviders = pgTable(
 
 		rawImageUrl: text("raw_image_url"),
 		rawImageHash: varchar("raw_image_hash", { length: 64 }),
+		/** When the supplier image was last verified (see shouldCheckProviderImage). */
+		imageCheckedAt: timestamp("image_checked_at"),
 
 		...lifecycleDates,
 	},
