@@ -3,8 +3,10 @@ import { db } from "@renovabit/db";
 import * as schema from "@renovabit/db/schema";
 import { ROLES } from "@renovabit/db/schema";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import { admin, openAPI, username } from "better-auth/plugins";
+import { count, eq } from "drizzle-orm";
 import { appOrigins } from "@/utils/origins";
 import { getRedis } from "@/utils/redis";
 
@@ -136,6 +138,47 @@ export const auth = betterAuth({
 					},
 				}
 			: {},
+	hooks: {
+		before: createAuthMiddleware(async (ctx) => {
+			// Better Auth 1.7.5 blocks self-ban and self-delete, but set-role has no
+			// self or last-admin check: the only admin could demote themselves and
+			// leave the panel without an owner. Both cases are rejected here.
+			if (ctx.path !== "/admin/set-role") return;
+
+			const body = ctx.body as { userId?: string; role?: string | string[] } | undefined;
+			const targetId = body?.userId;
+			if (!targetId) return;
+
+			const nextRole = Array.isArray(body?.role) ? body.role.join(",") : (body?.role ?? "");
+			// Promoting (or anything that keeps admin) is always allowed.
+			if (nextRole.split(",").includes("admin")) return;
+
+			if (targetId === ctx.context.session?.user.id) {
+				throw new APIError("BAD_REQUEST", {
+					message: "No puedes quitarte el rol de administrador a ti mismo.",
+				});
+			}
+
+			const [target] = await db
+				.select({ role: schema.users.role })
+				.from(schema.users)
+				.where(eq(schema.users.id, targetId))
+				.limit(1);
+
+			if (target?.role !== "admin") return;
+
+			const [admins] = await db
+				.select({ total: count() })
+				.from(schema.users)
+				.where(eq(schema.users.role, "admin"));
+
+			if ((admins?.total ?? 0) <= 1) {
+				throw new APIError("BAD_REQUEST", {
+					message: "No puedes quitarle el rol al único administrador.",
+				});
+			}
+		}),
+	},
 	plugins: [
 		username({
 			minUsernameLength: 3,
