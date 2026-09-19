@@ -89,3 +89,7 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Sweep tooling output (the harness and its fixture are tracked; each run's
+# generated report is not)
+apps/api/scripts/ai-eval/report.json

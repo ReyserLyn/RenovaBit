@@ -1,0 +1,2248 @@
+{
+	"categories": [
+		{
+			"name": "Adaptadores",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Audífonos",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Cables",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Cámaras",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Cámaras Web",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Cargadores",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Cases",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Componentes CPU",
+			"parent": null,
+			"leaf": false
+		},
+		{
+			"name": "Coolers",
+			"parent": "Componentes CPU",
+			"leaf": true
+		},
+		{
+			"name": "Discos SSD",
+			"parent": "Componentes CPU",
+			"leaf": true
+		},
+		{
+			"name": "Equipos",
+			"parent": null,
+			"leaf": false
+		},
+		{
+			"name": "Estabilizadores",
+			"parent": "Componentes CPU",
+			"leaf": true
+		},
+		{
+			"name": "Fuentes de Poder",
+			"parent": "Componentes CPU",
+			"leaf": true
+		},
+		{
+			"name": "Impresoras",
+			"parent": "Equipos",
+			"leaf": true
+		},
+		{
+			"name": "Laptops",
+			"parent": "Equipos",
+			"leaf": true
+		},
+		{
+			"name": "Memorias RAM",
+			"parent": "Componentes CPU",
+			"leaf": true
+		},
+		{
+			"name": "Micrófonos",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Mochilas",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Monitores",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Mouses",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Muebles",
+			"parent": "Equipos",
+			"leaf": true
+		},
+		{
+			"name": "Parlantes",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Pasta Termica",
+			"parent": "Equipos",
+			"leaf": true
+		},
+		{
+			"name": "Periféricos",
+			"parent": null,
+			"leaf": false
+		},
+		{
+			"name": "Placas Madre",
+			"parent": "Componentes CPU",
+			"leaf": true
+		},
+		{
+			"name": "Procesadores",
+			"parent": "Componentes CPU",
+			"leaf": true
+		},
+		{
+			"name": "Proyectores",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Switches",
+			"parent": "Periféricos",
+			"leaf": true
+		},
+		{
+			"name": "Tarjetas de Video",
+			"parent": "Componentes CPU",
+			"leaf": true
+		},
+		{
+			"name": "Teclados",
+			"parent": "Periféricos",
+			"leaf": true
+		}
+	],
+	"brands": [
+		"1st Player",
+		"Abko",
+		"Acer",
+		"ADATA",
+		"Aero",
+		"Airboom",
+		"Alienware",
+		"AMD",
+		"Antec",
+		"Antryx",
+		"AORUS",
+		"Apple",
+		"Ares",
+		"AS",
+		"ASRock",
+		"Astro",
+		"Astrom",
+		"Asus",
+		"Avatec",
+		"Biostar",
+		"Blackview",
+		"Brickell",
+		"Brother",
+		"Canon",
+		"CBX",
+		"CDP",
+		"CGMS",
+		"Chuwi",
+		"Clipper",
+		"CM",
+		"Cooler Master",
+		"Corsair",
+		"Cougar",
+		"Creative",
+		"Crucial",
+		"Cybercool",
+		"Cybermax",
+		"Cybertel",
+		"Dahua",
+		"Dataone",
+		"Dato",
+		"Deepcool",
+		"Deep Cool",
+		"Enkore",
+		"Epson",
+		"Eversound",
+		"EVGA",
+		"EZVIZ",
+		"Fantech",
+		"Forza",
+		"FPMAX",
+		"Galax",
+		"Gamemax",
+		"Gamer Storm",
+		"Genius",
+		"Gigabyte",
+		"G Skill",
+		"Halion",
+		"Havit",
+		"Hiksemi",
+		"Hikvision",
+		"HopeStar",
+		"HP",
+		"HYTE",
+		"Hyundai",
+		"IFORGAME",
+		"IMEEX",
+		"Inno3D",
+		"Innos",
+		"Intel",
+		"JBL",
+		"JeDel",
+		"Kaspersky",
+		"Kingston",
+		"Klip Xtreme",
+		"KNT",
+		"Lamzu",
+		"Lenovo",
+		"LG",
+		"Lian Li",
+		"Logitech",
+		"Machenike",
+		"MAONO",
+		"McAffe",
+		"MIC",
+		"Mic Matrix",
+		"Micronics",
+		"Microsoft",
+		"Miku",
+		"Mirage",
+		"MSI",
+		"Nexxt",
+		"Nomad",
+		"Norton",
+		"NZXT",
+		"Omega",
+		"Orion",
+		"Palit",
+		"Patriot",
+		"Philips",
+		"PNY",
+		"Power Estabilizer",
+		"Predator",
+		"Primus",
+		"QuantumX",
+		"Quasar",
+		"Razer",
+		"Redragon",
+		"ROG",
+		"Samsung",
+		"SanDisk",
+		"SAT",
+		"Scoremax",
+		"Scyrox",
+		"Seasonic",
+		"T-Dagger",
+		"Team Group",
+		"Tenda",
+		"Teros",
+		"T-Force",
+		"Thermaltake",
+		"Thunderobot",
+		"Toshiba",
+		"TP-Link",
+		"Trust",
+		"UGREEN",
+		"WD",
+		"Western Digital",
+		"XFX",
+		"Xiaomi",
+		"XPG",
+		"Xtech",
+		"Y103",
+		"Y109",
+		"Zotac"
+	],
+	"items": [
+		{
+			"raw": "HUB CONTROLADOR, DEEP COOL, FH-10",
+			"rawPrice": "57.00",
+			"aiName": "Hub Controlador Deep Cool FH-10",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "FH-10"
+				},
+				{
+					"id": "2",
+					"key": "Conectores",
+					"value": "10 puertos para ventiladores y RGB"
+				}
+			],
+			"category": "Adaptadores"
+		},
+		{
+			"raw": " ADAPTADOR WI FI, TP-LINK, WN781ND 150M PCIe",
+			"rawPrice": "31.00",
+			"aiName": "Adaptador Wi Fi TP-Link WN781ND 150M PCIe",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Velocidad",
+					"value": "150 Mbps"
+				},
+				{
+					"id": "2",
+					"key": "Tipo de conexión",
+					"value": "PCIe"
+				}
+			],
+			"category": "Adaptadores"
+		},
+		{
+			"raw": "ADAPTADOR, TP LINK, ARCHER TX1U NANO AX300 NANO WIFI6",
+			"rawPrice": "21.00",
+			"aiName": "Adaptador TP-Link Archer TX1U Nano AX300 Nano WiFi6",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "Archer TX1U"
+				},
+				{
+					"id": "2",
+					"key": "Tipo",
+					"value": "Nano"
+				},
+				{
+					"id": "3",
+					"key": "Conectividad",
+					"value": "WiFi 6"
+				},
+				{
+					"id": "4",
+					"key": "Velocidad",
+					"value": "AX300"
+				}
+			],
+			"category": "Adaptadores"
+		},
+		{
+			"raw": "AUDIFONO C/MICROF. LOGITECH G ASTRO A50 X LIGHTSPEED/BT/PS5/PC/X",
+			"rawPrice": "1226.00",
+			"aiName": "Audífono con Micrófono Logitech G Astro A50 X Lightspeed Bluetooth",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Conectividad",
+					"value": "Bluetooth"
+				},
+				{
+					"id": "2",
+					"key": "Compatibilidad",
+					"value": "PS5, PC"
+				},
+				{
+					"id": "3",
+					"key": "Tipo",
+					"value": "Audífono con micrófono"
+				}
+			],
+			"category": "Audífonos"
+		},
+		{
+			"raw": "AUDIFONO, TEROS, TE-8038 ROSE  TITANIUM",
+			"rawPrice": "23.00",
+			"aiName": "Audífono Teros TE-8038 Rose Titanium",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Color",
+					"value": "Rose Titanium"
+				}
+			],
+			"category": "Audífonos"
+		},
+		{
+			"raw": "AUDIFONO C/MICROF LOGITECH G325 BT LIGHTSPEED ",
+			"rawPrice": "278.00",
+			"aiName": "Audífono Bluetooth Logitech G325",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Conectividad",
+					"value": "Bluetooth"
+				},
+				{
+					"id": "2",
+					"key": "Micrófono",
+					"value": "Integrado"
+				},
+				{
+					"id": "3",
+					"key": "Tecnología",
+					"value": "LIGHTSPEED"
+				}
+			],
+			"category": "Audífonos"
+		},
+		{
+			"raw": "CABLE, XTECH, HDMI a HDMI GIRATORIO Y PIVOTANTE XTC-610 3M",
+			"rawPrice": "29.00",
+			"aiName": "Cable HDMI a HDMI Giratorio y Pivotante Xtech 3M",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Longitud",
+					"value": "3 metros"
+				},
+				{
+					"id": "2",
+					"key": "Tipo de conector",
+					"value": "HDMI a HDMI"
+				},
+				{
+					"id": "3",
+					"key": "Características",
+					"value": "Giratorio y pivotante"
+				}
+			],
+			"category": "Cables"
+		},
+		{
+			"raw": "CABLE, XTECH, TIPO C TO TIPO C  XTC-530",
+			"rawPrice": "29.00",
+			"aiName": "Cable Tipo C a Tipo C Xtech XTC-530",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo de conector",
+					"value": "Tipo C a Tipo C"
+				},
+				{
+					"id": "2",
+					"key": "Modelo",
+					"value": "XTC-530"
+				}
+			],
+			"category": "Cables"
+		},
+		{
+			"raw": "KIT 3 EN 1, ANTRYX, IF-120 BLACK CONTROLADOR",
+			"rawPrice": "89.00",
+			"aiName": "Controlador Antryx IF-120 Black",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "Controlador 3 en 1"
+				},
+				{
+					"id": "2",
+					"key": "Color",
+					"value": "Negro"
+				}
+			],
+			"category": "Cables"
+		},
+		{
+			"raw": "CAMARA SEGURIDAD , TP LINK, TAPO C320WS WI-FI",
+			"rawPrice": "307.00",
+			"aiName": "Cámara de Seguridad TP-Link Tapo C320WS Wi-Fi",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Conectividad",
+					"value": "Wi-Fi"
+				},
+				{
+					"id": "2",
+					"key": "Resolución",
+					"value": "1080p"
+				},
+				{
+					"id": "3",
+					"key": "Visión Nocturna",
+					"value": "Sí"
+				}
+			],
+			"category": "Cámaras"
+		},
+		{
+			"raw": "ANTIVIRUS, KASPERSKY STANDARD  / 1 dispositivo / 1 año / base - KL1041DDAFS",
+			"rawPrice": "85.00",
+			"aiName": "Antivirus Kaspersky Standard 1 Dispositivo 1 Año",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "Antivirus"
+				},
+				{
+					"id": "2",
+					"key": "Dispositivos",
+					"value": "1"
+				},
+				{
+					"id": "3",
+					"key": "Duración",
+					"value": "1 año"
+				}
+			],
+			"category": "Cámaras"
+		},
+		{
+			"raw": "HOME SMART, NEXXT,  NHB-C120 3PK Smart LED BULB RGB Color 220v",
+			"rawPrice": "96.00",
+			"aiName": "Bombilla LED Smart Nexxt NHB-C120 3PK RGB Color 220V",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "Bombilla LED Smart"
+				},
+				{
+					"id": "2",
+					"key": "Color",
+					"value": "RGB"
+				},
+				{
+					"id": "3",
+					"key": "Voltaje",
+					"value": "220V"
+				},
+				{
+					"id": "4",
+					"key": "Cantidad",
+					"value": "3PK"
+				}
+			],
+			"category": "Cámaras"
+		},
+		{
+			"raw": "WEB CAM, LOGITECH, BRIO 300 FHD 1080P USB-C WHITE",
+			"rawPrice": "231.00",
+			"aiName": "Cámara Web Logitech Brio 300 FHD 1080P USB-C Blanca",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Resolución",
+					"value": "FHD 1080P"
+				},
+				{
+					"id": "2",
+					"key": "Conectividad",
+					"value": "USB-C"
+				},
+				{
+					"id": "3",
+					"key": "Color",
+					"value": "Blanco"
+				}
+			],
+			"category": "Cámaras Web"
+		},
+		{
+			"raw": "WEB CAM, LOGITECH, BRIO 500 FULL HD 1080P USB-C WHITE",
+			"rawPrice": "433.00",
+			"aiName": "Cámara Web Logitech Brio 500 Full HD 1080P USB-C Blanca",
+			"specs": [
+				{
+					"id": "resolucion",
+					"key": "Resolución",
+					"value": "Full HD 1080P"
+				},
+				{
+					"id": "conexion",
+					"key": "Conexión",
+					"value": "USB-C"
+				},
+				{
+					"id": "color",
+					"key": "Color",
+					"value": "Blanco"
+				}
+			],
+			"category": "Cámaras Web"
+		},
+		{
+			"raw": "WEB CAM, LOGITECH, C920S PRO HD BLACK",
+			"rawPrice": "267.00",
+			"aiName": "Cámara Web Logitech C920S Pro HD Negra",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Resolución",
+					"value": "1080p HD"
+				},
+				{
+					"id": "2",
+					"key": "Color",
+					"value": "Negro"
+				},
+				{
+					"id": "3",
+					"key": "Conectividad",
+					"value": "USB"
+				}
+			],
+			"category": "Cámaras Web"
+		},
+		{
+			"raw": "CARGADOR, UGREEN, NEXODE 100W DESKTOP CHARGER US",
+			"rawPrice": "213.00",
+			"aiName": "Cargador de Escritorio Ugreen Nexode 100W",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Potencia",
+					"value": "100W"
+				},
+				{
+					"id": "2",
+					"key": "Conectores",
+					"value": "USB-C"
+				},
+				{
+					"id": "3",
+					"key": "Tipo",
+					"value": "Escritorio"
+				}
+			],
+			"category": "Cargadores"
+		},
+		{
+			"raw": "CARGADOR, HP GENERICO, 19.5V 3.33A 65W 4.5*3.0 PUNTA AZUL",
+			"rawPrice": "19.00",
+			"aiName": "Cargador para Laptop HP Genérico 19.5V 3.33A 65W Punta Azul",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Voltaje",
+					"value": "19.5V"
+				},
+				{
+					"id": "2",
+					"key": "Amperaje",
+					"value": "3.33A"
+				},
+				{
+					"id": "3",
+					"key": "Potencia",
+					"value": "65W"
+				},
+				{
+					"id": "4",
+					"key": "Conector",
+					"value": "4.5*3.0"
+				}
+			],
+			"category": "Cargadores"
+		},
+		{
+			"raw": "CARGADOR, LENOVO GENERICO, 20V 3.25A 65W USB",
+			"rawPrice": "19.00",
+			"aiName": "Cargador para Laptop Lenovo Genérico 20V 3.25A 65W",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Voltaje",
+					"value": "20V"
+				},
+				{
+					"id": "2",
+					"key": "Amperaje",
+					"value": "3.25A"
+				},
+				{
+					"id": "3",
+					"key": "Potencia",
+					"value": "65W"
+				}
+			],
+			"category": "Cargadores"
+		},
+		{
+			"raw": "CASE GAMER, THERMALTAKE, V200 TG RGB EDITION + 600W 80+ WHITE ATX ACRILICO CON FUENTE BLACK",
+			"rawPrice": "520.00",
+			"aiName": "Case Gamer Thermaltake V200 TG RGB Edition",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "ATX"
+				},
+				{
+					"id": "2",
+					"key": "Color",
+					"value": "Negro"
+				},
+				{
+					"id": "3",
+					"key": "Fuente",
+					"value": "600W 80+ White"
+				}
+			],
+			"category": "Cases"
+		},
+		{
+			"raw": "CASE GAMER, GAMEMAX, BLADE CONCEPT AURA SYNC",
+			"rawPrice": "909.00",
+			"aiName": "Case Gamer Gamemax Blade Concept Aura Sync",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "ATX"
+				},
+				{
+					"id": "2",
+					"key": "Color",
+					"value": "Negro"
+				},
+				{
+					"id": "3",
+					"key": "Compatibilidad",
+					"value": "Placas madre ATX, Micro-ATX, Mini-ITX"
+				},
+				{
+					"id": "4",
+					"key": "Ventilación",
+					"value": "Soporte para ventiladores de 120mm y 140mm"
+				},
+				{
+					"id": "5",
+					"key": "Iluminación",
+					"value": "Aura Sync RGB"
+				}
+			],
+			"category": "Cases"
+		},
+		{
+			"raw": "CASE GAMER, ENKORE, FALCON ENK 5000 3FAN\tWHITE",
+			"rawPrice": "82.00",
+			"aiName": "Case Gamer Enkore Falcon ENK 5000 3Fan White",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Color",
+					"value": "Blanco"
+				},
+				{
+					"id": "2",
+					"key": "Ventiladores",
+					"value": "3"
+				},
+				{
+					"id": "3",
+					"key": "Modelo",
+					"value": "ENK 5000"
+				}
+			],
+			"category": "Cases"
+		},
+		{
+			"raw": "TARJETA DE RED, TP-LINK, ARCHER TBE400E NBE6500 TRI-BAND WIFI-7 BLT PCI",
+			"rawPrice": "154.00",
+			"aiName": "Tarjeta de Red TP-Link Archer TBE400E NBE6500 Tri-Band WiFi-7",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "Tarjeta de Red"
+				},
+				{
+					"id": "2",
+					"key": "Modelo",
+					"value": "Archer TBE400E NBE6500"
+				},
+				{
+					"id": "3",
+					"key": "Conectividad",
+					"value": "Tri-Band WiFi-7"
+				},
+				{
+					"id": "4",
+					"key": "Interfaz",
+					"value": "PCI"
+				}
+			],
+			"category": "Componentes CPU"
+		},
+		{
+			"raw": "COOLER RGBFORCE-PRO HALO GAMEMAX",
+			"rawPrice": "31.00",
+			"aiName": "Cooler RGBFORCE-PRO Halo",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "Cooler RGB"
+				},
+				{
+					"id": "2",
+					"key": "Compatibilidad",
+					"value": "Universal"
+				},
+				{
+					"id": "3",
+					"key": "Iluminación",
+					"value": "RGB"
+				},
+				{
+					"id": "4",
+					"key": "Dimensiones",
+					"value": "120mm"
+				}
+			],
+			"category": "Coolers"
+		},
+		{
+			"raw": "REFRIGERACION POR AIRE ABKO ST120X5",
+			"rawPrice": "61.00",
+			"aiName": "Cooler ABKO ST120X5",
+			"specs": [],
+			"category": "Coolers"
+		},
+		{
+			"raw": "REFRIGERACION LIQUIDA, DEEP COOL, LE240 V2  WHITE\t",
+			"rawPrice": "265.00",
+			"aiName": "Refrigeración Líquida Deep Cool LE240 V2 White",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "LE240 V2 White"
+				},
+				{
+					"id": "2",
+					"key": "Tipo",
+					"value": "Refrigeración líquida"
+				},
+				{
+					"id": "3",
+					"key": "Compatibilidad",
+					"value": "Sockets Intel y AMD"
+				}
+			],
+			"category": "Coolers"
+		},
+		{
+			"raw": "SSD, M2 ARES AETHON 1TB NVME 1.5 12000MB",
+			"rawPrice": "659.00",
+			"aiName": "Disco SSD M2 ARES AETHON 1TB NVME",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Capacidad",
+					"value": "1TB"
+				},
+				{
+					"id": "2",
+					"key": "Interfaz",
+					"value": "NVME"
+				},
+				{
+					"id": "3",
+					"key": "Velocidad de lectura",
+					"value": "12000MB/s"
+				}
+			],
+			"category": "Discos SSD"
+		},
+		{
+			"raw": "SSD CRUCIAL X9 PORTANLE  2TB",
+			"rawPrice": "839.00",
+			"aiName": "Disco SSD Portable Crucial X9 2TB",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Capacidad",
+					"value": "2TB"
+				},
+				{
+					"id": "2",
+					"key": "Tipo",
+					"value": "SSD Portable"
+				}
+			],
+			"category": "Discos SSD"
+		},
+		{
+			"raw": "SSD M.2 HIKSEMI WAVE 256GB NVME 3500MB",
+			"rawPrice": "180.00",
+			"aiName": "Disco SSD M.2 HIKSEMI WAVE 256GB NVME",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Capacidad",
+					"value": "256GB"
+				},
+				{
+					"id": "2",
+					"key": "Interfaz",
+					"value": "NVME"
+				},
+				{
+					"id": "3",
+					"key": "Velocidad de lectura",
+					"value": "3500MB/s"
+				}
+			],
+			"category": "Discos SSD"
+		},
+		{
+			"raw": "ESTABILIZADOR OMEGA 4A2K03 PCG2000 1000VA/220V",
+			"rawPrice": "34.00",
+			"aiName": "Estabilizador Omega 1000VA 220V",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Capacidad",
+					"value": "1000VA"
+				},
+				{
+					"id": "2",
+					"key": "Voltaje",
+					"value": "220V"
+				}
+			],
+			"category": "Estabilizadores"
+		},
+		{
+			"raw": "UPS ,CDP, R-UPR5081 500VA/240W 20MIN\t",
+			"rawPrice": "135.00",
+			"aiName": "UPS CDP R-UPR5081 500VA",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Capacidad",
+					"value": "500VA"
+				},
+				{
+					"id": "2",
+					"key": "Potencia",
+					"value": "240W"
+				},
+				{
+					"id": "3",
+					"key": "Tiempo de respaldo",
+					"value": "20 minutos"
+				}
+			],
+			"category": "Estabilizadores"
+		},
+		{
+			"raw": "ESTABILIZADOR SOLIDO, POWER ESTABILIZER, 1.0KVA 2TRIAC PVC",
+			"rawPrice": "88.00",
+			"aiName": "Estabilizador Sólido Power Estabilizer 1.0KVA",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Potencia",
+					"value": "1.0KVA"
+				},
+				{
+					"id": "2",
+					"key": "Tipo",
+					"value": "2TRIAC"
+				},
+				{
+					"id": "3",
+					"key": "Material",
+					"value": "PVC"
+				}
+			],
+			"category": "Estabilizadores"
+		},
+		{
+			"raw": "FUENTE DE PODER, GIGABYTE, 550W 80+ SILVER GP-550SS ICE",
+			"rawPrice": "157.00",
+			"aiName": "Fuente de Poder Gigabyte 550W 80+ Silver GP-550SS ICE",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Potencia",
+					"value": "550W"
+				},
+				{
+					"id": "2",
+					"key": "Certificación",
+					"value": "80+ Silver"
+				}
+			],
+			"category": "Fuentes de Poder"
+		},
+		{
+			"raw": "FUENTE DE PODER, ANTRYX, XBR-650 650W WHITE 80+ BRONZE",
+			"rawPrice": "172.00",
+			"aiName": "Fuente de Poder Antryx XBR-650 650W White 80+ Bronze",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Potencia",
+					"value": "650W"
+				},
+				{
+					"id": "2",
+					"key": "Certificación",
+					"value": "80+ Bronze"
+				},
+				{
+					"id": "3",
+					"key": "Color",
+					"value": "Blanco"
+				}
+			],
+			"category": "Fuentes de Poder"
+		},
+		{
+			"raw": "FUENTE DE PODER LIAN LI SX 1000 BLACK, 80PLUS Platinum, MODULAR, ATX3.1, PCIE 5.1 (SX1000P.B0)",
+			"rawPrice": "685.00",
+			"aiName": "Fuente de Poder Lian Li SX 1000 Black",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Eficiencia",
+					"value": "80PLUS Platinum"
+				},
+				{
+					"id": "2",
+					"key": "Tipo",
+					"value": "Modular"
+				},
+				{
+					"id": "3",
+					"key": "Formato",
+					"value": "ATX3.1"
+				},
+				{
+					"id": "4",
+					"key": "Conectores",
+					"value": "PCIE 5.1"
+				}
+			],
+			"category": "Fuentes de Poder"
+		},
+		{
+			"raw": "IMPRESORA BROTHER MULTIFUNCIONAL DCP-T420W WIFI",
+			"rawPrice": "595.00",
+			"aiName": "Impresora Multifuncional Brother DCP-T420W WiFi",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Conectividad",
+					"value": "WiFi"
+				},
+				{
+					"id": "2",
+					"key": "Funciones",
+					"value": "Impresión, Escaneo, Copiado"
+				},
+				{
+					"id": "3",
+					"key": "Modelo",
+					"value": "DCP-T420W"
+				}
+			],
+			"category": "Impresoras"
+		},
+		{
+			"raw": "IMPRESORA, SAT, MOVIL AF230, VEL DE IMPRESION 100 MM/S, IMP PAPEL Y ETIQUETA, BLUETOOTH Y USB, COMPATIBILIDAD CON ANDROID, DURACION BATERIA 8 HORAS APROX",
+			"rawPrice": "469.00",
+			"aiName": "Impresora SAT Móvil AF230",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Velocidad de impresión",
+					"value": "100 mm/s"
+				},
+				{
+					"id": "2",
+					"key": "Conectividad",
+					"value": "Bluetooth y USB"
+				},
+				{
+					"id": "3",
+					"key": "Compatibilidad",
+					"value": "Android"
+				},
+				{
+					"id": "4",
+					"key": "Duración de batería",
+					"value": "8 horas aprox"
+				}
+			],
+			"category": "Impresoras"
+		},
+		{
+			"raw": " Impresora EPSON WorkForce Pro WF-C5810",
+			"rawPrice": "1720.00",
+			"aiName": "Impresora Epson WorkForce Pro WF-C5810",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo de impresión",
+					"value": "Inyección de tinta"
+				},
+				{
+					"id": "2",
+					"key": "Conectividad",
+					"value": "USB, Ethernet, Wi-Fi"
+				},
+				{
+					"id": "3",
+					"key": "Resolución de impresión",
+					"value": "4800 x 1200 dpi"
+				},
+				{
+					"id": "4",
+					"key": "Velocidad de impresión",
+					"value": "24 ppm en negro, 24 ppm en color"
+				},
+				{
+					"id": "5",
+					"key": "Capacidad de papel",
+					"value": "250 hojas"
+				}
+			],
+			"category": "Impresoras"
+		},
+		{
+			"raw": "LAPTOP, LENOVO IDEADPAD SLIM 3 15IRH10 I5 13420H 8G, 512GB SSD, 15.3 TOUCH WUXGA ",
+			"rawPrice": "2119.00",
+			"aiName": "Laptop Lenovo IdeaPad Slim 3 15IRH10 i5 13420H 8GB 512GB SSD 15.3\" Touch WUXGA",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Procesador",
+					"value": "Intel Core i5 13420H"
+				},
+				{
+					"id": "2",
+					"key": "Memoria RAM",
+					"value": "8GB"
+				},
+				{
+					"id": "3",
+					"key": "Almacenamiento",
+					"value": "512GB SSD"
+				},
+				{
+					"id": "4",
+					"key": "Pantalla",
+					"value": "15.3\" Touch WUXGA"
+				}
+			],
+			"category": "Laptops"
+		},
+		{
+			"raw": "LAPTOP, ASUS TUF GAMING 90NR0JF7-M00SP0,  RYZEN 7 8845HS, 8GB DDR5, 512GB SSD, RTX3050 4GB, 15.6¨ FHD, ESP, MOCHILA+MOUSE",
+			"rawPrice": "3128.00",
+			"aiName": "Laptop ASUS TUF Gaming 90NR0JF7-M00SP0 Ryzen 7 8845HS 8GB DDR5 512GB SSD RTX3050 4GB 15.6\" FHD",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Procesador",
+					"value": "Ryzen 7 8845HS"
+				},
+				{
+					"id": "2",
+					"key": "Memoria RAM",
+					"value": "8GB DDR5"
+				},
+				{
+					"id": "3",
+					"key": "Almacenamiento",
+					"value": "512GB SSD"
+				},
+				{
+					"id": "4",
+					"key": "Tarjeta Gráfica",
+					"value": "RTX3050 4GB"
+				},
+				{
+					"id": "5",
+					"key": "Pantalla",
+					"value": "15.6\" FHD"
+				}
+			],
+			"category": "Laptops"
+		},
+		{
+			"raw": "LAPTOP LENOVO IDEAPAD 5 2 EN 1 RYZEN AI 7 350 16GB D5 512GB NVMe 14P TACTIL 360",
+			"rawPrice": "3363.00",
+			"aiName": "Laptop Lenovo IdeaPad 5 2 en 1 Ryzen AI 7 350 16GB D5 512GB NVMe 14\" Táctil 360",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Procesador",
+					"value": "Ryzen AI 7 350"
+				},
+				{
+					"id": "2",
+					"key": "Memoria RAM",
+					"value": "16GB D5"
+				},
+				{
+					"id": "3",
+					"key": "Almacenamiento",
+					"value": "512GB NVMe"
+				},
+				{
+					"id": "4",
+					"key": "Tamaño de pantalla",
+					"value": "14\""
+				},
+				{
+					"id": "5",
+					"key": "Tipo de pantalla",
+					"value": "Táctil"
+				},
+				{
+					"id": "6",
+					"key": "Función",
+					"value": "2 en 1"
+				},
+				{
+					"id": "7",
+					"key": "Rotación",
+					"value": "360 grados"
+				}
+			],
+			"category": "Laptops"
+		},
+		{
+			"raw": "MEMORIA RAM CORSAIR VENGEANCE 32GB(2x16) 6000MHZ DDR5 RGB WHITE",
+			"rawPrice": "1590.00",
+			"aiName": "Memoria RAM Corsair Vengeance 32GB (2x16) 6000MHz DDR5 RGB Blanca",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Capacidad",
+					"value": "32GB (2x16GB)"
+				},
+				{
+					"id": "2",
+					"key": "Velocidad",
+					"value": "6000MHz"
+				},
+				{
+					"id": "3",
+					"key": "Tipo",
+					"value": "DDR5"
+				},
+				{
+					"id": "4",
+					"key": "Color",
+					"value": "Blanco"
+				}
+			],
+			"category": "Memorias RAM"
+		},
+		{
+			"raw": "MEMORIA RAM CORSAIR 16GB 6000MHz VENGEANCE BLACK",
+			"rawPrice": "912.00",
+			"aiName": "Memoria RAM Corsair Vengeance 16GB 6000MHz Black",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Capacidad",
+					"value": "16GB"
+				},
+				{
+					"id": "2",
+					"key": "Frecuencia",
+					"value": "6000MHz"
+				},
+				{
+					"id": "3",
+					"key": "Color",
+					"value": "Black"
+				}
+			],
+			"category": "Memorias RAM"
+		},
+		{
+			"raw": "MEMORIA RAM, KINGSTON , FURY BEAST 8GB 3200MHZ DDR4",
+			"rawPrice": "285.00",
+			"aiName": "Memoria RAM Kingston Fury Beast 8GB 3200MHz DDR4",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Capacidad",
+					"value": "8GB"
+				},
+				{
+					"id": "2",
+					"key": "Tipo",
+					"value": "DDR4"
+				},
+				{
+					"id": "3",
+					"key": "Velocidad",
+					"value": "3200MHz"
+				}
+			],
+			"category": "Memorias RAM"
+		},
+		{
+			"raw": "MICROFONO, RAZER, SEIREN MINI MERC\t",
+			"rawPrice": "172.00",
+			"aiName": "Micrófono Razer Seiren Mini Merc",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "Condensador"
+				},
+				{
+					"id": "2",
+					"key": "Patrón Polar",
+					"value": "Supercardioide"
+				},
+				{
+					"id": "3",
+					"key": "Conexión",
+					"value": "USB"
+				},
+				{
+					"id": "4",
+					"key": "Frecuencia de Respuesta",
+					"value": "20Hz - 20kHz"
+				}
+			],
+			"category": "Micrófonos"
+		},
+		{
+			"raw": "MICROFONO, HAVIT, GK50 PRO RGB CON BRAZO",
+			"rawPrice": "95.00",
+			"aiName": "Micrófono Havit GK50 Pro RGB con Brazo",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "Condensador"
+				},
+				{
+					"id": "2",
+					"key": "Conectividad",
+					"value": "USB"
+				},
+				{
+					"id": "3",
+					"key": "Iluminación",
+					"value": "RGB"
+				},
+				{
+					"id": "4",
+					"key": "Accesorios",
+					"value": "Brazo ajustable"
+				}
+			],
+			"category": "Micrófonos"
+		},
+		{
+			"raw": "MICROFONO, RAZER, SEIREN V3 CHROMA SUPERCRDIOIDE WHITE",
+			"rawPrice": "442.00",
+			"aiName": "Micrófono Razer Seiren V3 Chroma Supercardioide White",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "Supercardioide"
+				},
+				{
+					"id": "2",
+					"key": "Color",
+					"value": "Blanco"
+				}
+			],
+			"category": "Micrófonos"
+		},
+		{
+			"raw": "MOCHILA,  TEROS, BACKPACK TRAVEL 15.6 BRW",
+			"rawPrice": "24.00",
+			"aiName": "Mochila Teros Backpack Travel 15.6 BRW",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tamaño",
+					"value": "15.6 pulgadas"
+				},
+				{
+					"id": "2",
+					"key": "Color",
+					"value": "BRW"
+				}
+			],
+			"category": "Mochilas"
+		},
+		{
+			"raw": "MOCHILA, TEROS, CITY BROWN  9023GR",
+			"rawPrice": "25.00",
+			"aiName": "Mochila City Brown",
+			"specs": [],
+			"category": "Mochilas"
+		},
+		{
+			"raw": "MONITOR TEROS 27P 2714S 144HZ 1MS IPS FHD",
+			"rawPrice": "317.00",
+			"aiName": "Monitor Teros 27P 2714S 144Hz 1ms IPS FHD",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tamaño",
+					"value": "27 pulgadas"
+				},
+				{
+					"id": "2",
+					"key": "Frecuencia de actualización",
+					"value": "144Hz"
+				},
+				{
+					"id": "3",
+					"key": "Tiempo de respuesta",
+					"value": "1ms"
+				},
+				{
+					"id": "4",
+					"key": "Tipo de panel",
+					"value": "IPS"
+				},
+				{
+					"id": "5",
+					"key": "Resolución",
+					"value": "FHD"
+				}
+			],
+			"category": "Monitores"
+		},
+		{
+			"raw": "MONITOR GAMER , ASUS, VG259Q5A 24,5P 200HZ 1MS ,",
+			"rawPrice": "467.00",
+			"aiName": "Monitor Gamer ASUS VG259Q5A 24.5\" 200Hz 1ms",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tamaño",
+					"value": "24.5\""
+				},
+				{
+					"id": "2",
+					"key": "Tasa de refresco",
+					"value": "200Hz"
+				},
+				{
+					"id": "3",
+					"key": "Tiempo de respuesta",
+					"value": "1ms"
+				}
+			],
+			"category": "Monitores"
+		},
+		{
+			"raw": "MONITOR GAMER, TEROS,  24P  FHD 100HZ 1MS 2416CS",
+			"rawPrice": "250.00",
+			"aiName": "Monitor Gamer Teros 24P FHD 100Hz 1ms",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tamaño",
+					"value": "24 pulgadas"
+				},
+				{
+					"id": "2",
+					"key": "Resolución",
+					"value": "FHD"
+				},
+				{
+					"id": "3",
+					"key": "Frecuencia de actualización",
+					"value": "100Hz"
+				},
+				{
+					"id": "4",
+					"key": "Tiempo de respuesta",
+					"value": "1ms"
+				}
+			],
+			"category": "Monitores"
+		},
+		{
+			"raw": "PAD MOUSE, RAZER, GIGANTUS V2 SOFT 3XL BLACK",
+			"rawPrice": "159.00",
+			"aiName": "Mouse Pad Razer Gigantus V2 Soft 3XL Negro",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Dimensiones",
+					"value": "3XL"
+				},
+				{
+					"id": "2",
+					"key": "Color",
+					"value": "Negro"
+				}
+			],
+			"category": "Mouses"
+		},
+		{
+			"raw": "MOUSE, LOGITECH, MX ANYWHERE 3S PALE GRAY",
+			"rawPrice": "299.00",
+			"aiName": "Mouse Logitech MX Anywhere 3S Pale Gray",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Color",
+					"value": "Pale Gray"
+				},
+				{
+					"id": "2",
+					"key": "Tipo",
+					"value": "Inalámbrico"
+				},
+				{
+					"id": "3",
+					"key": "Conectividad",
+					"value": "Bluetooth y USB"
+				},
+				{
+					"id": "4",
+					"key": "Resolución",
+					"value": "4000 DPI"
+				}
+			],
+			"category": "Mouses"
+		},
+		{
+			"raw": "MOUSE, GENIUS, DX-110 USB OPTICO 1000 DPI BLACK",
+			"rawPrice": "12.00",
+			"aiName": "Mouse Óptico Genius DX-110 USB 1000 DPI Negro",
+			"specs": [
+				{
+					"id": "dpi",
+					"key": "DPI",
+					"value": "1000"
+				},
+				{
+					"id": "color",
+					"key": "Color",
+					"value": "Negro"
+				}
+			],
+			"category": "Mouses"
+		},
+		{
+			"raw": "SILLA GAMER, ENKORE, BRAVIO GC1002 ORANGE",
+			"rawPrice": "348.00",
+			"aiName": "Silla Gamer Enkore Bravio GC1002 Naranja",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "GC1002"
+				},
+				{
+					"id": "2",
+					"key": "Color",
+					"value": "Naranja"
+				}
+			],
+			"category": "Muebles"
+		},
+		{
+			"raw": "SILLA GAMER, HALION, ACE AG-101  MORADA DESCANSA  PIE",
+			"rawPrice": "300.00",
+			"aiName": "Silla Gamer Halion Ace AG-101 Morada",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Color",
+					"value": "Morado"
+				},
+				{
+					"id": "2",
+					"key": "Tipo",
+					"value": "Silla Gamer"
+				},
+				{
+					"id": "3",
+					"key": "Modelo",
+					"value": "Ace AG-101"
+				}
+			],
+			"category": "Muebles"
+		},
+		{
+			"raw": "SILLA GAMER, THERMALTAKE, COMFORT  BLACK AND RED CLASE 4\t",
+			"rawPrice": "1045.00",
+			"aiName": "Silla Gamer Thermaltake Comfort Negra y Roja Clase 4",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Color",
+					"value": "Negro y Rojo"
+				},
+				{
+					"id": "2",
+					"key": "Clase",
+					"value": "4"
+				}
+			],
+			"category": "Muebles"
+		},
+		{
+			"raw": "PARLANTE, HOPESTAR, P32 BBLUE ",
+			"rawPrice": "54.00",
+			"aiName": "Parlante HopeStar P32 BBLUE",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "P32 BBLUE"
+				},
+				{
+					"id": "2",
+					"key": "Conectividad",
+					"value": "Bluetooth"
+				},
+				{
+					"id": "3",
+					"key": "Color",
+					"value": "Azul"
+				}
+			],
+			"category": "Parlantes"
+		},
+		{
+			"raw": "PARLANTE, TEROS, TE6047 20W",
+			"rawPrice": "35.00",
+			"aiName": "Parlante Teros TE6047 20W",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Potencia",
+					"value": "20W"
+				},
+				{
+					"id": "2",
+					"key": "Conectividad",
+					"value": "Bluetooth"
+				},
+				{
+					"id": "3",
+					"key": "Dimensiones",
+					"value": "30 x 15 x 15 cm"
+				}
+			],
+			"category": "Parlantes"
+		},
+		{
+			"raw": "PARLANTE, HALION, BARRA DE SONIDO HA-SD55 RGB BT",
+			"rawPrice": "47.00",
+			"aiName": "Parlante Halion Barra de Sonido HA-SD55 RGB BT",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Conectividad",
+					"value": "Bluetooth"
+				},
+				{
+					"id": "2",
+					"key": "RGB",
+					"value": "Sí"
+				}
+			],
+			"category": "Parlantes"
+		},
+		{
+			"raw": "PASTA TERMICA, CORSAIR, TM-30 CT-9010001-WW",
+			"rawPrice": "19.00",
+			"aiName": "Pasta Térmica Corsair TM-30",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "TM-30"
+				},
+				{
+					"id": "2",
+					"key": "Código Interno",
+					"value": "CT-9010001-WW"
+				}
+			],
+			"category": "Pasta Termica"
+		},
+		{
+			"raw": "PASTA TERMICA, ANTRYX, TP-520 4GR\t",
+			"rawPrice": "21.00",
+			"aiName": "Pasta Térmica Antryx TP-520 4GR",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Cantidad",
+					"value": "4 gramos"
+				}
+			],
+			"category": "Pasta Termica"
+		},
+		{
+			"raw": "PASTA TERMICA , COOLER MASTWER, CRYOFUZE",
+			"rawPrice": "36.00",
+			"aiName": "Pasta Térmica Cooler Master Cryofuze",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "Pasta Térmica"
+				},
+				{
+					"id": "2",
+					"key": "Compatibilidad",
+					"value": "Procesadores y Coolers"
+				},
+				{
+					"id": "3",
+					"key": "Cantidad",
+					"value": "1g"
+				}
+			],
+			"category": "Pasta Termica"
+		},
+		{
+			"raw": "KIT GAMER, HALION, TECLADO MECANICO + MOUSE GAMER PEGASO HA-861C RAINBOW",
+			"rawPrice": "81.00",
+			"aiName": "Teclado Mecánico Halion Pegaso HA-861C Rainbow",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo de Teclado",
+					"value": "Mecánico"
+				},
+				{
+					"id": "2",
+					"key": "Retroiluminación",
+					"value": "RGB"
+				},
+				{
+					"id": "3",
+					"key": "Modelo",
+					"value": "HA-861C"
+				},
+				{
+					"id": "4",
+					"key": "Incluye Mouse",
+					"value": "Sí"
+				}
+			],
+			"category": "Periféricos"
+		},
+		{
+			"raw": "TECLADO GENIUS + MOUSE WIRELESS LUXEMATE Q8100 AI COPILOT COMPAC",
+			"rawPrice": "59.00",
+			"aiName": "Teclado Genius Luxemate Q8100 AI Copilot",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo",
+					"value": "Teclado y Mouse Inalámbrico"
+				},
+				{
+					"id": "2",
+					"key": "Conectividad",
+					"value": "Inalámbrica"
+				},
+				{
+					"id": "3",
+					"key": "Compatibilidad",
+					"value": "Windows, Mac"
+				},
+				{
+					"id": "4",
+					"key": "Color",
+					"value": "Negro"
+				}
+			],
+			"category": "Periféricos"
+		},
+		{
+			"raw": "MOUSE PAD STD TE3018 BK",
+			"rawPrice": "15.00",
+			"aiName": "Mouse Pad Estándar TE3018 Negro",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "TE3018"
+				},
+				{
+					"id": "2",
+					"key": "Color",
+					"value": "Negro"
+				}
+			],
+			"category": "Periféricos"
+		},
+		{
+			"raw": "MBB H810M-K LGA 1851 INTEL GIGABYTE",
+			"rawPrice": "323.00",
+			"aiName": "Placa Madre Gigabyte H810M-K LGA 1851",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Socket",
+					"value": "LGA 1851"
+				},
+				{
+					"id": "2",
+					"key": "Compatibilidad",
+					"value": "Procesadores Intel"
+				}
+			],
+			"category": "Placas Madre"
+		},
+		{
+			"raw": "MBB, MSI, B860M GAMING PLUS WIFI DDR5",
+			"rawPrice": "657.00",
+			"aiName": "Placa Madre MSI B860M GAMING PLUS WIFI DDR5",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Formato",
+					"value": "Micro ATX"
+				},
+				{
+					"id": "2",
+					"key": "Socket",
+					"value": "LGA 1700"
+				},
+				{
+					"id": "3",
+					"key": "Memoria Soportada",
+					"value": "DDR5"
+				},
+				{
+					"id": "4",
+					"key": "Conectividad",
+					"value": "WiFi integrado"
+				},
+				{
+					"id": "5",
+					"key": "Puertos USB",
+					"value": "USB 3.2 Gen 1"
+				},
+				{
+					"id": "6",
+					"key": "Slots PCIe",
+					"value": "PCIe 4.0"
+				}
+			],
+			"category": "Placas Madre"
+		},
+		{
+			"raw": "MBB, GIGABYTE, Z790 AORUS ELITE AX  DDR5",
+			"rawPrice": "972.00",
+			"aiName": "Placa Madre Gigabyte Z790 AORUS ELITE AX DDR5",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Chipset",
+					"value": "Z790"
+				},
+				{
+					"id": "2",
+					"key": "Formato",
+					"value": "ATX"
+				},
+				{
+					"id": "3",
+					"key": "Soporte DDR",
+					"value": "DDR5"
+				},
+				{
+					"id": "4",
+					"key": "Conectividad",
+					"value": "Wi-Fi 6E, Bluetooth 5.2"
+				}
+			],
+			"category": "Placas Madre"
+		},
+		{
+			"raw": "PROCESADOR, INTEL, CORE i7 13700F LGA1700 2.1 GZ",
+			"rawPrice": "1257.00",
+			"aiName": "Procesador Intel Core i7 13700F LGA1700 2.1 GHz",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "Core i7 13700F"
+				},
+				{
+					"id": "2",
+					"key": "Socket",
+					"value": "LGA1700"
+				},
+				{
+					"id": "3",
+					"key": "Frecuencia Base",
+					"value": "2.1 GHz"
+				}
+			],
+			"category": "Procesadores"
+		},
+		{
+			"raw": "PROCESADOR, AMD, RYZEN 7 4750G OEM",
+			"rawPrice": "490.00",
+			"aiName": "Procesador AMD Ryzen 7 4750G OEM",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Núcleos",
+					"value": "8"
+				},
+				{
+					"id": "2",
+					"key": "Hilos",
+					"value": "16"
+				},
+				{
+					"id": "3",
+					"key": "Frecuencia base",
+					"value": "3.6 GHz"
+				},
+				{
+					"id": "4",
+					"key": "Frecuencia turbo",
+					"value": "4.4 GHz"
+				},
+				{
+					"id": "5",
+					"key": "Caché",
+					"value": "8 MB L3"
+				},
+				{
+					"id": "6",
+					"key": "TDP",
+					"value": "65W"
+				}
+			],
+			"category": "Procesadores"
+		},
+		{
+			"raw": "PROCESADOR, AMD, RYZEN 5 8600G AM5\t",
+			"rawPrice": "681.00",
+			"aiName": "Procesador AMD Ryzen 5 8600G AM5",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "Ryzen 5 8600G"
+				},
+				{
+					"id": "2",
+					"key": "Socket",
+					"value": "AM5"
+				}
+			],
+			"category": "Procesadores"
+		},
+		{
+			"raw": "PROYECTOR, HAVIT, PJ300 PRO ANDROID - TV 9.0, LCD DISPLAY, 4K, 120",
+			"rawPrice": "958.00",
+			"aiName": "Proyector Havit PJ300 Pro Android 9.0 4K",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Resolución",
+					"value": "4K"
+				},
+				{
+					"id": "2",
+					"key": "Sistema Operativo",
+					"value": "Android 9.0"
+				},
+				{
+					"id": "3",
+					"key": "Tipo de Pantalla",
+					"value": "LCD"
+				}
+			],
+			"category": "Proyectores"
+		},
+		{
+			"raw": "PROYECTOR, HAVIT, PJ209 PRO 1980P FHD, WIFI, HDMI, ANDROID TV  WHITE",
+			"rawPrice": "741.00",
+			"aiName": "Proyector Havit PJ209 Pro 1980P FHD Blanco",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Resolución",
+					"value": "1980P FHD"
+				},
+				{
+					"id": "2",
+					"key": "Conectividad",
+					"value": "WiFi, HDMI"
+				},
+				{
+					"id": "3",
+					"key": "Color",
+					"value": "Blanco"
+				}
+			],
+			"category": "Proyectores"
+		},
+		{
+			"raw": "PROYECTOR, HAVIT, PJ209A PRO BLANCO 450ANSILUMENES 4K ANDROID 9.0",
+			"rawPrice": "693.00",
+			"aiName": "Proyector Havit PJ209A Pro Blanco 450 Ansi Lúmenes 4K Android 9.0",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Resolución",
+					"value": "4K"
+				},
+				{
+					"id": "2",
+					"key": "Brillo",
+					"value": "450 ANSI Lúmenes"
+				},
+				{
+					"id": "3",
+					"key": "Sistema Operativo",
+					"value": "Android 9.0"
+				}
+			],
+			"category": "Proyectores"
+		},
+		{
+			"raw": "SWITCH, TP LINK, TL-SG104848 48 PUERTOS GIGABIT 10/100/1000 ",
+			"rawPrice": "829.00",
+			"aiName": "Switch TP-Link TL-SG1048 48 Puertos Gigabit",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Puertos",
+					"value": "48"
+				},
+				{
+					"id": "2",
+					"key": "Tipo de puerto",
+					"value": "Gigabit 10/100/1000"
+				}
+			],
+			"category": "Switches"
+		},
+		{
+			"raw": "SWITCH, TP LINK, TL-SG1024D  24 PUERTOS 10/100/1000 ",
+			"rawPrice": "282.00",
+			"aiName": "Switch TP-Link TL-SG1024D 24 Puertos 10/100/1000",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Puertos",
+					"value": "24"
+				},
+				{
+					"id": "2",
+					"key": "Velocidad",
+					"value": "10/100/1000 Mbps"
+				}
+			],
+			"category": "Switches"
+		},
+		{
+			"raw": "SWITCH, TP LINK, DS108G OMADA 8 PORT GIGABIT DESKTOP",
+			"rawPrice": "84.00",
+			"aiName": "Switch TP-Link DS108G Omada 8 Port Gigabit",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Puertos",
+					"value": "8"
+				},
+				{
+					"id": "2",
+					"key": "Tipo de conexión",
+					"value": "Gigabit"
+				},
+				{
+					"id": "3",
+					"key": "Modelo",
+					"value": "DS108G"
+				}
+			],
+			"category": "Switches"
+		},
+		{
+			"raw": "TARJETA DE VIDEO, MSI SHADOW 2X, RTX 5060 8GB GDDR6 OC BLACK",
+			"rawPrice": "1589.00",
+			"aiName": "Tarjeta de Video MSI Shadow 2X RTX 5060 8GB GDDR6 OC Black",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "Shadow 2X RTX 5060"
+				},
+				{
+					"id": "2",
+					"key": "Memoria",
+					"value": "8GB GDDR6"
+				},
+				{
+					"id": "3",
+					"key": "Color",
+					"value": "Black"
+				}
+			],
+			"category": "Tarjetas de Video"
+		},
+		{
+			"raw": "TARJETA DE VIDEO ZOTAC RTX 5060Ti 8GB GDDR7 AMP",
+			"rawPrice": "1885.00",
+			"aiName": "Tarjeta de Video Zotac RTX 5060Ti 8GB GDDR7 AMP",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Memoria",
+					"value": "8GB GDDR7"
+				},
+				{
+					"id": "2",
+					"key": "Modelo",
+					"value": "RTX 5060Ti"
+				}
+			],
+			"category": "Tarjetas de Video"
+		},
+		{
+			"raw": "TARJETA DE VIDEO, ASUS PRIME RTX 5080 16GB GDDR7",
+			"rawPrice": "6591.00",
+			"aiName": "Tarjeta de Video ASUS PRIME RTX 5080 16GB GDDR7",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Memoria",
+					"value": "16GB GDDR7"
+				},
+				{
+					"id": "2",
+					"key": "Modelo",
+					"value": "PRIME RTX 5080"
+				}
+			],
+			"category": "Tarjetas de Video"
+		},
+		{
+			"raw": "TECLADO MECANICO ANTRYX MK760L BLACK RED SWITCH",
+			"rawPrice": "109.00",
+			"aiName": "Teclado Mecánico Antryx MK760L",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "MK760L"
+				},
+				{
+					"id": "2",
+					"key": "Color",
+					"value": "Negro"
+				},
+				{
+					"id": "3",
+					"key": "Tipo de Switch",
+					"value": "Red"
+				},
+				{
+					"id": "4",
+					"key": "Retroiluminación",
+					"value": "Sí"
+				}
+			],
+			"category": "Teclados"
+		},
+		{
+			"raw": "TECLADO, RAZER BLACKWIDOW V3 TKL MECHANICAL BLACK, SWITCH YELLOW 80M SP CHROMA",
+			"rawPrice": "296.00",
+			"aiName": "Teclado Mecánico Razer BlackWidow V3 TKL",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Modelo",
+					"value": "BlackWidow V3 TKL"
+				},
+				{
+					"id": "2",
+					"key": "Tipo de Switch",
+					"value": "Mecánico Amarillo"
+				},
+				{
+					"id": "3",
+					"key": "Durabilidad de Switch",
+					"value": "80 millones de pulsaciones"
+				},
+				{
+					"id": "4",
+					"key": "Retroiluminación",
+					"value": "Chroma RGB"
+				}
+			],
+			"category": "Teclados"
+		},
+		{
+			"raw": "TECLADO GAMER, CYBERTEL, EXPLORER CBX GK1002 RGB SWITCH BROWN",
+			"rawPrice": "90.00",
+			"aiName": "Teclado Gamer Cybertel Explorer CBX GK1002 RGB Switch Brown",
+			"specs": [
+				{
+					"id": "1",
+					"key": "Tipo de Switch",
+					"value": "Brown"
+				},
+				{
+					"id": "2",
+					"key": "Retroiluminación",
+					"value": "RGB"
+				},
+				{
+					"id": "3",
+					"key": "Conectividad",
+					"value": "USB"
+				},
+				{
+					"id": "4",
+					"key": "Compatibilidad",
+					"value": "Windows, Mac"
+				}
+			],
+			"category": "Teclados"
+		}
+	]
+}
