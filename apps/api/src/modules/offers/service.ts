@@ -539,15 +539,6 @@ async function assignProducts(
 	return { offerId, assignedCount: uniqueProductIds.length };
 }
 
-// ── Get products for an offer (public) ──────────────
-
-async function getProducts(offerId: string) {
-	return db
-		.select({ productId: offerProducts.productId })
-		.from(offerProducts)
-		.where(eq(offerProducts.offerId, offerId));
-}
-
 // ── Get products with details (admin) ───────────────
 
 async function getProductsWithDetails(offerId: string) {
@@ -992,7 +983,6 @@ export const OfferService = {
 	update,
 	delete: deleteById,
 	assignProducts,
-	getProducts,
 	getActiveOffersForProducts,
 	getProductsWithDetails,
 

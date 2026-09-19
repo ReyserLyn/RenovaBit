@@ -100,6 +100,19 @@ export const reportsRoute = new Elysia({ prefix: "/reports" })
 	.get(
 		"/:reportId/changes",
 		async ({ params: { reportId } }) => {
+			// The response schema declares 404 for an unknown report: returning an
+			// empty list would make "this report never existed" indistinguishable
+			// from "this report produced no changes".
+			const report = await ReportsService.getReportById(reportId);
+			if (!report) {
+				throw createApiError({
+					code: BackendErrorCodes.NOT_FOUND_ERROR,
+					message: "Reporte de sincronización no encontrado",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+
 			const changes = await ReportsService.getChangesByReport(reportId);
 			return {
 				changes: changes.map(serializeChange),
