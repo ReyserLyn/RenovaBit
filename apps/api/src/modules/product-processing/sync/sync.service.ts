@@ -18,7 +18,9 @@ import type { ScrapedItem } from "@/modules/scrapping/model";
 import { scrapingService } from "@/modules/scrapping/service";
 import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
+import { buildProductSeo } from "@/utils/product-seo";
 import { extractFromRawName } from "../ai/ai.service";
+import { buildCategoryContext } from "../ai/prompts";
 import { processProductImage, removeImageReviewReason } from "../image-pipeline/process";
 import { isInvalidFeedPrice, parseFeedPrice } from "./feed-price";
 import type { SyncStats } from "./sync.model";
@@ -62,6 +64,8 @@ async function computePricingFromRules(
 	return { supplierPrice: rawPrice, salePrice: salePrice.toFixed(2) };
 }
 
+const PRODUCT_NAME_MAX = 255;
+
 async function ensureUniqueSlug(baseSlug: string, providerId: string): Promise<string> {
 	const [existing] = await db
 		.select({ id: products.id })
@@ -73,25 +77,61 @@ async function ensureUniqueSlug(baseSlug: string, providerId: string): Promise<s
 	return `${baseSlug}-${providerId}`;
 }
 
+/**
+ * `products.name` is UNIQUE and the AI does not guarantee a distinct name per
+ * listing: the same product re-listed under a new providerId (or two raws that
+ * collapse into one name) would otherwise fail the insert on every sync forever.
+ * Suffix the providerId so the row lands and a human can review the duplicate.
+ */
+async function ensureUniqueProductName(
+	baseName: string,
+	providerId: string,
+): Promise<{ name: string; collided: boolean }> {
+	const [existing] = await db
+		.select({ id: products.id })
+		.from(products)
+		.where(eq(products.name, baseName))
+		.limit(1);
+
+	if (!existing) return { name: baseName, collided: false };
+
+	const suffix = ` (${providerId})`;
+	const trimmed = baseName.slice(0, PRODUCT_NAME_MAX - suffix.length);
+	return { name: `${trimmed}${suffix}`, collided: true };
+}
+
+/**
+ * Brand/category creation races under AI_CONCURRENCY: two items can miss on the
+ * SELECT and then both INSERT, and the loser used to lose the whole product.
+ * ON CONFLICT DO NOTHING + re-select keeps the concurrent item alive.
+ */
 async function findOrCreateBrand(name: string): Promise<string | null> {
 	const cleanName = name?.trim();
 	if (!cleanName) return null;
 
 	const brandSlug = makeSlug(cleanName);
+	if (!brandSlug) return null;
+
 	const [existing] = await db
 		.select({ id: brands.id })
 		.from(brands)
 		.where(eq(brands.slug, brandSlug))
 		.limit(1);
-
 	if (existing) return existing.id;
 
 	const [created] = await db
 		.insert(brands)
 		.values({ name: cleanName, slug: brandSlug, isActive: true })
+		.onConflictDoNothing({ target: brands.slug })
 		.returning({ id: brands.id });
+	if (created) return created.id;
 
-	return created?.id ?? null;
+	const [raced] = await db
+		.select({ id: brands.id })
+		.from(brands)
+		.where(eq(brands.slug, brandSlug))
+		.limit(1);
+	return raced?.id ?? null;
 }
 
 async function findOrCreateCategory(name: string): Promise<string | null> {
@@ -99,20 +139,28 @@ async function findOrCreateCategory(name: string): Promise<string | null> {
 	if (!cleanName) return null;
 
 	const categorySlug = makeSlug(cleanName);
+	if (!categorySlug) return null;
+
 	const [existing] = await db
 		.select({ id: categories.id })
 		.from(categories)
 		.where(eq(categories.slug, categorySlug))
 		.limit(1);
-
 	if (existing) return existing.id;
 
 	const [created] = await db
 		.insert(categories)
 		.values({ name: cleanName, slug: categorySlug, isActive: true })
+		.onConflictDoNothing({ target: categories.slug })
 		.returning({ id: categories.id });
+	if (created) return created.id;
 
-	return created?.id ?? null;
+	const [raced] = await db
+		.select({ id: categories.id })
+		.from(categories)
+		.where(eq(categories.slug, categorySlug))
+		.limit(1);
+	return raced?.id ?? null;
 }
 
 async function markMissingImage(productId: string): Promise<void> {
@@ -331,6 +379,7 @@ async function processItem(item: ScrapedItem, reportId: string, stats: SyncStats
 		.select({
 			id: productProviders.id,
 			productId: productProviders.productId,
+			rawName: productProviders.rawName,
 			rawPrice: productProviders.rawPrice,
 			rawStock: productProviders.rawStock,
 			rawImageUrl: productProviders.rawImageUrl,
@@ -359,6 +408,7 @@ async function updateExistingProduct(
 	productId: string,
 	existing: {
 		id: string;
+		rawName: string | null;
 		rawPrice: string | null;
 		rawStock: number | null;
 		rawImageUrl: string | null;
@@ -421,6 +471,27 @@ async function updateExistingProduct(
 			isUnavailable: false,
 		})
 		.where(eq(productProviders.id, existing.id));
+
+	// El proveedor puede corregir el título en el feed. El raw guardado es la
+	// entrada del re-enriquecimiento con IA, así que se refresca siempre y se
+	// deja el evento para que ese proceso repase justo los corregidos.
+	if (item.rawName !== existing.rawName) {
+		await db
+			.update(productProviders)
+			.set({ rawName: item.rawName })
+			.where(eq(productProviders.id, existing.id));
+
+		await db.insert(productChanges).values({
+			productId,
+			syncReportId: reportId,
+			source: "sync",
+			changeType: "raw_name_changed",
+			field: "raw_name",
+			oldValue: { rawName: existing.rawName },
+			newValue: { rawName: item.rawName },
+			reason: "El proveedor actualizó el título en el feed",
+		});
+	}
 
 	// ── Imagen ──────────────────────────────────────
 	let imageChanged = false;
@@ -492,17 +563,22 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 
 	const [existingBrands, existingCategories] = await Promise.all([
 		db.select({ name: brands.name }).from(brands).where(eq(brands.isActive, true)),
-		db.select({ name: categories.name }).from(categories).where(eq(categories.isActive, true)),
+		db
+			.select({ id: categories.id, name: categories.name, parentId: categories.parentId })
+			.from(categories)
+			.where(eq(categories.isActive, true)),
 	]);
 
-	const blockedCategories = new Set(["Componentes", "Equipos", "Perifericos"]);
-
-	const aiResult = await extractFromRawName(rawName.replace(/\s+/g, " "), {
+	const aiResult = await extractFromRawName(rawName, {
 		brands: existingBrands.map((b) => b.name),
-		categories: existingCategories.map((c) => c.name).filter((n) => !blockedCategories.has(n)),
+		categories: buildCategoryContext(existingCategories),
 	});
 
-	const baseSlug = makeSlug(aiResult.name);
+	const { name: productName, collided: nameCollided } = await ensureUniqueProductName(
+		aiResult.name,
+		providerId,
+	);
+	const baseSlug = makeSlug(productName);
 	const slug = await ensureUniqueSlug(baseSlug, providerId);
 	const brandId = await findOrCreateBrand(aiResult.brand);
 	const categoryId = await findOrCreateCategory(aiResult.category);
@@ -516,56 +592,75 @@ async function createNewProduct(item: ScrapedItem, reportId: string): Promise<vo
 	if (!imageUrl) reviewReasons.push("Sin imagen");
 	if (!pricing) reviewReasons.push("Precio inválido o fuera de rango");
 	if (aiResult.needsReview) reviewReasons.push("IA no confia en datos");
+	if (nameCollided) reviewReasons.push("Posible duplicado");
 
-	const [product] = await db
-		.insert(products)
-		.values({
-			name: aiResult.name,
-			slug,
-			sku,
-			price: pricing?.salePrice ?? "0.00",
-			supplierPrice: pricing?.supplierPrice ?? "0",
-			roleCustomMargins: null,
-			stock: Math.max(0, rawStock),
-			description: aiResult.description || null,
-			specifications: aiResult.specifications,
-			brandId,
-			categoryId,
-			isActive: true,
-			needsReview: reviewReasons.length > 0,
-			reviewReason: reviewReasons.length > 0 ? reviewReasons.join("; ") : null,
-		})
-		.returning({ id: products.id });
-
-	if (!product) {
-		throw createApiError({
-			code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
-			message: `No se pudo crear el producto del proveedor ${providerId}`,
-			metadata: { providerId },
-		});
-	}
-
-	await db.insert(productProviders).values({
-		productId: product.id,
-		source: PROVIDER_SOURCE,
-		externalId: providerId,
-		rawName,
-		rawPrice,
-		rawStock,
-		rawImageUrl: imageUrl,
-		rawImageHash: null,
-		lastSyncAt: new Date(),
-		lastSeenAt: new Date(),
-		needsReview: aiResult.needsReview,
-		reviewReason: aiResult.needsReview ? "Producto nuevo - revisar datos extraidos por IA" : null,
+	// SEO meta is derived from the catalog data, never written by the model.
+	const seo = buildProductSeo({
+		name: productName,
+		brandName: aiResult.brand,
+		categoryName: aiResult.category,
+		specifications: aiResult.specifications,
 	});
 
-	await db.insert(productChanges).values({
-		productId: product.id,
-		syncReportId: reportId,
-		source: "sync",
-		changeType: "created",
-		reason: `Producto creado desde ${PROVIDER_SOURCE}`,
+	// One transaction: a half-created product (a row without its provider link)
+	// can never be reconciled by a later sync — it would only fight the UNIQUE
+	// name forever. Image processing stays outside: it is slow and external.
+	const product = await db.transaction(async (tx) => {
+		const [created] = await tx
+			.insert(products)
+			.values({
+				name: productName,
+				slug,
+				sku,
+				price: pricing?.salePrice ?? "0.00",
+				supplierPrice: pricing?.supplierPrice ?? "0",
+				roleCustomMargins: null,
+				stock: Math.max(0, rawStock),
+				description: aiResult.description || null,
+				specifications: aiResult.specifications,
+				brandId,
+				categoryId,
+				isActive: true,
+				needsReview: reviewReasons.length > 0,
+				reviewReason: reviewReasons.length > 0 ? reviewReasons.join("; ") : null,
+				seoTitle: seo.seoTitle,
+				seoDescription: seo.seoDescription,
+				seoKeywords: seo.seoKeywords,
+			})
+			.returning({ id: products.id });
+
+		if (!created) {
+			throw createApiError({
+				code: BackendErrorCodes.INTERNAL_SERVER_ERROR,
+				message: `No se pudo crear el producto del proveedor ${providerId}`,
+				metadata: { providerId },
+			});
+		}
+
+		await tx.insert(productProviders).values({
+			productId: created.id,
+			source: PROVIDER_SOURCE,
+			externalId: providerId,
+			rawName,
+			rawPrice,
+			rawStock,
+			rawImageUrl: imageUrl,
+			rawImageHash: null,
+			lastSyncAt: new Date(),
+			lastSeenAt: new Date(),
+			needsReview: aiResult.needsReview,
+			reviewReason: aiResult.needsReview ? "Producto nuevo - revisar datos extraidos por IA" : null,
+		});
+
+		await tx.insert(productChanges).values({
+			productId: created.id,
+			syncReportId: reportId,
+			source: "sync",
+			changeType: "created",
+			reason: `Producto creado desde ${PROVIDER_SOURCE}`,
+		});
+
+		return created;
 	});
 
 	// ── Procesar imagen INLINE para productos nuevos ──
