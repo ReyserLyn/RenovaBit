@@ -3,8 +3,13 @@ import {
 	buildSyncNotification,
 	createNotification,
 	getAdminIds,
+	notifyAdminsOfSyncFailure,
 } from "@/modules/notifications/notifications.service";
-import { cleanupOrphanedReports, runSync } from "@/modules/product-processing/sync/sync.service";
+import {
+	cleanupOrphanedReports,
+	runSync,
+	SyncRunError,
+} from "@/modules/product-processing/sync/sync.service";
 import { scrapingService } from "@/modules/scrapping/service";
 import { broadcastToAdmins } from "@/plugins/websocket";
 import { logger } from "@/utils/logger";
@@ -172,6 +177,25 @@ export const scrapingWorker = new Worker<ScrapingJobData>(
 					})
 					.withError(err as Error)
 					.warn("Fallo de red en scraping automático");
+			}
+
+			// Un fallo NUNCA se omite: es el aviso que el operador necesita para
+			// reaccionar. Espejo del aviso de éxito (mismo destino, mismo payload).
+			const errorMessage = err instanceof Error ? err.message : String(err);
+			try {
+				await notifyAdminsOfSyncFailure({
+					userId: job.data.userId,
+					reportId: err instanceof SyncRunError ? err.reportId : undefined,
+					jobId: job.id,
+					trigger,
+					errorMessage: errorMessage.slice(0, 500),
+					completedAt: new Date().toISOString(),
+				});
+			} catch (notifyErr) {
+				logger
+					.withMetadata({ jobId: job.id })
+					.withError(notifyErr as Error)
+					.error("No se pudo crear la notificación de fallo de sync");
 			}
 
 			throw err;

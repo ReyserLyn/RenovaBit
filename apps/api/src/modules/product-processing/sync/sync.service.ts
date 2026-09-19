@@ -33,6 +33,22 @@ import type { SyncStats } from "./sync.model";
 type MarginRules = Awaited<ReturnType<typeof getActiveMarginRules>>;
 
 /**
+ * Envuelve el fallo de un sync ya persistido como `failed`: conserva el id del
+ * reporte para que el worker pueda referenciarlo en la notificación de fallo.
+ * El error original viaja en `cause` y el mensaje se preserva para el chequeo
+ * de errores de red del worker.
+ */
+export class SyncRunError extends Error {
+	readonly reportId: string;
+
+	constructor(message: string, reportId: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = "SyncRunError";
+		this.reportId = reportId;
+	}
+}
+
+/**
  * Data loaded once per run instead of once per item. The old code re-read every
  * brand and category for each new product and the margin rules for each item,
  * which is an N+1 across the whole feed.
@@ -531,7 +547,7 @@ export async function runSync(
 				errorMessage: message.slice(0, 500),
 			})
 			.where(eq(syncReports.id, reportId));
-		throw error;
+		throw new SyncRunError(message, reportId, { cause: error });
 	}
 }
 

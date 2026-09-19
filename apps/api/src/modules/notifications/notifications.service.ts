@@ -2,6 +2,7 @@ import { db } from "@renovabit/db";
 import type {
 	NotificationData,
 	OrderNotificationData,
+	SyncFailedNotificationData,
 	SyncNotificationData,
 	SyncStats,
 } from "@renovabit/db/schema";
@@ -9,6 +10,13 @@ import { adminNotifications, users } from "@renovabit/db/schema";
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import { broadcastToAdmins } from "@/plugins/websocket";
 import { logger } from "@/utils/logger";
+
+/** How many per-item failures travel in the notification payload. */
+const FAILED_SAMPLE_LIMIT = 3;
+/** Max length of a single failure reason inside the sample. */
+const FAILED_REASON_MAX_LENGTH = 80;
+/** Max length of the error preview shown in the notification message. */
+const ERROR_PREVIEW_MAX_LENGTH = 200;
 
 export async function getAdminIds(): Promise<string[]> {
 	const rows = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
@@ -123,6 +131,26 @@ export async function createNotification(data: CreateNotificationInput) {
 }
 
 /**
+ * Compact preview of the first per-item failures. The notification payload is
+ * validated as a record with a single level of nesting (no arrays), so the
+ * reasons are pre-joined instead of shipped as `failedItems`.
+ */
+function buildFailedSample(stats: SyncStats): string | undefined {
+	const items = stats.failedItems?.slice(0, FAILED_SAMPLE_LIMIT);
+	if (!items || items.length === 0) return undefined;
+
+	return items
+		.map((item) => {
+			const reason =
+				item.reason.length > FAILED_REASON_MAX_LENGTH
+					? `${item.reason.slice(0, FAILED_REASON_MAX_LENGTH)}…`
+					: item.reason;
+			return `${item.providerId}: ${reason}`;
+		})
+		.join(" · ");
+}
+
+/**
  * Factory para notificaciones de sync. Tipa `stats: SyncStats` (objeto) para que
  * `JSON.stringify(stats)` sea un error de compilación aquí, no en runtime.
  */
@@ -165,11 +193,92 @@ export function buildSyncNotification(input: {
 				imagesProcessed: stats.images?.processed ?? 0,
 				imagesMissing: stats.images?.missing ?? 0,
 				durationMs: stats.durationMs ?? 0,
+				failedSample: buildFailedSample(stats),
+				unavailableMarked: stats.unavailableMarked ?? 0,
+				// Only `true` is meaningful (the sweep was omitted); coercing
+				// undefined to false would render "Ejecutado" on manual runs.
+				zeroingSkipped: stats.zeroingSkipped,
+				blacklistedRemoved: stats.blacklistedRemoved ?? 0,
 			},
 			startedAt,
 			completedAt,
 		},
 	};
+}
+
+/**
+ * Factory para notificaciones de sync fallido. El error se conserva completo en
+ * `data` y se recorta solo en `message` (preview del listado).
+ */
+export function buildSyncFailedNotification(input: {
+	reportId?: string;
+	jobId?: string;
+	trigger: "manual" | "automatic";
+	errorMessage: string;
+	completedAt: string;
+}): {
+	type: "sync_failed";
+	title: string;
+	message: string;
+	data: SyncFailedNotificationData;
+} {
+	const { reportId, jobId, trigger, errorMessage, completedAt } = input;
+	const preview =
+		errorMessage.length > ERROR_PREVIEW_MAX_LENGTH
+			? `${errorMessage.slice(0, ERROR_PREVIEW_MAX_LENGTH)}…`
+			: errorMessage;
+
+	return {
+		type: "sync_failed",
+		title: "Sincronización fallida",
+		message: `La sincronización falló: ${preview}`,
+		data: { reportId, jobId, trigger, errorMessage, completedAt },
+	};
+}
+
+/**
+ * Notifica el fallo de un sync por DB y WebSocket. Es el espejo del aviso de
+ * éxito: cuando el job lo disparó un admin, se notifica a ese admin; si no, a
+ * todos. Un fallo NUNCA se omite — es justo lo que el operador necesita ver.
+ */
+export async function notifyAdminsOfSyncFailure(input: {
+	userId?: string;
+	reportId?: string;
+	jobId?: string;
+	trigger: "manual" | "automatic";
+	errorMessage: string;
+	completedAt?: string;
+}): Promise<void> {
+	const targetUsers = input.userId ? [input.userId] : await getAdminIds();
+	if (targetUsers.length === 0) return;
+
+	const notification = buildSyncFailedNotification({
+		reportId: input.reportId,
+		jobId: input.jobId,
+		trigger: input.trigger,
+		errorMessage: input.errorMessage,
+		completedAt: input.completedAt ?? new Date().toISOString(),
+	});
+
+	for (const userId of targetUsers) {
+		try {
+			await createNotification({ userId, ...notification });
+		} catch (err) {
+			logger
+				.withMetadata({ userId, reportId: input.reportId })
+				.withError(err as Error)
+				.error("[Notifications] Failed to notify sync failure");
+		}
+	}
+
+	broadcastToAdmins({
+		type: "sync:failed",
+		reportId: input.reportId,
+		jobId: input.jobId,
+		trigger: input.trigger,
+		errorMessage: input.errorMessage,
+		completedAt: notification.data.completedAt,
+	});
 }
 
 /**

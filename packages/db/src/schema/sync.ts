@@ -92,7 +92,10 @@ export type ChangeValueObject = Record<string, string | number | boolean | null>
  *   1. Add a variant here.
  *   2. Add a `buildXxxNotification` factory in `notifications.service`.
  */
-export type NotificationData = SyncNotificationData | OrderNotificationData;
+export type NotificationData =
+	| SyncNotificationData
+	| SyncFailedNotificationData
+	| OrderNotificationData;
 
 /**
  * Summary carried by the admin notification: flat primitives only.
@@ -116,6 +119,11 @@ export type SyncNotificationStats = {
 	imagesProcessed: number;
 	imagesMissing: number;
 	durationMs: number;
+	/** First few failures pre-joined, because the payload cannot carry arrays. */
+	failedSample?: string;
+	unavailableMarked?: number;
+	zeroingSkipped?: boolean;
+	blacklistedRemoved?: number;
 };
 
 export type SyncNotificationData = {
@@ -125,6 +133,20 @@ export type SyncNotificationData = {
 	startedAt?: string;
 	completedAt?: string;
 	stats?: SyncNotificationStats;
+};
+
+/**
+ * Failure variant of the sync notification. Kept separate so the operator can
+ * tell a crashed run from a successful one by `type` alone, and so the payload
+ * can carry the error message the report stored.
+ */
+export type SyncFailedNotificationData = {
+	reportId?: string;
+	jobId?: string;
+	trigger?: "manual" | "automatic" | string;
+	errorMessage?: string;
+	startedAt?: string;
+	completedAt?: string;
 };
 
 export type OrderNotificationData = {
