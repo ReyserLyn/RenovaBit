@@ -225,14 +225,44 @@ export function getProductColumns({
 			id: "price",
 			accessorFn: (row) => Number.parseFloat(row.price),
 			meta: {
-				headerTitle: "Precio",
-				skeleton: <Skeleton className="h-4 w-20 tabular-nums" />,
+				headerTitle: "Precio base",
+				skeleton: <Skeleton className="h-4 w-24 tabular-nums" />,
 			},
-			header: ({ column }) => <DataGridColumnHeader column={column} title="Precio" />,
-			cell: ({ row }) => (
-				<span className="tabular-nums font-medium">{formatPrice(row.original.price)}</span>
-			),
-			size: 110,
+			header: ({ column }) => <DataGridColumnHeader column={column} title="Precio base" />,
+			cell: ({ row }) => {
+				const basePrice = row.original.price;
+				const effectivePrice = row.original.effectivePrice;
+				const offerName = row.original.activeOfferName;
+
+				// Sin oferta activa el cliente paga el precio base: una sola línea.
+				if (effectivePrice == null) {
+					return <span className="tabular-nums font-medium">{formatPrice(basePrice)}</span>;
+				}
+
+				return (
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<div className="flex cursor-help flex-col leading-tight">
+									<span className="tabular-nums font-medium">{formatPrice(basePrice)}</span>
+									<span className="text-success text-xs font-medium tabular-nums">
+										{formatPrice(effectivePrice)}
+										{offerName ? (
+											<span className="text-muted-foreground font-normal"> · {offerName}</span>
+										) : null}
+									</span>
+								</div>
+							}
+						/>
+						<TooltipContent>
+							Precio base sin ofertas. Con la mejor oferta activa el cliente paga{" "}
+							{formatPrice(effectivePrice)}
+							{offerName ? ` (${offerName})` : ""}.
+						</TooltipContent>
+					</Tooltip>
+				);
+			},
+			size: 150,
 		},
 		{
 			accessorKey: "managedBy",

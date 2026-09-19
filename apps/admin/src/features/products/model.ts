@@ -24,6 +24,10 @@ export interface Product {
 	description: string | null;
 	sku: string;
 	price: string;
+	/** Precio base + mejor oferta activa; null cuando no hay oferta vigente. */
+	effectivePrice?: string | null;
+	/** Nombre de la oferta que gana; null cuando no hay oferta vigente. */
+	activeOfferName?: string | null;
 	supplierPrice: string;
 	managedBy: "provider" | "manual";
 	roleCustomMargins: RoleCustomMargins | null;

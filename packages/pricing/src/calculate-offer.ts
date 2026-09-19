@@ -20,6 +20,13 @@ export type OfferResult = {
 	discountedPrice: number;
 	/** Total discount amount applied */
 	totalDiscount: number;
+	/**
+	 * Id of the offer that produced the winning discount (best offer wins,
+	 * discounts never stack). Null when no offer applies or the winning offer
+	 * has no id. Callers that need the offer name can map this id back to the
+	 * resolved offers they passed in (e.g. the admin price column).
+	 */
+	bestOfferId: string | null;
 };
 
 /**
@@ -36,18 +43,26 @@ export type OfferResult = {
  */
 export function computeOfferPrice(salePrice: number, offers: OfferInput[]): OfferResult {
 	if (salePrice <= 0 || offers.length === 0) {
-		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
+		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0, bestOfferId: null };
 	}
 
-	const bestPercent = Math.min(
-		MAX_OFFER_DISCOUNT_PERCENT,
-		offers.reduce((best, offer) => Math.max(best, Math.max(0, offer.discountValue)), 0),
-	);
+	// Best offer wins: only the largest discount percentage applies, capped at
+	// MAX_OFFER_DISCOUNT_PERCENT. We track the winning offer id in the same pass
+	// so callers can surface which offer produced the price.
+	let bestPercent = 0;
+	let bestOfferId: string | null = null;
+	for (const offer of offers) {
+		const percent = Math.min(MAX_OFFER_DISCOUNT_PERCENT, Math.max(0, offer.discountValue));
+		if (percent > bestPercent) {
+			bestPercent = percent;
+			bestOfferId = offer.id ?? null;
+		}
+	}
 
 	const discount = roundCurrency(salePrice * (bestPercent / 100));
 	const discountedPrice = roundCurrency(Math.max(0, salePrice - discount));
 
-	return { discountedPrice, totalDiscount: discount };
+	return { discountedPrice, totalDiscount: discount, bestOfferId };
 }
 
 /**
@@ -68,7 +83,7 @@ export function applyOfferToProduct(
 	role: Role = "customer",
 ): OfferResult {
 	if (role === "admin") {
-		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0 };
+		return { discountedPrice: Math.max(0, salePrice), totalDiscount: 0, bestOfferId: null };
 	}
 
 	return computeOfferPrice(salePrice, offers);

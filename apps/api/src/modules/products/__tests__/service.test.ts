@@ -45,7 +45,11 @@ const FTS_TOKEN = `pgtst${Math.random().toString(36).slice(2, 10)}`;
 const NAMES = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot"];
 /** Distinct supplier prices; the 0% custom margin pins the effective base price. */
 const SUPPLIER_PRICES = [100, 200, 300, 400, 500, 900];
-/** The offer applies to Charlie (300) only: 50% → effective 150. */
+/**
+ * The offer applies to Charlie (300) only: 50% → effective 150. It is a
+ * MANUAL product (stored price is the owner's) so the projection also covers
+ * manual products, which are eligible for offers like any other.
+ */
 const OFFERED_INDEX = 2;
 const OFFER_DISCOUNT = 50;
 
@@ -87,6 +91,8 @@ beforeAll(async () => {
 				roleCustomMargins: { customer: { enabled: true as const, percent: "0" } },
 				brandId,
 				stock: 50,
+				// Charlie is manually managed: its stored price is authoritative.
+				...(i === OFFERED_INDEX ? { managedBy: "manual" as const } : {}),
 			})),
 		)
 		.returning({
@@ -305,5 +311,22 @@ describeDb("ProductService public catalog (DB)", () => {
 
 		expect(result.data.map((d) => d.id)).toContain(fixtures[SUPPLIER_PRICES.length - 1]!.id);
 		expect(result.total).toBeGreaterThanOrEqual(1);
+	});
+
+	it("admin list projects the offer-aware effective price (manual products included)", async () => {
+		const rows = await ProductService.list({ brandId });
+
+		const offered = rows.find((row) => row.id === fixtures[OFFERED_INDEX]!.id);
+		expect(offered?.managedBy).toBe("manual");
+		// The base price stays the stored/owner price; the projection only adds
+		// what the customer pays with the best active offer.
+		expect(offered?.price).toBe("300.00");
+		expect(offered?.effectivePrice).toBe("150.00");
+		expect(offered?.activeOfferName).toBe(`Paging Test Offer ${suffix}`);
+
+		// No active offer → no effective price projected (the base price stands).
+		const plain = rows.find((row) => row.id === fixtures[1]!.id);
+		expect(plain?.effectivePrice).toBeNull();
+		expect(plain?.activeOfferName).toBeNull();
 	});
 });

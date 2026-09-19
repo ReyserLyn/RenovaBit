@@ -40,6 +40,8 @@ export type CatalogPricing = {
 	discountPercent: number;
 	/** What the buyer pays: `offerPriceStr` when present, else `salePrice`. */
 	effectivePrice: number;
+	/** Id of the winning offer, or null when no offer produced a discount. */
+	bestOfferId: string | null;
 };
 
 /**
@@ -71,6 +73,7 @@ export function enrichPublicPricing({
 			offerPriceStr: null,
 			discountPercent: 0,
 			effectivePrice: salePrice,
+			bestOfferId: null,
 		};
 	}
 
@@ -91,5 +94,6 @@ export function enrichPublicPricing({
 		offerPriceStr,
 		discountPercent,
 		effectivePrice: offerPriceStr !== null ? Number.parseFloat(offerPriceStr) : salePrice,
+		bestOfferId: offerPriceStr !== null ? result.bestOfferId : null,
 	};
 }

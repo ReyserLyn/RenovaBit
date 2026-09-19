@@ -58,6 +58,26 @@ describe("applyOfferToProduct — best offer wins (no stacking)", () => {
 		expect(result.totalDiscount).toBe(60);
 	});
 
+	it("reports the winning offer id so callers can surface which offer applied", () => {
+		const result = applyOfferToProduct(
+			100,
+			[
+				{ id: "offer-loser", discountValue: 20 },
+				{ id: "offer-winner", discountValue: 60 },
+			],
+			"customer",
+		);
+		expect(result.bestOfferId).toBe("offer-winner");
+	});
+
+	it("reports no winning offer when the discount is zero or the role is admin", () => {
+		const zero = applyOfferToProduct(100, [{ id: "offer-zero", discountValue: 0 }], "customer");
+		expect(zero.bestOfferId).toBeNull();
+
+		const admin = applyOfferToProduct(100, [{ id: "offer-1", discountValue: 60 }], "admin");
+		expect(admin.bestOfferId).toBeNull();
+	});
+
 	it("allows a single offer up to 100% off", () => {
 		const result = applyOfferToProduct(100, [{ discountValue: 100 }], "customer");
 		expect(result.discountedPrice).toBe(0);

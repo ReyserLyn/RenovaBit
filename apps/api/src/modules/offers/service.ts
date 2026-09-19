@@ -58,6 +58,13 @@ export type ActiveOfferRef = {
  *
  * Must be used inside a `db.select().from(products)` context so the
  * `products.id` column ref resolves.
+ *
+ * The outer id reference is written as a literal qualified identifier: when
+ * callers spread `getTableColumns(products)` into the same selection, Drizzle
+ * renders a plain `products.id` column reference unqualified (`"id"`), which
+ * then resolves to `o.id` inside this subquery and matches nothing. The
+ * qualified identifier is context-independent and renders the same SQL
+ * elsewhere.
  */
 export function activeOffersForProductSubquery() {
 	return sql<ActiveOfferRef[]>`COALESCE(
@@ -71,7 +78,7 @@ export function activeOffersForProductSubquery() {
 				'endsAt', o.ends_at
 			))
 			FROM offers o
-			INNER JOIN ${offerProducts} op ON op.offer_id = o.id AND op.product_id = ${products.id}
+			INNER JOIN ${offerProducts} op ON op.offer_id = o.id AND op.product_id = "products"."id"
 			WHERE o.is_active = true
 				AND o.starts_at <= NOW()
 				AND o.ends_at >= NOW()

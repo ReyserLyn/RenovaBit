@@ -55,6 +55,10 @@ export type ProductWithImage = Product & {
 	providerIds: Array<{ source: string; externalId: string }>;
 	reservedStock: number;
 	availableStock: number;
+	/** Customer price with the best active offer applied; null when none applies. */
+	effectivePrice: string | null;
+	/** Name of the winning offer; null when `effectivePrice` is null. */
+	activeOfferName: string | null;
 };
 
 /** Admin detail row: the product plus the availability pair the list exposes. */
@@ -225,9 +229,12 @@ function buildOrderBy(sortBy?: string) {
 // ═══════════════════════════════════════════════════
 
 async function list(options: ListOptions = {}): Promise<ProductWithImage[]> {
-	return db
+	const rows = await db
 		.select({
 			...getTableColumns(products),
+			// Same active-offer aggregation the storefront listing uses, so the
+			// admin sees the offer the customer would actually get.
+			offers: activeOffersForProductSubquery(),
 			imageUrls: sql<string[]>`COALESCE(
 				(
 					SELECT jsonb_agg(url ORDER BY sort_order, created_at)
@@ -266,6 +273,26 @@ async function list(options: ListOptions = {}): Promise<ProductWithImage[]> {
 		.from(products)
 		.where(buildWhere(options, false))
 		.orderBy(desc(products.createdAt));
+
+	// The admin table shows what the store charges: base price plus the best
+	// active offer, computed with the same catalog pricing SSOT as the
+	// storefront (`enrichPublicPricing`), never by re-deriving the math here.
+	const marginRules = await getActiveMarginRules();
+	return rows.map((row) => {
+		const { offerPriceStr, bestOfferId } = enrichPublicPricing({
+			row,
+			role: "customer",
+			marginRules,
+		});
+		const { offers, ...product } = row;
+		return {
+			...product,
+			effectivePrice: offerPriceStr,
+			activeOfferName: offerPriceStr
+				? (offers.find((offer) => offer.id === bestOfferId)?.name ?? null)
+				: null,
+		};
+	});
 }
 
 async function getBySlug(slug: string): Promise<Product | null> {

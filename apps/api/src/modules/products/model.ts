@@ -67,6 +67,14 @@ const ProviderRef = t.Object({
 const AdminProductListResponse = t.Composite([
 	AdminProductResponse,
 	t.Object({
+		/**
+		 * What the customer actually pays with the best active offer applied.
+		 * Null when no active offer applies (the base price stands). Computed
+		 * with the same catalog pricing as the storefront listing.
+		 */
+		effectivePrice: t.Nullable(t.String()),
+		/** Name of the winning offer; null when `effectivePrice` is null. */
+		activeOfferName: t.Nullable(t.String()),
 		imageUrls: t.Array(t.String()),
 		imageCount: t.Integer({ minimum: 0 }),
 		createdByName: t.Nullable(t.String()),
