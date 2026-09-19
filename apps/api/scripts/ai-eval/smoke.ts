@@ -16,7 +16,7 @@ const [brandRows, categoryRows] = await Promise.all([
 		.where(eq(categories.isActive, true)),
 ]);
 
-const result = await extractFromRawName(raw, {
+const { output, usage } = await extractFromRawName(raw, {
 	brands: brandRows.map((brand) => brand.name),
 	categories: buildCategoryContext(categoryRows),
 });
@@ -26,11 +26,12 @@ console.log(
 		{
 			ms: Date.now() - startedAt,
 			raw,
-			name: result.name,
-			brand: result.brand,
-			category: result.category,
-			specifications: result.specifications.map((s) => `${s.key}: ${s.value}`),
-			needsReview: result.needsReview,
+			name: output.name,
+			brand: output.brand,
+			category: output.category,
+			specifications: output.specifications.map((s) => `${s.key}: ${s.value}`),
+			needsReview: output.needsReview,
+			tokens: usage,
 		},
 		null,
 		2,

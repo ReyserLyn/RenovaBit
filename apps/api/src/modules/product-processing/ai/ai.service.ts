@@ -1,6 +1,7 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText, Output } from "ai";
 import { logger } from "@/utils/logger";
+import { AI_MODEL, type AiUsage } from "./pricing";
 import { buildExtractionPrompt, type ExtractionContext } from "./prompts";
 import { sanitizeRawName } from "./sanitize";
 import { type ProductExtractionOutput, productExtractionSchema } from "./schemas";
@@ -20,7 +21,7 @@ const openrouter = createOpenRouter({
 	apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-const MODEL = "deepseek/deepseek-v4.1-flash";
+const MODEL = AI_MODEL;
 
 const extractionModel = openrouter.chat(MODEL, {
 	provider: { order: PROVIDER_ORDER, allow_fallbacks: true },
@@ -41,33 +42,48 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 	]);
 }
 
+/** Extraction output plus what the call cost, so callers can report usage. */
+export interface ExtractionCallResult {
+	output: ProductExtractionOutput;
+	usage: AiUsage;
+}
+
 export async function extractFromRawName(
 	rawName: string,
 	context: ExtractionContext,
-): Promise<ProductExtractionOutput> {
+): Promise<ExtractionCallResult> {
 	const prompt = buildExtractionPrompt(sanitizeRawName(rawName), context);
 	let lastError: unknown;
 
 	for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt++) {
 		try {
-			const { output } = await withTimeout(
+			const { output, usage } = await withTimeout(
 				generateText({
 					model: extractionModel,
 					output: Output.object({ schema: productExtractionSchema }),
 					prompt,
 					temperature: 0,
+					// Actually cancels the request when the deadline passes; the race
+					// below stays as the last resort against a hung promise.
+					abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
 				}),
 				AI_TIMEOUT_MS,
 			);
 
 			return {
-				...output,
-				specifications: output.specifications.map((s) => ({
-					id: s.id || crypto.randomUUID(),
-					key: s.key,
-					value: s.value,
-				})),
-				needsReview: output.needsReview ?? true,
+				output: {
+					...output,
+					specifications: output.specifications.map((s) => ({
+						id: s.id || crypto.randomUUID(),
+						key: s.key,
+						value: s.value,
+					})),
+					needsReview: output.needsReview ?? true,
+				},
+				usage: {
+					inputTokens: usage.inputTokens ?? 0,
+					outputTokens: usage.outputTokens ?? 0,
+				},
 			};
 		} catch (error) {
 			lastError = error;

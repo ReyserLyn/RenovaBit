@@ -159,7 +159,7 @@ async function main() {
 		pending.map((candidate) =>
 			limit(async () => {
 				try {
-					const extraction = await extractFromRawName(candidate.rawName, {
+					const { output: extraction } = await extractFromRawName(candidate.rawName, {
 						brands: brandRows.map((brand) => brand.name),
 						categories: context,
 					});
