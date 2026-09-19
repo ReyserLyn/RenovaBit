@@ -26,7 +26,7 @@
 			"serialize-error": "13.0.1",
 			"slugify": "^1.6.9",
 			"sonner": "^2.0.7",
-			"typescript": "6.0.3",
+			"typescript": "7.0.2",
 			"react-day-picker": "^9.11.1",
 			"date-fns": "^4.1.0",
 			"@date-fns/tz": "^1.5.0",
