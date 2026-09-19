@@ -68,15 +68,16 @@ services:
       renovabit-redis:
         condition: service_healthy
     healthcheck:
-      # Any response below 500 means the API process is alive and serving.
-      # 503 is the deep-health "degraded" status (a dependency down), which is
-      # reported, not a reason to restart the container.
+      # Healthy when /health answers 200, or when only Redis is reported down
+      # (services.database still "ok"): a Redis blip must not pull the API out
+      # of Traefik routing or fail an otherwise-good deploy. A dead process or
+      # database problem still fails the gate.
       test:
         [
           "CMD",
           "bun",
           "-e",
-          "const r = await fetch('http://localhost:3001/health'); process.exit(r.status < 500 ? 0 : 1)",
+          "const r = await fetch('http://localhost:3001/health'); if (r.ok) process.exit(0); const h = await r.json().catch(() => null); process.exit(h?.services?.database === 'ok' ? 0 : 1)",
         ]
       interval: 30s
       timeout: 10s
@@ -91,8 +92,11 @@ services:
       - "traefik.http.routers.renovabit-api.tls.certresolver=cloudflare"
       - "traefik.http.services.renovabit-api.loadbalancer.server.port=3001"
       - "traefik.http.routers.renovabit-api.service=renovabit-api"
-      - "traefik.http.middlewares.renovabit-compress.compress=true"
-      - "traefik.http.routers.renovabit-api.middlewares=renovabit-compress"
+      # Each routed service owns its compress middleware: sharing a single
+      # definition would make every router depend on that one container's
+      # health (an unhealthy API once took down tienda and admin routing).
+      - "traefik.http.middlewares.renovabit-compress-api.compress=true"
+      - "traefik.http.routers.renovabit-api.middlewares=renovabit-compress-api"
     networks:
       - renovabit
       - traefik
@@ -133,7 +137,8 @@ services:
       - "traefik.http.routers.renovabit-admin.tls.certresolver=cloudflare"
       - "traefik.http.services.renovabit-admin.loadbalancer.server.port=3002"
       - "traefik.http.routers.renovabit-admin.service=renovabit-admin"
-      - "traefik.http.routers.renovabit-admin.middlewares=renovabit-compress"
+      - "traefik.http.middlewares.renovabit-compress-admin.compress=true"
+      - "traefik.http.routers.renovabit-admin.middlewares=renovabit-compress-admin"
     networks:
       - renovabit
       - traefik
@@ -174,7 +179,8 @@ services:
       - "traefik.http.routers.renovabit-tienda.tls.certresolver=cloudflare"
       - "traefik.http.services.renovabit-tienda.loadbalancer.server.port=3003"
       - "traefik.http.routers.renovabit-tienda.service=renovabit-tienda"
-      - "traefik.http.routers.renovabit-tienda.middlewares=renovabit-compress"
+      - "traefik.http.middlewares.renovabit-compress-tienda.compress=true"
+      - "traefik.http.routers.renovabit-tienda.middlewares=renovabit-compress-tienda"
     networks:
       - renovabit
       - traefik
