@@ -1,6 +1,13 @@
 import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
-import { brands, categories, productChanges, products, syncReports } from "@renovabit/db/schema";
+import {
+	brands,
+	categories,
+	productChanges,
+	productImages,
+	products,
+	syncReports,
+} from "@renovabit/db/schema";
 import { getEffectiveSalePrice, type Role } from "@renovabit/pricing";
 import type { InferSelectModel } from "drizzle-orm";
 import {
@@ -24,6 +31,7 @@ import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
 import { buildPrefixTsQuery, escapeLikePattern } from "@/utils/prefix-tsquery";
+import { recomputeReviewReasons } from "@/utils/review-reasons";
 import { getReservedStockSubquery } from "@/utils/stock";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
 import { activeOffersForProductSubquery } from "../offers/service";
@@ -758,6 +766,36 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Pro
 		});
 	}
 
+	// A stale review reason keeps a product hidden from the storefront forever
+	// (it happened in production: 16 products stuck behind "Sin marca"). An admin
+	// saving the product means the causes were looked at, so the objective reasons
+	// are reconciled with the stored state instead of only being appended.
+	const [existingImage] = await db
+		.select({ id: productImages.id })
+		.from(productImages)
+		.where(eq(productImages.productId, id))
+		.limit(1);
+
+	const reconciled = recomputeReviewReasons(item.reviewReason, {
+		hasBrand: item.brandId !== null,
+		hasCategory: item.categoryId !== null,
+		hasImage: Boolean(existingImage),
+		reviewedByAdmin: true,
+	});
+
+	let saved = item;
+	if (
+		reconciled.needsReview !== item.needsReview ||
+		reconciled.reviewReason !== item.reviewReason
+	) {
+		const [updated] = await db
+			.update(products)
+			.set({ needsReview: reconciled.needsReview, reviewReason: reconciled.reviewReason })
+			.where(eq(products.id, id))
+			.returning();
+		if (updated) saved = updated;
+	}
+
 	// Audit trail for control handovers (who took/released stock control).
 	if (data.managedBy !== undefined && data.managedBy !== current.managedBy) {
 		await db.insert(productChanges).values({
@@ -807,7 +845,7 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Pro
 		await db.insert(productChanges).values(auditRows);
 	}
 
-	return item;
+	return saved;
 }
 
 // ── Delete ─────────────────────────────────────────
