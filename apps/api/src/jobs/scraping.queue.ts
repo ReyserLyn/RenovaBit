@@ -15,15 +15,13 @@ export function enqueueManualScraping(limit: number, userId?: string) {
 	);
 }
 
+// Job Scheduler (idempotente en cada boot). BullMQ v6 eliminó `repeat`.
 scrapingQueue
-	.add(
-		"run",
-		{ limit: 2000, trigger: "automatic" },
-		{
-			attempts: 1,
-			repeat: { every: 600_000, key: "auto-scraping" },
-		},
+	.upsertJobScheduler(
+		"auto-scraping",
+		{ every: 600_000 },
+		{ name: "run", data: { limit: 2000, trigger: "automatic" }, opts: { attempts: 1 } },
 	)
 	.catch((err) => {
-		logger.withError(err).warn("No se pudo registrar repeatable job");
+		logger.withError(err).warn("No se pudo registrar el scheduler de scraping");
 	});

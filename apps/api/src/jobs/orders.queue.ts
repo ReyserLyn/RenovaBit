@@ -53,16 +53,13 @@ export async function removeOrderAutoCancel(orderId: string): Promise<void> {
 }
 
 // ── Safety net diario: cubre jobs perdidos (ej. Redis cayó entre create y el plazo) ──
-// `.catch` porque es un module-level promise; unhandled rejection crashea el proceso.
+// Job Scheduler (idempotente en cada boot). `.catch` porque es un module-level
+// promise; unhandled rejection crashea el proceso. BullMQ v6 eliminó `repeat`.
 ordersQueue
-	.add(
-		"safety-net",
-		{},
-		{
-			repeat: { pattern: "0 3 * * *", tz: "America/Lima", key: SAFETY_NET_JOB_KEY },
-			removeOnComplete: 30,
-			removeOnFail: 100,
-		},
+	.upsertJobScheduler(
+		SAFETY_NET_JOB_KEY,
+		{ pattern: "0 3 * * *", tz: "America/Lima" },
+		{ name: "safety-net", data: {}, opts: { removeOnComplete: 30, removeOnFail: 100 } },
 	)
 	.catch((error) => {
 		logger.withError(error).warn("[OrdersQueue] failed to schedule safety-net job");
