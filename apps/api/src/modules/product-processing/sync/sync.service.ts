@@ -18,6 +18,7 @@ import type { ScrapedItem } from "@/modules/scrapping/model";
 import { scrapingService } from "@/modules/scrapping/service";
 import { logger } from "@/utils/logger";
 import { getActiveMarginRules } from "@/utils/margin-rules";
+import { sameMoneyAmount } from "@/utils/price";
 import { buildProductSeo } from "@/utils/product-seo";
 import { addReviewReason, hasReviewReason, REVIEW_REASONS } from "@/utils/review-reasons";
 import { deleteEntityFolder } from "@/utils/storage/helpers";
@@ -642,9 +643,12 @@ async function updateExistingProduct(
 	const nextSupplierPrice = pricing?.supplierPrice ?? currentSupplierPrice;
 	const nextSalePrice = pricing?.salePrice ?? currentPrice;
 
-	const priceChanged = !isManual && currentPrice !== nextSalePrice;
+	// Money is compared numerically, not as raw strings: the stored numeric
+	// column comes back with its scale ("90.00") while the feed produces "90",
+	// and a string comparison flagged an update for every product on every run.
+	const priceChanged = !isManual && !sameMoneyAmount(currentPrice, nextSalePrice);
 	const stockChanged = !isManual && currentStock !== newStock;
-	const supplierChanged = !isManual && currentSupplierPrice !== nextSupplierPrice;
+	const supplierChanged = !isManual && !sameMoneyAmount(currentSupplierPrice, nextSupplierPrice);
 
 	// Solo escribir si algo cambió (reduce churn en productChanges)
 	if (supplierChanged || priceChanged || stockChanged) {

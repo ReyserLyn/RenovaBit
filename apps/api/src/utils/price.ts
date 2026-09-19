@@ -35,3 +35,18 @@ export function resolveSalePrice(
 		marginRules,
 	).salePrice;
 }
+
+/**
+ * Money equality for amounts that arrive from different sources.
+ *
+ * Postgres returns `numeric` columns with the declared scale ("90.00"), while
+ * the feed and the pricing helpers produce scale-free strings ("90"). Comparing
+ * the raw strings made the sync flag `supplier_price_changed` for every product
+ * on every run — 969 "updates" that were only a formatting difference.
+ */
+export function sameMoneyAmount(a: string, b: string): boolean {
+	const left = Number.parseFloat(a);
+	const right = Number.parseFloat(b);
+	if (!Number.isFinite(left) || !Number.isFinite(right)) return a === b;
+	return left === right;
+}
