@@ -23,7 +23,7 @@ export function MenuCategory() {
 			<NavigationMenuTrigger>Productos</NavigationMenuTrigger>
 
 			<NavigationMenuContent className="p-4">
-				<div className="grid grid-cols-1 gap-3 p-4 md:w-[600px] md:grid-cols-3 lg:w-[800px] lg:grid-cols-4">
+				<div className="grid grid-cols-1 gap-3 p-4 md:w-[600px] md:grid-cols-3 lg:w-[980px] lg:grid-cols-5">
 					{navigationData.length === 0 ? (
 						<EmptyProducts />
 					) : (
