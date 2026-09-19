@@ -13,12 +13,14 @@ export const redisConnectionConfig = {
 	db: REDIS_DB,
 };
 
+/** Backoff ceiling: retries keep happening forever, at a steady pace. */
+const MAX_RETRY_DELAY_MS = 5_000;
+
 const baseConfig: RedisOptions = {
 	...redisConnectionConfig,
-	retryStrategy: (times) => {
-		if (times > 10) return null;
-		return Math.min(100 * 2 ** (times - 1), 3000);
-	},
+	// Never stop reconnecting. Returning `null` here (giving up) turns a short
+	// Redis blip into a permanent outage that needs a manual restart.
+	retryStrategy: (times) => Math.min(100 * 2 ** Math.min(times - 1, 6), MAX_RETRY_DELAY_MS),
 	reconnectOnError: (err) =>
 		["ECONNREFUSED", "ETIMEDOUT", "ECONNRESET", "EPIPE"].some((e) => err.message.includes(e)),
 	connectTimeout: 10_000,

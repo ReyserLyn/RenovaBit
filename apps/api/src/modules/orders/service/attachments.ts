@@ -1,4 +1,4 @@
-import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
+import { ApiError, BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { orders } from "@renovabit/db/schema";
 import { eq } from "drizzle-orm";
@@ -72,6 +72,10 @@ async function updateAttachments(orderId: string, urls: string[]): Promise<Order
 				await moveObject(key, permanentKey);
 				return getPublicUrl(permanentKey);
 			} catch (error) {
+				// Client errors (e.g. an oversize upload rejected by moveObject) must
+				// reach the caller; only genuine storage hiccups degrade to keeping
+				// the pending URL.
+				if (error instanceof ApiError) throw error;
 				logger
 					.withError(error)
 					.withMetadata({ orderId, url })

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import type Redis from "ioredis";
 import { RedisContext } from "./redis-context";
 
 // ── Mock Redis ───────────────────────────────────────────────────────────────
@@ -204,5 +205,47 @@ describe("RedisContext", () => {
 		// Check that the key exists in mockRedis with the prefix
 		const result = await ctx.increment("prefixed-key", 60_000);
 		expect(result.count).toBe(2);
+	});
+});
+
+// ── Fail-open when Redis is unavailable ─────────────────────────────────────
+
+/** Redis stub whose every command fails, like an unreachable server. */
+class BrokenRedis {
+	async incr(): Promise<number> {
+		throw new Error("connect ECONNREFUSED 127.0.0.1:6379");
+	}
+	async pexpire(): Promise<number> {
+		throw new Error("connect ECONNREFUSED 127.0.0.1:6379");
+	}
+	async pttl(): Promise<number> {
+		throw new Error("connect ECONNREFUSED 127.0.0.1:6379");
+	}
+	async decr(): Promise<number> {
+		throw new Error("connect ECONNREFUSED 127.0.0.1:6379");
+	}
+	async del(): Promise<number> {
+		throw new Error("connect ECONNREFUSED 127.0.0.1:6379");
+	}
+	async scan(): Promise<[string, string[]]> {
+		throw new Error("connect ECONNREFUSED 127.0.0.1:6379");
+	}
+}
+
+describe("RedisContext — fail-open cuando Redis está caído", () => {
+	const brokenContext = () =>
+		new RedisContext(new BrokenRedis() as unknown as Redis, "rate-limit:");
+
+	it("increment no lanza y permite la solicitud", async () => {
+		const result = await brokenContext().increment("client", 60_000, Date.now());
+
+		// count = 1 queda por debajo de cualquier máximo de tier → permitida
+		expect(result.count).toBe(1);
+		expect(result.nextReset.getTime()).toBeGreaterThan(Date.now());
+	});
+
+	it("decrement y reset son best-effort y no lanzan", async () => {
+		await expect(brokenContext().decrement("client")).resolves.toBeUndefined();
+		await expect(brokenContext().reset()).resolves.toBeUndefined();
 	});
 });

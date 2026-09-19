@@ -53,3 +53,47 @@ jobs:
 
       - name: Build
         run: bunx turbo run build
+
+      # Boots the API the way production does and requires a real HTTP response.
+      # This is the only gate that catches boot-time crashes that types, lint
+      # and unit tests cannot see (e.g. a plugin evaluated at import time).
+      - name: Boot smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/api
+          NODE_ENV=production \
+          PORT=3099 \
+          DATABASE_URL=postgres://ci:ci@127.0.0.1:1/ci \
+          BETTER_AUTH_SECRET=ci-smoke-secret \
+          API_URL=http://localhost:3001 \
+          ADMIN_URL=http://localhost:3002 \
+          STORE_URL=http://localhost:3003 \
+          LANDING_URL=http://localhost:3000 \
+          R2_ACCOUNT_ID=ci R2_ACCESS_KEY_ID=ci R2_SECRET_ACCESS_KEY=ci \
+          R2_BUCKET_NAME=ci R2_PUBLIC_URL=http://localhost/r2 \
+          bun src/index.ts > /tmp/api-smoke.log 2>&1 &
+          SMOKE_PID=$!
+          trap 'kill "$SMOKE_PID" 2>/dev/null || true' EXIT
+
+          CODE=""
+          for _ in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "http://localhost:3099/health" || true)
+            if [ -n "$CODE" ] && [ "$CODE" != "000" ]; then
+              break
+            fi
+            if ! kill -0 "$SMOKE_PID" 2>/dev/null; then
+              echo "::error::La API murió al arrancar (NODE_ENV=production)"
+              cat /tmp/api-smoke.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if [ -z "$CODE" ] || [ "$CODE" = "000" ]; then
+            echo "::error::La API no respondió en el smoke test"
+            cat /tmp/api-smoke.log
+            exit 1
+          fi
+
+          echo "[+] API respondió con HTTP $CODE (proceso vivo)"

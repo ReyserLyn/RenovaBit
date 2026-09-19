@@ -95,7 +95,10 @@ jobs:
         run: |
           set -euo pipefail
           cd "$DEPLOY_PATH"
-          docker compose up -d
+          # --wait blocks until every service with a healthcheck reports healthy,
+          # so a crash-looping container fails the deploy and the rollback step
+          # takes over (a "running" container is not enough).
+          docker compose up -d --wait --wait-timeout 120
 
       - name: Verificar containers activos
         shell: bash

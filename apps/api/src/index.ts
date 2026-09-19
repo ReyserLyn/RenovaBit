@@ -1,3 +1,4 @@
+import "@/bootstrap";
 import "@/jobs";
 import { Elysia } from "elysia";
 import { modules } from "./modules";

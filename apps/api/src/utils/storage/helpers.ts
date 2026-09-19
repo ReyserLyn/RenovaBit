@@ -2,10 +2,12 @@ import {
 	CopyObjectCommand,
 	DeleteObjectCommand,
 	DeleteObjectsCommand,
+	HeadObjectCommand,
 	ListObjectsV2Command,
 	PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { nanoid } from "nanoid";
 import { logger } from "@/utils/logger";
 import { R2_BUCKET_NAME, R2_PUBLIC_URL, r2Client } from "./client";
@@ -13,7 +15,13 @@ import { R2_BUCKET_NAME, R2_PUBLIC_URL, r2Client } from "./client";
 // ── Constants ──────────────────────────────────────
 
 const PRESIGN_EXPIRY_SECONDS = 300; // 5 minutos
-/** Max upload size enforced by R2 (10 MB) — rejects oversized uploads at the edge. */
+/**
+ * Maximum size for a single upload (10 MB).
+ *
+ * Enforced when a pending object is materialized (`moveObject`): a presigned
+ * PUT cannot carry a size range, so the object is measured at the single point
+ * where it becomes reachable.
+ */
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 /**
@@ -69,7 +77,6 @@ export function extractKeyFromUrl(url: string): string | null {
 export async function generatePresignUrl(
 	filename: string,
 	contentType: string,
-	maxSizeBytes: number = MAX_UPLOAD_BYTES,
 ): Promise<{
 	uploadUrl: string;
 	publicUrl: string;
@@ -105,6 +112,24 @@ export async function generatePresignUrl(
  * Preserva Content-Type y metadata.
  */
 export async function moveObject(sourceKey: string, destinationKey: string): Promise<void> {
+	// Presigned PUTs cannot carry a size range, so the object is measured here —
+	// the single point where a pending upload becomes reachable. Oversize
+	// uploads are deleted and rejected with a client error.
+	const head = await r2Client.send(
+		new HeadObjectCommand({ Bucket: R2_BUCKET_NAME, Key: sourceKey }),
+	);
+	const size = head.ContentLength ?? 0;
+
+	if (size > MAX_UPLOAD_BYTES) {
+		await r2Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: sourceKey }));
+		throw createApiError({
+			code: BackendErrorCodes.UNPROCESSABLE_ENTITY,
+			message: `El archivo supera el máximo permitido (${Math.round(MAX_UPLOAD_BYTES / (1024 * 1024))} MB)`,
+			logLevel: "info",
+			doNotLog: true,
+		});
+	}
+
 	await r2Client.send(
 		new CopyObjectCommand({
 			Bucket: R2_BUCKET_NAME,

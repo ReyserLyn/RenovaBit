@@ -1,4 +1,4 @@
-import { BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
+import { ApiError, BackendErrorCodes, createApiError } from "@renovabit/backend-errors";
 import { db } from "@renovabit/db";
 import { productImages, products } from "@renovabit/db/schema";
 import type { InferSelectModel } from "drizzle-orm";
@@ -68,6 +68,10 @@ async function resolveImageUrl(
 		await moveObject(key, permanentKey);
 		return getPublicUrl(permanentKey);
 	} catch (error) {
+		// Client errors (e.g. an oversize upload rejected by moveObject) must
+		// reach the caller; only genuine storage hiccups degrade to keeping the
+		// pending URL.
+		if (error instanceof ApiError) throw error;
 		logger
 			.withError(error)
 			.warn(`[R2] No se pudo resolver imagen products/${productId}/${imageId}`);
