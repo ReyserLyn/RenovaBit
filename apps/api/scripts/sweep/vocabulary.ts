@@ -113,7 +113,12 @@ async function main() {
 	console.log(`[sweep/vocabulary] ${APPLY ? "APLICANDO" : "DRY-RUN"} (${BATCH})\n`);
 
 	const existing = await db
-		.select({ id: categories.id, name: categories.name, parentId: categories.parentId })
+		.select({
+			id: categories.id,
+			name: categories.name,
+			parentId: categories.parentId,
+			path: categories.path,
+		})
 		.from(categories);
 	const byName = new Map(existing.map((row) => [row.name, row]));
 	const bySlug = new Map(existing.map((row) => [slugOf(row.name), row]));
@@ -131,6 +136,10 @@ async function main() {
 					name: target.name,
 					slug: slugOf(target.name),
 					parentId: parent?.id ?? null,
+					// `path` is a materialized ancestor chain used by the descendant
+					// filter and the storefront breadcrumb: a direct insert must keep
+					// it or the category renders with the wrong depth and no ancestors.
+					path: parent ? `${parent.path ?? "/"}${parent.id}/` : "/",
 					isActive: true,
 				})
 				.returning({ id: categories.id, name: categories.name });

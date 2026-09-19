@@ -33,7 +33,12 @@ async function main() {
 	console.log(`[sweep/cleanup] ${APPLY ? "APLICANDO" : "DRY-RUN"}\n`);
 
 	const categoryRows = await db
-		.select({ id: categories.id, name: categories.name, parentId: categories.parentId })
+		.select({
+			id: categories.id,
+			name: categories.name,
+			parentId: categories.parentId,
+			path: categories.path,
+		})
 		.from(categories);
 	const byName = new Map(categoryRows.map((row) => [row.name, row]));
 	const childrenOf = new Map<string, number>();
@@ -58,7 +63,10 @@ async function main() {
 	if (focos && equipos && focos.parentId !== equipos.id) {
 		console.log(`1) Mover "Focos Smart" → bajo "Equipos"`);
 		if (APPLY) {
-			await db.update(categories).set({ parentId: equipos.id }).where(eq(categories.id, focos.id));
+			await db
+				.update(categories)
+				.set({ parentId: equipos.id, path: `${equipos.path ?? "/"}${equipos.id}/` })
+				.where(eq(categories.id, focos.id));
 		}
 		// Keep the in-memory view in sync so later steps and the final check
 		// describe the plan, not the pre-change state.
@@ -133,6 +141,37 @@ async function main() {
 		for (const leaf of emptyLeaves) {
 			await db.delete(categories).where(eq(categories.id, leaf.id));
 		}
+	}
+
+	// ── 5b. Repair materialized paths (recursive) ──────────────────────────
+	// Direct SQL writes (scripts, migrations) can leave `path` stale, and both
+	// the descendant filter and the storefront breadcrumb read it. A single-table
+	// self-join only fixes direct children (it reads the pre-update snapshot), so
+	// the rebuild walks the whole tree with a recursive CTE.
+	const staleRows = (await db.execute(
+		sql`WITH RECURSIVE tree AS (
+				SELECT id, parent_id, '/'::text AS correct_path FROM categories WHERE parent_id IS NULL
+				UNION ALL
+				SELECT c.id, c.parent_id, t.correct_path || c.parent_id::text || '/'
+				FROM categories c JOIN tree t ON c.parent_id = t.id
+			)
+			SELECT count(*)::int AS n FROM tree t JOIN categories c ON c.id = t.id
+			WHERE c.path IS DISTINCT FROM t.correct_path`,
+	)) as unknown as Array<{ n: number }>;
+	const staleCount = Number(staleRows[0]?.n ?? 0);
+
+	console.log(`\n5b) Reparar rutas materializadas desactualizadas: ${staleCount}`);
+	if (APPLY && staleCount > 0) {
+		await db.execute(
+			sql`WITH RECURSIVE tree AS (
+					SELECT id, parent_id, '/'::text AS correct_path FROM categories WHERE parent_id IS NULL
+					UNION ALL
+					SELECT c.id, c.parent_id, t.correct_path || c.parent_id::text || '/'
+					FROM categories c JOIN tree t ON c.parent_id = t.id
+				)
+				UPDATE categories c SET path = t.correct_path
+				FROM tree t WHERE c.id = t.id AND c.path IS DISTINCT FROM t.correct_path`,
+		);
 	}
 
 	// ── 6. Verify the parent rule ─────────────────────────────────────────

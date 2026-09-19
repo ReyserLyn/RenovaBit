@@ -8,7 +8,12 @@ import { processEntityImage } from "@/modules/image-processing/service";
 import { handleUniqueViolation, makeSlug } from "@/utils/db-helpers";
 import { logger } from "@/utils/logger";
 import { getReservedStockSubquery } from "@/utils/stock";
-import { deleteEntityFolder, deleteEntityImage, resolveEntityImage } from "@/utils/storage/helpers";
+import {
+	deleteEntityFolder,
+	deleteEntityImage,
+	isPendingUrl,
+	resolveEntityImage,
+} from "@/utils/storage/helpers";
 import type {
 	AdminCategoryTree,
 	BreadcrumbItem,
@@ -266,7 +271,9 @@ async function getTreePublic(brandSlugs?: string[]): Promise<PublicCategoryTree[
 		db
 			.select()
 			.from(categories)
-			.where(eq(categories.isActive, true))
+			// isVisibleInNav was written by the admin and never read publicly, so the
+			// toggle was a promise it did not keep.
+			.where(and(eq(categories.isActive, true), eq(categories.isVisibleInNav, true)))
 			.orderBy(asc(categories.sortOrder), asc(categories.name)),
 		getProductCounts(brandSlugs),
 	]);
@@ -524,9 +531,9 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 
 	const { normalize, ...dataWithoutNormalize } = data;
 	const newImageUrl = data.imageUrl;
-	if (newImageUrl !== undefined && newImageUrl !== current.imageUrl) {
-		await deleteEntityImage(current.imageUrl);
-	}
+	const replacingImage = newImageUrl !== undefined && newImageUrl !== current.imageUrl;
+	// The previous image is deleted later, only once the new one is materialized:
+	// deleting first loses the picture when resolving the replacement fails.
 
 	const baseUpdate = {
 		...dataWithoutNormalize,
@@ -538,6 +545,27 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 
 	return db
 		.transaction(async (tx) => {
+			// Serialize structural moves: the cycle check and the write must be one
+			// decision, or two concurrent moves each pass the check and commit a
+			// cycle (a subtree unreachable from the root).
+			await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('categories_tree'))`);
+
+			if (parentChanged && data.parentId) {
+				const [freshParent] = await tx
+					.select({ path: categories.path })
+					.from(categories)
+					.where(eq(categories.id, data.parentId))
+					.limit(1);
+				if (parsePathAncestorIds(freshParent?.path ?? null).includes(id)) {
+					throw createApiError({
+						code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+						message: "No se puede mover una categoría bajo uno de sus descendientes",
+						logLevel: "info",
+						doNotLog: true,
+					});
+				}
+			}
+
 			const [updated] = await tx
 				.update(categories)
 				.set(baseUpdate)
@@ -590,12 +618,30 @@ async function update(id: string, data: UpdateBody, userId: string): Promise<Cat
 		.then(async (updated) => {
 			if (newImageUrl) {
 				const permanentUrl = await resolveCategoryImage(newImageUrl, updated.id, normalize);
-				if (permanentUrl && permanentUrl !== newImageUrl) {
+
+				if (permanentUrl && !isPendingUrl(permanentUrl)) {
 					await db
 						.update(categories)
 						.set({ imageUrl: permanentUrl })
 						.where(eq(categories.id, updated.id));
 					updated.imageUrl = permanentUrl;
+
+					// The new image is stored: only now the previous one can be removed.
+					if (replacingImage) {
+						await deleteEntityImage(current.imageUrl);
+					}
+				} else {
+					// The move to permanent storage failed: restore the previous image
+					// instead of pointing the category at a pending object that the
+					// cleanup job will delete.
+					await db
+						.update(categories)
+						.set({ imageUrl: current.imageUrl })
+						.where(eq(categories.id, updated.id));
+					updated.imageUrl = current.imageUrl;
+					logger
+						.withMetadata({ categoryId: updated.id })
+						.warn("[categories] la imagen nueva no se pudo materializar; se conserva la anterior");
 				}
 			}
 			return updated;
@@ -615,6 +661,23 @@ async function deleteById(id: string): Promise<Category> {
 					code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
 					message:
 						"No se puede eliminar una categoría con descendientes. Elimina los hijos primero.",
+					logLevel: "info",
+					doNotLog: true,
+				});
+			}
+
+			// products.categoryId is ON DELETE SET NULL: deleting the category would
+			// silently unlink every product from it, so the delete is blocked instead.
+			const [linked] = await tx
+				.select({ id: products.id })
+				.from(products)
+				.where(eq(products.categoryId, id))
+				.limit(1);
+			if (linked) {
+				throw createApiError({
+					code: BackendErrorCodes.INPUT_VALIDATION_ERROR,
+					message:
+						"No se puede eliminar una categoría con productos. Muévelos a otra categoría primero.",
 					logLevel: "info",
 					doNotLog: true,
 				});

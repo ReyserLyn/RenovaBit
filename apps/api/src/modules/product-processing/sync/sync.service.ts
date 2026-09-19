@@ -266,7 +266,14 @@ async function findOrCreateCategory(name: string, context: SyncContext): Promise
 
 	const [created] = await db
 		.insert(categories)
-		.values({ name: cleanName, slug: categorySlug, isActive: true })
+		.values({
+			name: cleanName,
+			slug: categorySlug,
+			isActive: true,
+			// Root leaf created by the sync: the materialized ancestor path is just
+			// the root marker, and leaving it NULL breaks depth and breadcrumbs.
+			path: "/",
+		})
 		.onConflictDoNothing({ target: categories.slug })
 		.returning({ id: categories.id });
 	if (created) {
