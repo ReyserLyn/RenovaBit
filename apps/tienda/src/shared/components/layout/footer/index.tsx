@@ -88,6 +88,10 @@ const socialLinks = [
 	},
 ] as const;
 
+/** Landing de servicio técnico: enlace de vuelta con UTM para atribución. */
+const SERVICE_URL =
+	"https://renovabit.com/servicios/servicio-tecnico/?utm_source=tienda&utm_medium=footer&utm_campaign=servicio-tecnico";
+
 // ── Sub-components ──────────────────────────────────────
 
 function SocialLinks() {
@@ -236,6 +240,14 @@ export default function Footer() {
 
 						<div>
 							<LinkColumn title="Información" links={infoLinks} />
+							<a
+								href={SERVICE_URL}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-muted-foreground hover:text-primary mt-2 inline-block text-sm transition-colors duration-200"
+							>
+								Servicio técnico
+							</a>
 						</div>
 					</div>
 				</div>
